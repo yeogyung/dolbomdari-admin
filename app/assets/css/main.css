@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* 브랜드 컬러 (#0370FF) 팔레트 — primary 로 사용 */
+@theme static {
+  --color-brand-50: #e6f0ff;
+  --color-brand-100: #cce0ff;
+  --color-brand-200: #99c2ff;
+  --color-brand-300: #66a3ff;
+  --color-brand-400: #3385ff;
+  --color-brand-500: #0370ff;
+  --color-brand-600: #025cd6;
+  --color-brand-700: #0247a8;
+  --color-brand-800: #013377;
+  --color-brand-900: #01234d;
+  --color-brand-950: #011533;
+}
