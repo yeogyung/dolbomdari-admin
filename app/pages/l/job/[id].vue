@@ -70,10 +70,13 @@ onMounted(() => {
   window.addEventListener('pagehide', cancelFallback)
   window.addEventListener('blur', cancelFallback)
 
-  // 일정 시간 뒤에도 페이지가 살아있으면(미설치) 스토어로 이동
+  // 일정 시간 뒤에도 페이지가 살아있으면(미설치) 스토어로 이동.
+  // 앱 전환 프롬프트가 느리게 뜨는 경우를 감안해 여유를 두고(2.5s),
+  // 리다이렉트 직전 한 번 더 확인해 앱으로 넘어갔으면(page hidden) 스토어로 보내지 않음.
   fallbackTimer = setTimeout(() => {
+    if (document.hidden) return
     window.location.replace(target)
-  }, 1500)
+  }, 2500)
 })
 
 onBeforeUnmount(() => {
