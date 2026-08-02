@@ -9,8 +9,8 @@ const deepLink = computed(() => `dolbomdari://job/${id.value}`)
 
 const PLAY_STORE_URL =
   'https://play.google.com/store/apps/details?id=kr.carebridges.www.app'
-// iOS App Store URL — 스토어 등록 후 채워넣기. 비어 있으면 iOS는 안내만 표시하고 자동 이동을 생략.
-const APP_STORE_URL_IOS = ''
+// iOS App Store URL — 비어 있으면 iOS는 안내만 표시하고 자동 이동을 생략.
+const APP_STORE_URL_IOS = 'https://apps.apple.com/app/id6755586500'
 
 type Platform = 'ios' | 'android' | 'other'
 const platform = ref<Platform>('other')
