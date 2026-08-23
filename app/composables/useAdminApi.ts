@@ -79,5 +79,53 @@ export function useAdminApi() {
     })
   }
 
-  return { list, get, create, update, remove }
+  /** 대시보드 KPI 집계 */
+  async function statsSummary(): Promise<Record<string, number>> {
+    return await $fetch('/api/admin/stats/summary', { headers: await authHeader() })
+  }
+
+  /** 커스텀 운영 액션 (server/api/admin/actions/*) */
+  async function action(path: string, body: Record<string, any>): Promise<any> {
+    return await $fetch(`/api/admin/actions/${path}`, {
+      method: 'POST',
+      headers: await authHeader(),
+      body,
+    })
+  }
+
+  /** 어드민 접근 계정 목록 */
+  async function listAdmins(): Promise<ListResult> {
+    return await $fetch('/api/admin/admins', { headers: await authHeader() })
+  }
+
+  /** 어드민 접근 계정 생성 */
+  async function createAdmin(body: { email: string; password: string }): Promise<any> {
+    return await $fetch('/api/admin/admins', {
+      method: 'POST',
+      headers: await authHeader(),
+      body,
+    })
+  }
+
+  /** 어드민 접근 권한 해제 */
+  async function revokeAdmin(id: string): Promise<any> {
+    return await $fetch('/api/admin/admins', {
+      method: 'DELETE',
+      headers: await authHeader(),
+      query: { id },
+    })
+  }
+
+  return {
+    list,
+    get,
+    create,
+    update,
+    remove,
+    statsSummary,
+    action,
+    listAdmins,
+    createAdmin,
+    revokeAdmin,
+  }
 }

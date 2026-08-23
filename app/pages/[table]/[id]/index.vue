@@ -95,6 +95,8 @@ async function onDelete() {
 
       <!-- 종사자: 북마크·공고 열람·연락처 확인 기록 -->
       <WorkerRelations v-if="tableName === 'users'" :user-id="id" class="mt-4" />
+      <JobRelations v-if="tableName === 'jobs'" :job-id="id" class="mt-4" />
+      <OrgRelations v-if="tableName === 'organization'" :organization-id="id" class="mt-4" />
     </template>
     <p v-else class="text-gray-400">데이터를 찾을 수 없습니다.</p>
   </div>

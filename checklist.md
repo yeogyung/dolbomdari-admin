@@ -1,46 +1,69 @@
-# 어드민 웹 구축 체크리스트
+# 통합 어드민 디자인 개편 체크리스트
 
-## 설정
-- [x] @nuxt/ui, @supabase/supabase-js, xlsx 설치
-- [x] nuxt.config.ts (모듈, runtimeConfig, ssr:false, colorMode)
-- [x] .env / .env.example
-- [x] app/assets/css/main.css (tailwind + nuxt ui)
-- [x] app.vue (UApp 래퍼)
+브랜치: `feat/admin-redesign` · 계획서: `~/.claude/plans/iridescent-painting-mountain.md`
 
-## 데이터 정의
-- [x] shared/tables.ts 테이블 레지스트리 (10개 테이블)
+## Phase 0 — 토큰/폰트
+- [x] `nuxt.config.ts` components pathPrefix:false
+- [x] `main.css` 디자인 토큰(red brand + 상태색 + warm neutral) + 폰트(Inter/Noto Sans KR)
+- [x] `app.config.ts` primary=brand + success/warning/info 매핑
 
-## 서버 계층
-- [x] server/utils/admin.ts (serviceClient, requireAdmin, assertTable, sanitizePayload)
-- [x] server/api/admin/[table]/index.get.ts (목록 + 페이지네이션 + 검색 + all)
-- [x] server/api/admin/[table]/index.post.ts (생성)
-- [x] server/api/admin/[table]/[id].get.ts (단건)
-- [x] server/api/admin/[table]/[id].put.ts (수정)
-- [x] server/api/admin/[table]/index.delete.ts (삭제 — 복합키 지원)
+## Phase 1 — 컴포넌트 라이브러리 (원자 → 유기체 → 템플릿)
+### 원자 (app/components/atoms)
+- [x] AppButton (variant: solid/soft/outline/ghost, color, size, loading, icon)
+- [x] IconButton
+- [x] StatusBadge (green/red/amber/blue/gray + dot)
+- [x] Tag
+- [x] Card
+- [x] Divider
+- [x] PageTitle (제목 + 설명 + 우측 액션 슬롯)
+- [x] EmptyState
+- [x] AppSpinner (기존 Spinner 대체)
+- [x] FormField (label + hint + error 래퍼)
+- [x] TextField / SelectField / DateField / AppTextarea
+- [x] Toggle / Checkbox
+- [x] SearchInput
+- [x] Avatar
 
-## 클라이언트 계층
-- [x] app/composables/useSupabase.ts (anon 클라이언트)
-- [x] app/composables/useAdminApi.ts (토큰 첨부 $fetch)
-- [x] app/utils/excel.ts (SheetJS .xlsx)
-- [x] app/middleware/auth.global.ts
+### 유기체 (app/components/organisms)
+- [x] AppSidebar (앱 스위처 + 앱별 네비, shared/nav.ts)
+- [x] AppTopbar (사용자·로그아웃)
+- [x] DataTable (툴바: 검색·페이지크기·엑셀 + 넘버링·정렬·행액션 + 페이지네이션)
+- [x] StatCard (KPI)
+- [ ] AppModal / ConfirmDialog
+- [ ] RecordForm (재작성)
+- [ ] ChatPanel (방 목록 + 대화)
+- [ ] MobileBlock ("PC에서 이용해 주세요")
 
-## 페이지
-- [x] app/layouts/default.vue (사이드바 + 헤더)
-- [x] app/components/RecordForm.vue (공용 폼)
-- [x] app/pages/login.vue
-- [x] app/pages/index.vue (대시보드)
-- [x] app/pages/[table]/index.vue (목록)
-- [x] app/pages/[table]/new.vue (생성)
-- [x] app/pages/[table]/[id].vue (수정/삭제)
+### 템플릿 (app/components/templates)
+- [x] AdminShell (Sidebar + Topbar + 본문)
+- [ ] ListPage / DetailPage / FormPage / DashboardPage / MobileAttendancePage
 
-## 검증
-- [x] npm run build 성공, 빌드 에러 없음
-- [x] dev 서버 기동, 로그인 페이지 렌더링(라이트 모드)
-- [x] 미인증 API 접근 → 401 확인
-- [ ] (사용자 키 필요) 로그인 → 목록 → 페이지네이션 → 엑셀 → CRUD 라운드트립
-- [ ] (사용자 키 필요) 비관리자 이메일 로그인 시 403 확인
+## Phase 2 — 셸
+- [x] shared/nav.ts (apps → sections → items)
+- [x] default.vue → AdminShell 사용
+- [x] 1024↓ 사이드바 햄버거
 
-## 사용자 후속 작업
-- [ ] .env 에 NUXT_SUPABASE_SERVICE_ROLE_KEY 채우기 (Supabase 대시보드 > Settings > API)
-- [ ] .env 에 NUXT_ADMIN_EMAILS 채우기 (관리자 이메일)
-- [ ] Supabase Auth 에 관리자 이메일/비밀번호 계정 생성
+## Phase 3 — 공고추천 재스킨
+- [x] `/[table]` 목록 → DataTable
+- [ ] 상세/edit/new → 새 폼·상세 컴포넌트
+- [x] 대시보드 → StatCard
+- [ ] Relations 3종 재스킨
+
+## Phase 4 — 시니어 앱 신규(목데이터)
+- [ ] app/mocks/senior/*.ts
+- [ ] /senior 대시보드(오늘 출결)
+- [ ] /senior/workers (+[id])
+- [ ] /senior/worksites (+[id], /new)
+- [ ] /senior/attendance (목록·수정)
+- [ ] /senior/notices (+/new)
+- [ ] /senior/accounts
+- [ ] /senior/chat
+- [ ] 모바일: 출퇴근 3화면 + 그 외 MobileBlock
+
+## Phase 5 — 검증
+- [ ] npm run dev 전체 동작
+- [ ] 타입 체크
+
+## 디자인 대조 (HTML 시안 vs 구현)
+- [x] 1차 대조 에이전트 → 불일치 수정(브랜드 blue, Noto600, 사이드바 계정, 테이블 체크박스/상세, 버튼 웨이트, 배지 패딩, 페이지네이션 웨이트)
+- [x] 2차 대조 에이전트 → 7건 반영 확인, hover/미세편차 정리 → 정적 화면 시안과 통일

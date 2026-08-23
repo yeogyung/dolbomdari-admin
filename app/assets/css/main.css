@@ -1,17 +1,65 @@
+/* 통합 어드민 전역 스타일 — 디자인 토큰(색/폰트) + Tailwind/@nuxt/ui
+   토큰 출처: 받은 시안(Institutional Exchange 디자인 시스템). primary=blue #0370ff */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "@nuxt/ui";
 
-/* 브랜드 컬러 (#0370FF) 팔레트 — primary 로 사용 */
 @theme static {
-  --color-brand-50: #e6f0ff;
-  --color-brand-100: #cce0ff;
-  --color-brand-200: #99c2ff;
-  --color-brand-300: #66a3ff;
-  --color-brand-400: #3385ff;
+  /* 폰트: Inter(라틴·숫자) 우선 + Noto Sans KR(한글) */
+  --font-sans: 'Inter', 'Noto Sans KR', -apple-system, system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+
+  /* 브랜드 blue — primary (로고 샘플 #0370ff) */
+  --color-brand-50: #eaf2ff;
+  --color-brand-100: #d3e4ff;
+  --color-brand-200: #b8d3ff;
+  --color-brand-300: #81b7ff;
+  --color-brand-400: #3d92ff;
   --color-brand-500: #0370ff;
   --color-brand-600: #025cd6;
   --color-brand-700: #0247a8;
   --color-brand-800: #013377;
   --color-brand-900: #01234d;
   --color-brand-950: #011533;
+
+  /* 브랜드 연한 표면 (active nav / 링크 배지) */
+  --color-brand-soft: #eaf2ff;
+
+  /* 시맨틱: 상승/하락 — 텍스트 색 위주(디자인 규칙), 배지 배경은 -soft */
+  --color-up: #05b169;
+  --color-up-soft: #e6f7f0;
+  --color-down: #cf202f;
+  --color-down-soft: #fdeaec;
+  --color-accent: #f4b000;
+
+  /* 텍스트 */
+  --color-ink: #0a0b0d;
+  --color-body: #5b616e;
+  --color-muted: #7c828a;
+  --color-muted-soft: #a8acb3;
+
+  /* 표면 / 헤어라인 */
+  --color-canvas: #ffffff;
+  --color-surface-soft: #f7f7f7;
+  --color-surface-strong: #eef0f3;
+  --color-hairline: #dee1e6;
+  --color-hairline-soft: #eef0f3;
+}
+
+/* 전역 기본 */
+html,
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-body);
+  font-family: var(--font-sans);
+  letter-spacing: -0.005em;
+  word-break: keep-all;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 숫자·표는 등폭 숫자 */
+.tabular-nums,
+table,
+td,
+th {
+  font-variant-numeric: tabular-nums;
 }

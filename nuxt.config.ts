@@ -6,6 +6,8 @@ export default defineNuxtConfig({
   ssr: false,
   modules: ['@nuxt/ui'],
   css: ['~/assets/css/main.css'],
+  // 아토믹 3단계 구조 — 폴더 프리픽스 없이 컴포넌트명 그대로 사용 (<AppButton> 등)
+  components: [{ path: '~/components', pathPrefix: false }],
   // 라이트 모드 고정 (레이아웃이 라이트 기준)
   colorMode: { preference: 'light', fallback: 'light' },
   runtimeConfig: {

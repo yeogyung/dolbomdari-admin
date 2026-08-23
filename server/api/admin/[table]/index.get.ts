@@ -58,5 +58,25 @@ export default defineEventHandler(async (event) => {
   if (error) {
     throw createError({ statusCode: 500, statusMessage: error.message })
   }
-  return { rows: data ?? [], total: count ?? 0 }
+
+  const rows = data ?? []
+
+  // 외래키(난수 UUID) → 참조 테이블 이름으로 해석하여 `${column}__ref` 컬럼 추가
+  if (def.refs?.length && rows.length) {
+    const db = serviceClient()
+    for (const rf of def.refs) {
+      const ids = [...new Set(rows.map((r) => r[rf.column]).filter(Boolean))]
+      if (!ids.length) continue
+      const map = new Map<string, unknown>()
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200)
+        const { data: refRows } = await db.from(rf.table).select(`id,${rf.field}`).in('id', chunk)
+        for (const rr of refRows ?? []) map.set((rr as any).id, (rr as any)[rf.field])
+      }
+      const key = `${rf.column}__ref`
+      for (const r of rows) r[key] = map.get(r[rf.column]) ?? r[rf.column] ?? null
+    }
+  }
+
+  return { rows, total: count ?? 0 }
 })

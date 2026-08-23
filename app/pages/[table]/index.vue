@@ -1,11 +1,14 @@
-<!-- 테이블 목록 — 넘버링 + 정렬 + 검색 + 상세 보기 + 엑셀 + (공고)출처 탭 + 행별 수정/삭제 -->
+<!-- 테이블 목록 — 헤더(상단바) + 툴바(검색·탭) + DataTable(정렬·페이지네이션·엑셀·행 액션) -->
 <script setup lang="ts">
+import { ref, computed, watch, watchEffect, onMounted } from 'vue'
 import { getTable } from '#shared/tables'
 import { downloadExcel, type ExcelColumn } from '~/utils/excel'
+import type { Column } from '~/types/table'
 
 const route = useRoute()
 const api = useAdminApi()
 const toast = useToast()
+const { setHeader } = useAdminHeader()
 
 const tableName = computed(() => String(route.params.table))
 const def = computed(() => getTable(tableName.value))
@@ -18,35 +21,32 @@ const q = ref('')
 const loading = ref(false)
 const exporting = ref(false)
 
-// 정렬 상태 (빈 값이면 서버 기본 정렬)
 const sortCol = ref('')
 const sortDir = ref<'asc' | 'desc'>('asc')
 
-// 공고 출처 탭: all | user(직접등록) | auto(자동수집)
 const sourceTab = ref<'all' | 'user' | 'auto'>('all')
 const isJobs = computed(() => tableName.value === 'jobs')
 
-// 상세 보기 슬라이드오버
 const detailOpen = ref(false)
 const detailRow = ref<Record<string, any> | null>(null)
 
-// 표시 컬럼: 난수 id 제외 (넘버링으로 대체)
-const columns = computed<string[]>(() => {
-  const base = def.value?.listColumns ?? (rows.value[0] ? Object.keys(rows.value[0]) : [])
-  return base.filter((c) => c !== 'id')
-})
-
 function labelFor(col: string): string {
+  const ref = def.value?.refs?.find((r) => `${r.column}__ref` === col)
+  if (ref) return ref.label
   return def.value?.fields.find((f) => f.name === col)?.label || col
 }
 
-function display(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—'
-  if (Array.isArray(value)) return value.join(', ')
-  if (typeof value === 'boolean') return value ? '✓' : '✗'
-  const s = String(value)
-  return s.length > 60 ? s.slice(0, 60) + '…' : s
-}
+const tableColumns = computed<Column[]>(() => {
+  const base = def.value?.listColumns ?? (rows.value[0] ? Object.keys(rows.value[0]) : [])
+  return base
+    .filter((c) => c !== 'id')
+    .map((key, idx) => ({
+      key,
+      label: labelFor(key),
+      sortable: !key.endsWith('__ref'), // 해석 컬럼은 서버 정렬 불가
+      strong: idx === 0,
+    }))
+})
 
 function displayFull(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
@@ -54,10 +54,6 @@ function displayFull(value: unknown): string {
   if (typeof value === 'boolean') return value ? '✓' : '✗'
   if (typeof value === 'object') return JSON.stringify(value, null, 2)
   return String(value)
-}
-
-function rowNo(i: number): number {
-  return (page.value - 1) * pageSize.value + i + 1
 }
 
 function sourceFilter() {
@@ -93,6 +89,17 @@ function search() {
   load()
 }
 
+function changePage(p: number) {
+  page.value = p
+  load()
+}
+
+function changePageSize(size: number) {
+  pageSize.value = size
+  page.value = 1
+  load()
+}
+
 function toggleSort(col: string) {
   if (sortCol.value === col) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
@@ -110,17 +117,12 @@ function setTab(tab: 'all' | 'user' | 'auto') {
   load()
 }
 
-function openDetail(row: Record<string, any>) {
-  detailRow.value = row
-  detailOpen.value = true
-}
-
-// 단일키 테이블은 상세 페이지로 이동, 복합키(로그)는 슬라이드오버로 표시
 function goDetail(row: Record<string, any>) {
   if (def.value?.pk.length === 1) {
     navigateTo(`/${tableName.value}/${encodeURIComponent(pkValue(row))}`)
   } else {
-    openDetail(row)
+    detailRow.value = row
+    detailOpen.value = true
   }
 }
 
@@ -158,6 +160,10 @@ const canEdit = computed(() => def.value?.mode === 'crud' && def.value.pk.length
 const canCreate = computed(() => def.value?.mode === 'crud' && def.value.canCreate)
 const pkValue = (row: Record<string, any>) => String(row[def.value!.pk[0]!])
 
+watchEffect(() => {
+  if (def.value) setHeader(def.value.label)
+})
+
 watch(() => route.params.table, () => {
   page.value = 1
   q.value = ''
@@ -166,126 +172,96 @@ watch(() => route.params.table, () => {
   rows.value = []
   load()
 })
-watch(page, load)
 onMounted(load)
 </script>
 
 <template>
-  <div v-if="!def">
-    <p class="text-red-600">알 수 없는 테이블입니다.</p>
-  </div>
-  <div v-else>
-    <div class="mb-4 flex items-center justify-between gap-3">
-      <h1 class="text-xl font-bold">{{ def.label }}</h1>
-      <div class="flex items-center gap-2">
-        <UButton :loading="exporting" variant="outline" color="neutral" icon="i-heroicons-arrow-down-tray" @click="exportExcel">
-          엑셀 다운로드
-        </UButton>
-        <UButton v-if="canCreate" :to="`/${tableName}/new`" color="primary" icon="i-heroicons-plus">
-          새로 만들기
-        </UButton>
-      </div>
-    </div>
+  <div v-if="!def" class="text-down">알 수 없는 테이블입니다.</div>
+  <div v-else class="flex min-h-[calc(100vh-8rem)] flex-col">
+    <!-- 상단바 액션 -->
+    <Teleport to="#admin-topbar-actions">
+      <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" @click="exportExcel">
+        엑셀 다운로드
+      </AppButton>
+      <AppButton v-if="canCreate" icon="i-lucide-plus" :to="`/${tableName}/new`">
+        새로 만들기
+      </AppButton>
+    </Teleport>
 
-    <!-- 공고 출처 탭 -->
-    <div v-if="isJobs" class="mb-3 flex gap-1">
-      <UButton
-        v-for="t in [{ k: 'all', l: '전체' }, { k: 'user', l: '사용자 생성' }, { k: 'auto', l: '자동 생성' }]"
-        :key="t.k"
-        size="sm"
-        :variant="sourceTab === t.k ? 'solid' : 'ghost'"
-        :color="sourceTab === t.k ? 'primary' : 'neutral'"
-        @click="setTab(t.k as any)"
-      >
-        {{ t.l }}
-      </UButton>
-    </div>
-
-    <div v-if="def.searchColumns?.length" class="mb-3 flex gap-2">
-      <UInput v-model="q" placeholder="검색어" class="w-64" @keyup.enter="search" />
-      <UButton variant="soft" color="neutral" @click="search">검색</UButton>
-    </div>
-
-    <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-      <table class="min-w-full text-sm">
-        <thead class="bg-gray-50 text-left text-gray-600">
-          <tr>
-            <th class="w-14 px-3 py-2 font-medium">No.</th>
-            <th
-              v-for="col in columns"
-              :key="col"
-              class="cursor-pointer select-none whitespace-nowrap px-3 py-2 font-medium hover:text-primary-600"
-              @click="toggleSort(col)"
-            >
-              <span class="inline-flex items-center gap-1">
-                {{ labelFor(col) }}
-                <span v-if="sortCol === col" class="text-primary-600">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-              </span>
-            </th>
-            <th class="px-3 py-2 text-right font-medium">작업</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-if="loading">
-            <td :colspan="columns.length + 2"><Spinner label="불러오는 중…" /></td>
-          </tr>
-          <tr v-else-if="!rows.length">
-            <td :colspan="columns.length + 2" class="px-3 py-8 text-center text-gray-400">데이터가 없습니다.</td>
-          </tr>
-          <tr
-            v-for="(row, i) in rows"
-            :key="i"
-            class="cursor-pointer hover:bg-gray-50"
-            @click="goDetail(row)"
+    <DataTable
+      :columns="tableColumns"
+      :rows="rows"
+      :loading="loading"
+      :row-key="def.pk[0]"
+      :sort-key="sortCol"
+      :sort-dir="sortDir"
+      :page="page"
+      :page-size="pageSize"
+      :total="total"
+      selectable
+      @sort="toggleSort"
+      @update:page="changePage"
+      @update:page-size="changePageSize"
+    >
+      <template #toolbar>
+        <PillSearch
+          v-if="def.searchColumns?.length"
+          v-model="q"
+          placeholder="검색어를 입력하세요"
+          @search="search"
+        />
+        <!-- 공고 출처 필터 -->
+        <div v-if="isJobs" class="flex items-center gap-1 rounded-full border border-hairline bg-white p-1">
+          <button
+            v-for="t in [{ k: 'all', l: '전체' }, { k: 'user', l: '사용자' }, { k: 'auto', l: '자동' }]"
+            :key="t.k"
+            type="button"
+            class="rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors"
+            :class="sourceTab === t.k ? 'bg-brand-500 text-white' : 'text-body hover:text-ink'"
+            @click="setTab(t.k as any)"
           >
-            <td class="px-3 py-2 text-gray-400">{{ rowNo(i) }}</td>
-            <td v-for="col in columns" :key="col" class="whitespace-nowrap px-3 py-2 text-gray-700">
-              {{ display(row[col]) }}
-            </td>
-            <td class="whitespace-nowrap px-3 py-2 text-right" @click.stop>
-              <div class="flex justify-end gap-1">
-                <UButton size="xs" variant="ghost" color="neutral" @click="goDetail(row)">상세</UButton>
-                <UButton v-if="canEdit" size="xs" variant="ghost" :to="`/${tableName}/${encodeURIComponent(pkValue(row))}/edit`">
-                  수정
-                </UButton>
-                <UButton size="xs" variant="ghost" color="error" @click="removeRow(row)">삭제</UButton>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            {{ t.l }}
+          </button>
+        </div>
+      </template>
 
-    <div class="mt-4 flex items-center justify-between">
-      <p class="text-sm text-gray-500">총 {{ total.toLocaleString() }}건</p>
-      <UPagination v-model:page="page" :total="total" :items-per-page="pageSize" />
-    </div>
+      <template #toolbar-end>
+        <span class="text-sm text-muted tabular-nums">전체 {{ total.toLocaleString() }}건</span>
+      </template>
 
-    <!-- 상세 보기 슬라이드오버 -->
+      <template #actions="{ row }">
+        <div class="flex justify-end gap-3">
+          <button type="button" class="text-sm font-medium text-brand-500 hover:underline" @click="goDetail(row)">상세</button>
+          <NuxtLink
+            v-if="canEdit"
+            :to="`/${tableName}/${encodeURIComponent(pkValue(row))}/edit`"
+            class="text-sm font-medium text-body hover:text-ink"
+          >
+            수정
+          </NuxtLink>
+          <button type="button" class="text-sm font-medium text-down hover:underline" @click="removeRow(row)">삭제</button>
+        </div>
+      </template>
+    </DataTable>
+
+    <!-- 상세 슬라이드오버 (복합키 로그) -->
     <USlideover v-model:open="detailOpen" :title="`${def.label} 상세`">
       <template #body>
         <div v-if="detailRow" class="space-y-2 text-sm">
           <div
             v-for="(val, key) in detailRow"
             :key="key"
-            class="grid grid-cols-3 gap-2 border-b border-gray-100 py-1.5"
+            class="grid grid-cols-3 gap-2 border-b border-hairline-soft py-1.5"
           >
-            <div class="col-span-1 text-gray-500">{{ labelFor(String(key)) }}</div>
-            <div class="col-span-2 whitespace-pre-wrap break-words text-gray-800">{{ displayFull(val) }}</div>
+            <div class="col-span-1 text-muted">{{ labelFor(String(key)) }}</div>
+            <div class="col-span-2 break-words whitespace-pre-wrap text-ink">{{ displayFull(val) }}</div>
           </div>
         </div>
       </template>
       <template #footer>
         <div class="flex justify-end gap-2">
-          <UButton
-            v-if="canEdit && detailRow"
-            color="primary"
-            :to="`/${tableName}/${encodeURIComponent(pkValue(detailRow))}`"
-          >
-            수정
-          </UButton>
-          <UButton v-if="detailRow" color="error" variant="soft" @click="removeRow(detailRow)">삭제</UButton>
-          <UButton color="neutral" variant="ghost" @click="detailOpen = false">닫기</UButton>
+          <AppButton v-if="detailRow" color="down" variant="soft" size="sm" @click="removeRow(detailRow)">삭제</AppButton>
+          <AppButton color="neutral" variant="outline" size="sm" @click="detailOpen = false">닫기</AppButton>
         </div>
       </template>
     </USlideover>

@@ -58,13 +58,16 @@ export async function requireAdmin(event: H3Event): Promise<string> {
 
   const email = (data.user.email || "").toLowerCase();
   const allow = adminEmails();
-  if (allow.length === 0 || !allow.includes(email)) {
-    throw createError({
-      statusCode: 403,
-      statusMessage: "관리자 권한이 없습니다.",
-    });
+  // 관리자 판별: env allowlist(부트스트랩) 또는 app_metadata.admin === true (UI로 생성한 관리자)
+  const isMetaAdmin =
+    (data.user.app_metadata as Record<string, unknown> | undefined)?.admin === true;
+  if (isMetaAdmin || (allow.length > 0 && allow.includes(email))) {
+    return email;
   }
-  return email;
+  throw createError({
+    statusCode: 403,
+    statusMessage: "관리자 권한이 없습니다.",
+  });
 }
 
 /** 라우트 파라미터의 테이블명을 화이트리스트로 검증하고 정의를 반환한다. */
