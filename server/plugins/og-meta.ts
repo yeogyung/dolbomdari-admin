@@ -3,7 +3,7 @@ import { serviceClient } from '../utils/admin'
 
 const SITE_NAME = '돌봄다리'
 const BASE_URL = 'https://admin.carebridges.kr'
-// 카드 썸네일 — public/og-default.png (권장 1200x630) 배포 필요. 없으면 이미지 없는 카드로 표시됨.
+// 카드 썸네일 — public/og-default.png (1480x740, 카카오톡 권장 비율 2:1) 배포 필요. 없으면 이미지 없는 카드로 표시됨.
 const DEFAULT_OG_IMAGE = `${BASE_URL}/og-default.png`
 
 function esc(value: unknown): string {
