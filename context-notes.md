@@ -28,3 +28,46 @@
 - 출퇴근(attendance) 스키마 신설 필요(후속). 근무지 주소·QR·수요처담당자 컬럼 확장 필요.
 - role 4단계(schema) vs 2단계(design) 정책 조정 필요.
 - vue-tsc 미설치 → 타입 검증은 dev 빌드 또는 별도 설치.
+
+## 2026-09-03 — 시니어 어드민을 목데이터에서 실 API로 전환
+
+### 호출 경로: Nitro 프록시 없이 브라우저 → Edge Function 직접
+- `dbo-admin`은 `access-control-allow-origin: *`와 `authorization, apikey` 허용 헤더를
+  응답한다(OPTIONS 확인). 그래서 프록시 라우트를 새로 만들지 않고 브라우저에서 바로 부른다.
+- 기본 URL은 `runtimeConfig.public.supabaseUrl + '/functions/v1/dbo-admin'`로 조립한다.
+  이 어드민의 Supabase 프로젝트(`qxihbjhjiqhlqegjzvpo`)가 운영센터와 같은 프로젝트라
+  새 환경변수가 필요 없다.
+- 인증은 로그인 세션의 access token + anon key. 기존 `useAdminApi`(공고추천용 자체 서버 API,
+  service_role)와는 완전히 별도 경로다. 두 계열을 섞지 않는다.
+
+### 권한 경계 (명세 description에서 확인)
+- `master`: 전체. `worksite`: 담당 근무지의 출결·배정·근무지 읽기만.
+- 쓰기(명부·근무지·배정·사업·계정·출결 수정)는 전부 master 전용이다.
+- 화면은 역할로 버튼을 숨기지 않는다 — `/dbo-admin`에 "내 역할" 엔드포인트가 없어서
+  추측 대신 403 응답을 한국어 토스트로 보여 주는 쪽을 택했다. 역할 조회 API가 생기면
+  버튼 가시성을 그때 붙인다.
+
+### 남은 계약 공백
+- **출결 상태 코드**: 서버가 `status`를 자유 문자열로 열어 두었고(명세: "향후 업무 상태
+  확장을 위해 문자열") 어디에도 어휘가 없다. 화면은 `checked_in/checked_out/late/absent`를
+  쓰고, 응답에 모르는 코드가 오면 배지·선택지에 그 값을 그대로 노출한다. 앱의 QR 출퇴근이
+  쓰는 실제 코드와 맞는지 백엔드 확인이 필요하다. 대리 기록은 `method: 'manual'`로 남긴다.
+- **배정의 `managerProfileId`**: profile id를 주는 목록 API가 없어서(계정 목록의 `id`는
+  directory 기준) 폼에서 뺐다. 필요해지면 profiles 조회 경로가 먼저 필요하다.
+- **배정 수정 범위**: PATCH가 `directoryId`·`worksiteId`를 받지 않는다. 근무지를 바꾸려면
+  삭제 후 재등록이라고 폼에서 안내한다.
+- **역할 필터**: 명부 목록에 `role` 쿼리가 없다. 시니어/담당자 구분은 컬럼 표시만 하고,
+  근무지 담당자 셀렉트는 첫 100건을 받아 클라이언트에서 `role === 'manager'`로 좁힌다.
+  명부가 100명을 넘으면 서버 필터가 필요하다.
+- **목록 상한**: 모든 목록이 `size` 최대 100이다. 출결 엑셀과 대시보드 오늘 집계는
+  100건씩 페이지를 순회해 전량을 모은다.
+- **정렬 방향**: 목록 API가 `sort`만 받고 방향 파라미터가 없다. 테이블 헤더는 컬럼 전환만
+  하고 화살표는 오름차순 고정으로 보인다.
+
+### 기타
+- 전화번호 수정은 앱 연결이 끊기므로 필드 경고 + confirm 2중으로 막는다(명세 요구).
+- QR은 토큰 문자열 열람·복사·재발급만 제공한다. QR 이미지 렌더링 라이브러리는 새로
+  설치하지 않았다.
+- 기존 `AppButton`은 `to` prop을 받지 않는다(`<button>`에 attr로 흘러 이동이 안 된다).
+  `app/pages/[table]/index.vue`의 "새로 만들기"가 그 상태다 — 이번 변경 범위가 아니라
+  손대지 않았고, 신규 화면은 `@click="navigateTo(...)"`나 `NuxtLink`를 쓴다.

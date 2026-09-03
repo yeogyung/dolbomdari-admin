@@ -65,7 +65,7 @@ const SYSTEM_SECTION: NavSection = {
   items: [{ label: '관리자', icon: 'i-lucide-shield-check', to: '/admins' }],
 }
 
-// 시니어 출퇴근·채팅 앱 — 신규(목 데이터)
+// 시니어 출퇴근·채팅 앱 — dbo-admin API 연동
 const seniorApp: AppNav = {
   key: 'senior',
   label: '시니어 출퇴근',
@@ -76,7 +76,7 @@ const seniorApp: AppNav = {
     {
       label: '운영',
       items: [
-        { label: '시니어 관리', icon: 'i-lucide-users', to: '/senior/workers' },
+        { label: '명부 관리', icon: 'i-lucide-users', to: '/senior/workers' },
         { label: '근무지·수요처', icon: 'i-lucide-building-2', to: '/senior/worksites' },
         { label: '출퇴근 기록', icon: 'i-lucide-clock', to: '/senior/attendance' },
       ],
@@ -84,13 +84,15 @@ const seniorApp: AppNav = {
     {
       label: '소통',
       items: [
-        { label: '공지 관리', icon: 'i-lucide-megaphone', to: '/senior/notices' },
         { label: '채팅방', icon: 'i-lucide-message-square', to: '/senior/chat' },
       ],
     },
     {
       label: '설정',
-      items: [{ label: '계정·권한', icon: 'i-lucide-shield-check', to: '/senior/accounts' }],
+      items: [
+        { label: '사업 관리', icon: 'i-lucide-layers', to: '/senior/programs' },
+        { label: '계정·권한', icon: 'i-lucide-shield-check', to: '/senior/accounts' },
+      ],
     },
     SYSTEM_SECTION,
   ],
