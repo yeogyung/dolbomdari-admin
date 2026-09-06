@@ -88,14 +88,18 @@ function toggleSort(key: string) {
 
 watch(worksiteId, search)
 
-/* 집계 — 조회된 페이지 기준 */
+/* 집계 — 조회된 페이지 기준.
+ *
+ * **완료 여부는 status 가 아니라 ended_at 으로 판정한다.** 서버는 QR 출퇴근에
+ * status='present' 를 쓰고 퇴근해도 그 값을 바꾸지 않는다 — 퇴근했는지는
+ * ended_at 이 찼는지로만 알 수 있다(2026-09-06 실측: DB 에 checked_out 이 0건). */
 const summary = computed(() => {
   const stat = { total: rows.value.length, working: 0, done: 0, missing: 0 }
   for (const row of rows.value) {
     const rec = recordOf(row)
     if (!rec) stat.missing++
-    else if (rec.status === 'checked_out') stat.done++
     else if (rec.status === 'absent') stat.missing++
+    else if (rec.ended_at) stat.done++
     else stat.working++
   }
   return stat
@@ -106,7 +110,7 @@ const editOpen = ref(false)
 const saving = ref(false)
 const target = ref<AttendanceShift | null>(null)
 const form = ref({
-  status: 'checked_out',
+  status: 'present',
   startedAt: null as string | null,
   endedAt: null as string | null,
   memo: '',
@@ -116,7 +120,7 @@ function openEdit(row: AttendanceShift) {
   const rec = recordOf(row)
   target.value = row
   form.value = {
-    status: rec?.status ?? 'checked_out',
+    status: rec?.status ?? 'present',
     startedAt: toLocalInput(rec?.started_at),
     endedAt: toLocalInput(rec?.ended_at),
     memo: rec?.memo ?? '',

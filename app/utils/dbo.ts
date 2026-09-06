@@ -20,12 +20,25 @@ export function weekdaysLabel(days: number[] | null | undefined): string {
     .join('·')
 }
 
-/** 출결 상태 코드 — 서버는 문자열로 열어 두었고 화면은 이 어휘를 쓴다 */
+/**
+ * 출결 상태 코드.
+ *
+ * **서버·앱이 실제로 쓰는 값에 맞췄다.** 2026-09-06 에 운영 DB 를 실측했다 —
+ * present 204 · absent 11 · late 9 · excused 6 이고 checked_in · checked_out 은 0건이다.
+ * 서버의 QR 출퇴근이 status='present' 를 쓰고(check-in · check-out 모두),
+ * 담당자 대리 기록(PATCH /dbo/attendance/{shiftId})이 late · absent · excused 를 받는다.
+ *
+ * 예전 어휘(checked_in · checked_out)는 이 화면에만 있어서 present 와 excused 가
+ * 라벨을 못 찾고 코드 그대로 표시됐다.
+ *
+ * 출근·퇴근 시각은 status 가 아니라 started_at · ended_at 로 구분한다 —
+ * 「퇴근」이 별도 상태가 아니라 ended_at 이 찼는지의 문제다.
+ */
 export const ATTENDANCE_STATUSES = [
-  { value: 'checked_in', label: '출근' },
-  { value: 'checked_out', label: '퇴근' },
+  { value: 'present', label: '출근' },
   { value: 'late', label: '지각' },
-  { value: 'absent', label: '결근' },
+  { value: 'absent', label: '결석' },
+  { value: 'excused', label: '인정 결석' },
 ] as const
 
 export function attendanceLabel(status: string | null | undefined): string {
@@ -35,14 +48,15 @@ export function attendanceLabel(status: string | null | undefined): string {
 
 export function attendanceTone(status: string | null | undefined): 'green' | 'red' | 'amber' | 'blue' | 'gray' {
   switch (status) {
-    case 'checked_out':
+    case 'present':
       return 'green'
-    case 'checked_in':
-      return 'blue'
     case 'late':
       return 'amber'
     case 'absent':
       return 'red'
+    // 인정 결석은 결석과 뜻이 다르다. 사전 연락된 것이라 붉게 칠하지 않는다.
+    case 'excused':
+      return 'gray'
     default:
       return 'gray'
   }

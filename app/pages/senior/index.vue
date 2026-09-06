@@ -27,8 +27,9 @@ const stat = computed(() => {
   for (const row of shifts.value) {
     const rec = recordOf(row)
     if (!rec) out.missing++
-    else if (rec.status === 'checked_out') out.done++
+    // 완료는 ended_at 으로 판정한다 — status 는 퇴근해도 present 그대로다.
     else if (rec.status === 'absent') out.absent++
+    else if (rec.ended_at) out.done++
     else out.working++
   }
   return out
@@ -42,7 +43,7 @@ const attention = computed(() =>
         const s = recordOf(row)?.status
         if (!s) return 0
         if (s === 'absent') return 1
-        if (s === 'checked_in' || s === 'late') return 2
+        if (s === 'late') return 2
         return 3
       }
       return rank(a) - rank(b) || a.planned_start.localeCompare(b.planned_start)
