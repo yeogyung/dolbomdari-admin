@@ -32,7 +32,10 @@ const columns: Column[] = [
   { key: 'status', label: '상태' },
   { key: 'started_at', label: '출근' },
   { key: 'ended_at', label: '퇴근' },
+  { key: 'worked', label: '근무시간' },
   { key: 'method', label: '기록 방법' },
+  // 대리 수정 흔적. updated_by 는 어드민 PATCH 만 채운다(QR 기록은 recorded_by 만).
+  { key: 'edited', label: '수정 이력' },
   { key: 'memo', label: '메모' },
 ]
 
@@ -168,7 +171,9 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'status', label: '상태' },
   { key: 'started_at', label: '출근 시각' },
   { key: 'ended_at', label: '퇴근 시각' },
+  { key: 'worked', label: '근무시간' },
   { key: 'method', label: '기록 방법' },
+  { key: 'edited', label: '수정 이력' },
   { key: 'memo', label: '메모' },
 ]
 
@@ -184,7 +189,9 @@ function toExcelRow(row: AttendanceShift) {
     status: attendanceLabel(rec?.status),
     started_at: fmtStamp(rec?.started_at),
     ended_at: fmtStamp(rec?.ended_at),
+    worked: workedDuration(rec?.started_at, rec?.ended_at),
     method: rec?.method ?? '',
+    edited: rec?.updated_by ? `수정됨 ${fmtStamp(rec.updated_at)}` : '',
     memo: rec?.memo ?? '',
   }
 }
@@ -322,8 +329,20 @@ onMounted(() => {
       </template>
       <template #cell-started_at="{ row }">{{ fmtClock(recordOf(row)?.started_at) }}</template>
       <template #cell-ended_at="{ row }">{{ fmtClock(recordOf(row)?.ended_at) }}</template>
+      <template #cell-worked="{ row }">
+        <span class="tabular-nums">
+          {{ workedDuration(recordOf(row)?.started_at, recordOf(row)?.ended_at) }}
+        </span>
+      </template>
       <template #cell-method="{ row }">
         <span class="text-muted">{{ recordOf(row)?.method ?? '—' }}</span>
+      </template>
+      <!-- 고친 사람의 이름은 API 가 안 준다(updated_by 는 프로필 UUID 다). 시각만 적는다. -->
+      <template #cell-edited="{ row }">
+        <span v-if="recordOf(row)?.updated_by" class="text-muted">
+          수정됨 · {{ fmtStamp(recordOf(row)!.updated_at) }}
+        </span>
+        <span v-else class="text-muted">—</span>
       </template>
       <template #cell-memo="{ row }">
         <span class="text-muted">{{ recordOf(row)?.memo ?? '—' }}</span>

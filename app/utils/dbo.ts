@@ -83,6 +83,27 @@ export function hhmm(time: string | null | undefined): string {
   return time.slice(0, 5)
 }
 
+/**
+ * 근무시간 — 목업 W4 의 「3시간 58분」 칸.
+ *
+ * 출근·퇴근 시각의 차이로만 낸다. 예정 시간(planned)이 아니라 실제 기록이다.
+ * 퇴근 전이면 아직 확정된 값이 없으므로 빈 값을 낸다 — 0분으로 쓰면
+ * 근무하지 않은 것처럼 보인다.
+ */
+export function workedDuration(
+  startedAt: string | null | undefined,
+  endedAt: string | null | undefined,
+): string {
+  if (!startedAt || !endedAt) return '—'
+  const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime()
+  if (Number.isNaN(ms) || ms < 0) return '—'
+  const mins = Math.round(ms / 60000)
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h === 0) return `${m}분`
+  return `${h}시간 ${String(m).padStart(2, '0')}분`
+}
+
 /** 운영 일자는 항상 Asia/Seoul 기준 */
 export function todaySeoul(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date())
