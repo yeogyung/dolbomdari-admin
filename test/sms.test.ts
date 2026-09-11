@@ -34,4 +34,11 @@ describe('buildAuthHeader', () => {
     const b = buildAuthHeader('K', 'S2', '2026-01-01T00:00:00.000Z', 'abc')
     expect(a).not.toBe(b)
   })
+  it('운영 Deno 구현과 바이트 단위로 같은 서명을 낸다', () => {
+    // dolbomdari-server/shared/solapi.ts 를 같은 입력으로 실행해 얻은 값이다.
+    // 이 값이 달라지면 Solapi 가 모든 발송을 거부한다 — 서명 방식이 갈라졌다는 뜻이다.
+    expect(buildAuthHeader('KEY', 'SECRET', '2026-08-11T00:00:00.000Z', 'saltsaltsalt')).toBe(
+      'HMAC-SHA256 apiKey=KEY, date=2026-08-11T00:00:00.000Z, salt=saltsaltsalt, signature=b3ef547872676fc737a6ec197f93945a674ae784e2e53ec24295a3f5f7daf786',
+    )
+  })
 })
