@@ -36,12 +36,12 @@ const signedDate = computed(() => {
   <div class="resume-doc">
     <table class="doc">
       <colgroup>
-        <col style="width: 9.3%" />
-        <col style="width: 10.9%" />
-        <col style="width: 30.9%" />
-        <col style="width: 12.6%" />
-        <col style="width: 11.5%" />
-        <col style="width: 24.8%" />
+        <col style="width: 9.26%" />
+        <col style="width: 11.57%" />
+        <col style="width: 10.8%" />
+        <col style="width: 30.86%" />
+        <col style="width: 12.65%" />
+        <col style="width: 24.85%" />
       </colgroup>
       <tbody>
         <!-- 사진칸 ＋ 제목 -->
