@@ -1,3 +1,4 @@
+// resume-form 순수 유틸 함수 테스트 — 양식 정의와 표시 포맷 헬퍼
 import { describe, expect, it } from 'vitest'
 import {
   addressText,
