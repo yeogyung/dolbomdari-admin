@@ -1,5 +1,6 @@
 // 이력서 공유 링크 토큰·비밀번호 생성 테스트
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import nodeCrypto from 'node:crypto'
 import { generatePassword, generateToken } from '../server/utils/resume-link'
 
 describe('generateToken', () => {
@@ -23,5 +24,23 @@ describe('generatePassword', () => {
   it('값이 한 가지로 쏠리지 않는다', () => {
     const set = new Set(Array.from({ length: 200 }, () => generatePassword()))
     expect(set.size).toBeGreaterThan(150)
+  })
+})
+
+// 분포 검사만으로는 Math.random() 으로 바뀌어도 통과한다 — 실제로 암호학적
+// 난수 함수를 호출하는지를 스파이로 못박아 그 회귀를 잡는다
+describe('난수 출처', () => {
+  it('generateToken 은 node:crypto 의 randomBytes 를 쓴다', () => {
+    const spy = vi.spyOn(nodeCrypto, 'randomBytes')
+    generateToken()
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
+  })
+
+  it('generatePassword 는 node:crypto 의 randomInt 를 쓴다', () => {
+    const spy = vi.spyOn(nodeCrypto, 'randomInt')
+    generatePassword()
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
   })
 })
