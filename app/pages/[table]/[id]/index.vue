@@ -93,6 +93,9 @@ async function onDelete() {
         </dl>
       </UCard>
 
+      <!-- 이력서: 서류 양식 뷰 -->
+      <ResumeDocument v-if="tableName === 'resumes'" :resume="(record as any)" class="mt-4" />
+
       <!-- 종사자: 북마크·공고 열람·연락처 확인 기록 -->
       <WorkerRelations v-if="tableName === 'users'" :user-id="id" class="mt-4" />
       <JobRelations v-if="tableName === 'jobs'" :job-id="id" class="mt-4" />
