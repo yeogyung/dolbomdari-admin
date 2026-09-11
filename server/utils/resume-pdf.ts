@@ -222,8 +222,5 @@ export async function renderResumePdf(resume: Resume, fontBytes: Uint8Array): Pr
   line(dateText, 1, 'center')
   line(`성명 :  ${resume.signature?.name ?? ''}          (서명)`, 2, 'right')
 
-  // useObjectStreams: false — 기본값(true)이면 페이지 객체가 압축된 오브젝트 스트림 안에
-  // 들어가 "/Type /Page" 가 원문에 나타나지 않는다. 테스트가 저 문자열을 세어 페이지 수를
-  // 확인하므로 꺼둔다.
-  return await doc.save({ useObjectStreams: false })
+  return await doc.save()
 }

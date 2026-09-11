@@ -1,5 +1,6 @@
 // 이력서 PDF 렌더러 테스트 — 바이트 출력·페이지 분할·빈 이력서
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { PDFDocument } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import { renderResumePdf } from '../server/utils/resume-pdf'
 import type { Resume } from '../shared/resume-form'
@@ -38,8 +39,8 @@ describe('renderResumePdf', () => {
 
   it('항목이 적으면 한 장이다', async () => {
     const bytes = await renderResumePdf(makeResume(), font)
-    const text = Buffer.from(bytes).toString('latin1')
-    expect(text.match(/\/Type\s*\/Page[^s]/g)?.length ?? 0).toBe(1)
+    const doc = await PDFDocument.load(bytes)
+    expect(doc.getPageCount()).toBe(1)
   })
 
   it('경력이 많으면 장이 늘어난다', async () => {
@@ -50,8 +51,8 @@ describe('renderResumePdf', () => {
       duty: '업무',
     }))
     const bytes = await renderResumePdf(makeResume({ careers: many }), font)
-    const text = Buffer.from(bytes).toString('latin1')
-    expect(text.match(/\/Type\s*\/Page[^s]/g)?.length ?? 0).toBeGreaterThan(1)
+    const doc = await PDFDocument.load(bytes)
+    expect(doc.getPageCount()).toBeGreaterThan(1)
   })
 
   it('이력서가 비어 있어도 터지지 않는다', async () => {
@@ -65,6 +66,8 @@ describe('renderResumePdf', () => {
     })
     const bytes = await renderResumePdf(empty, font)
     expect(bytes.length).toBeGreaterThan(1000)
+    const doc = await PDFDocument.load(bytes)
+    expect(doc.getPageCount()).toBe(1)
   })
 
   // 양식 대조용 덤프 — test-output/ 는 .gitignore 에 넣는다
