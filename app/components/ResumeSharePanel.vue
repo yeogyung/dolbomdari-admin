@@ -96,6 +96,30 @@ async function copyLink(l: ShareLink) {
   toast.add({ title: '주소와 비밀번호를 복사했습니다.', color: 'success' })
 }
 
+async function sendLink(l: ShareLink) {
+  const to = (smsTarget.value[l.token] ?? '').trim()
+  if (!to) {
+    toast.add({ title: '받는 번호를 입력해 주세요.', color: 'warning' })
+    return
+  }
+  if (!confirm(`${to} 로 이력서 링크와 비밀번호를 보냅니다. 번호가 맞습니까?`)) return
+
+  sending.value[l.token] = true
+  try {
+    await $fetch(`/api/admin/resume-links/${l.token}/sms`, {
+      method: 'POST',
+      headers: await authHeader(),
+      body: { to },
+    })
+    toast.add({ title: '문자를 보냈습니다.', color: 'success' })
+    smsTarget.value[l.token] = ''
+  } catch (e: any) {
+    toast.add({ title: '발송 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
+  } finally {
+    sending.value[l.token] = false
+  }
+}
+
 async function downloadPdf() {
   try {
     const res = await $fetch<Blob>(`/api/admin/resume-pdf/${props.resumeId}`, {
@@ -175,6 +199,23 @@ defineExpose({ load })
           >
             폐기
           </UButton>
+          <template v-if="!l.revoked_at">
+            <UInput
+              v-model="smsTarget[l.token]"
+              size="xs"
+              placeholder="010-0000-0000"
+              class="w-40"
+            />
+            <UButton
+              size="xs"
+              color="primary"
+              variant="soft"
+              :loading="sending[l.token]"
+              @click="sendLink(l)"
+            >
+              문자 발송
+            </UButton>
+          </template>
         </div>
       </div>
     </div>

@@ -14,6 +14,9 @@ export default defineNuxtConfig({
     // 서버 전용 (브라우저 노출 금지) — NUXT_ 접두어 환경변수로 주입
     supabaseServiceRoleKey: '',
     adminEmails: '', // 쉼표로 구분한 관리자 이메일 allowlist
+    solapiApiKey: '',
+    solapiApiSecret: '',
+    solapiSender: '',
     public: {
       supabaseUrl: '',
       supabaseAnonKey: '',
