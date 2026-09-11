@@ -130,8 +130,10 @@ async function downloadPdf() {
     const a = document.createElement('a')
     a.href = url
     a.download = '이력서.pdf'
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
   } catch (e: any) {
     toast.add({ title: '다운로드 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
   }
@@ -199,7 +201,7 @@ defineExpose({ load })
           >
             폐기
           </UButton>
-          <template v-if="!l.revoked_at">
+          <template v-if="statusOf(l).text === '사용 가능'">
             <UInput
               v-model="smsTarget[l.token]"
               size="xs"

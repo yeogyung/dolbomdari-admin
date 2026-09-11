@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
 
   const { data: link } = await serviceClient()
     .from('resume_share_links')
-    .select('token,expires_at,revoked_at')
+    .select('token,expires_at,revoked_at,locked_at')
     .eq('token', token)
     .maybeSingle()
 
@@ -22,8 +22,14 @@ export default defineEventHandler(async (event) => {
   if ((link as { revoked_at: string | null }).revoked_at) {
     throw createError({ statusCode: 400, statusMessage: '폐기된 링크는 보낼 수 없습니다.' })
   }
+  if (new Date((link as { expires_at: string }).expires_at) <= new Date()) {
+    throw createError({ statusCode: 400, statusMessage: '만료된 링크는 보낼 수 없습니다.' })
+  }
+  if ((link as { locked_at: string | null }).locked_at) {
+    throw createError({ statusCode: 400, statusMessage: '잠긴 링크는 보낼 수 없습니다.' })
+  }
 
-  // 비밀번호는 발송 직전에 읽는다 — 위 select 에 담아 로그에 흘리지 않기 위해서다
+  // 비밀번호는 상태 확인에 쓰인 위 객체와 섞이지 않도록 발송 직전에 따로 읽는다
   const { data: full } = await serviceClient()
     .from('resume_share_links')
     .select('password,expires_at')
