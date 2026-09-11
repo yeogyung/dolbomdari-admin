@@ -17,6 +17,7 @@ export default defineNuxtConfig({
     public: {
       supabaseUrl: '',
       supabaseAnonKey: '',
+      linkBaseUrl: 'https://link.carebridges.kr',
     },
   },
 })
