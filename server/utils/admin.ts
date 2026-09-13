@@ -64,6 +64,20 @@ export async function requireAdmin(event: H3Event): Promise<string> {
   if (isMetaAdmin || (allow.length > 0 && allow.includes(email))) {
     return email;
   }
+
+  // 운영센터 마스터도 통과시킨다 — 두 앱이 DB 하나를 공유하므로 마스터는 양쪽을 본다.
+  // 판정 기준을 dbo_profiles 로 둔 이유는 그것이 유일하게 DB 안에 있는 롤이기 때문이다
+  // (구인구직 쪽 관리자 권한은 auth 메타데이터와 환경변수에만 있어 조회·감사가 안 된다).
+  // dbo-admin Edge Function 과 같은 테이블을 보므로 두 문지기의 판정이 어긋나지 않는다.
+  const { data: profile } = await serviceClient()
+    .from("dbo_profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  if (profile?.role === "master") {
+    return email || data.user.id;
+  }
+
   throw createError({
     statusCode: 403,
     statusMessage: "관리자 권한이 없습니다.",
