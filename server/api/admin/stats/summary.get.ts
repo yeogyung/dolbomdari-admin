@@ -11,7 +11,12 @@ function kstTodayStartIso(): string {
 }
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  const actor = await requireAdmin(event)
+  // 대시보드는 전체 집계다 — 종사자 수, 공고 수처럼 스코프가 없는 숫자를 준다.
+  // 범위가 제한된 롤에게 열면 목록에서 막아 둔 규모를 집계로 되돌려 주는 셈이다.
+  if (actor.role !== 'master') {
+    throw createError({ statusCode: 404, statusMessage: '알 수 없는 경로입니다.' })
+  }
   const db = serviceClient()
   const today = kstTodayStartIso()
 

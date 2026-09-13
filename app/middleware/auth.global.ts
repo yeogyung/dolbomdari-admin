@@ -2,6 +2,13 @@
 // 공개 경로(공유 링크 랜딩 등)는 인증 없이 접근 허용
 const PUBLIC_PREFIXES = ['/l/']
 
+/** 롤별 첫 화면 — 그 롤이 실제로 볼 수 있는 첫 메뉴여야 한다 */
+const ROLE_HOME: Record<string, string> = {
+  master: '/',
+  worksite: '/senior/worksites',
+  org: '/users',
+}
+
 export default defineNuxtRouteMiddleware(async (to) => {
   // SPA 모드: 클라이언트에서만 세션 확인
   if (import.meta.server) return
@@ -35,8 +42,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo('/login')
   }
 
+  // 대시보드는 전체 집계 화면이라 master 만 본다. 범위가 제한된 롤에게는
+  // 목록에서 막아 둔 규모를 숫자로 되돌려 주는 셈이 된다.
+  const home = ROLE_HOME[me.value?.role ?? 'master'] ?? '/'
+  const isDashboard = to.path === '/' || to.path === '/senior'
+  if (isDashboard && me.value?.role !== 'master') {
+    return navigateTo(home)
+  }
+
   if (to.path === '/login') {
-    // 롤에 따라 첫 화면이 다르다 — 수요처 담당자에게 구인구직 홈은 빈 화면이다
-    return navigateTo(me.value?.role === 'worksite' ? '/senior/worksites' : '/')
+    return navigateTo(home)
   }
 })
