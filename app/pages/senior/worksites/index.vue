@@ -153,6 +153,8 @@ async function submitForm() {
 const qrOpen = ref(false)
 const qrTarget = ref<Worksite | null>(null)
 const rotating = ref(false)
+// 인쇄·PNG 저장은 카드가 SVG/캔버스를 쥐고 있으므로 그쪽 메서드를 부른다
+const qrCard = ref<{ print: () => void; downloadPng: () => Promise<void> } | null>(null)
 
 function openQr(row: Worksite) {
   qrTarget.value = row
@@ -327,14 +329,33 @@ onMounted(() => {
     <AppModal v-model:open="qrOpen" :title="`${qrTarget?.name ?? ''} QR 토큰`">
       <div class="space-y-4">
         <p class="text-sm text-body">
-          시니어가 이 QR을 찍어 출퇴근합니다. 재발급하면 기존 QR은 즉시 무효가 됩니다.
+          시니어가 이 QR을 찍어 출퇴근합니다. 인쇄해서 근무지에 붙여 주세요.
+          재발급하면 기존 QR은 즉시 무효가 되니 새로 인쇄해야 합니다.
         </p>
-        <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3">
-          <p class="text-xs font-medium text-muted">현재 토큰</p>
-          <p class="mt-1 font-mono text-sm break-all text-ink">{{ qrValue || '발급된 토큰이 없습니다.' }}</p>
-        </div>
+        <!-- 발급일은 넣지 않는다 — 목록 API 가 qr_rotated_at 을 반환하지 않는다 -->
+        <WorksiteQrCard ref="qrCard" :name="qrTarget?.name ?? ''" :token="qrValue" />
       </div>
       <template #footer>
+        <AppButton
+          v-if="qrValue"
+          variant="outline"
+          color="neutral"
+          size="sm"
+          icon="i-lucide-printer"
+          @click="qrCard?.print()"
+        >
+          인쇄
+        </AppButton>
+        <AppButton
+          v-if="qrValue"
+          variant="outline"
+          color="neutral"
+          size="sm"
+          icon="i-lucide-download"
+          @click="qrCard?.downloadPng()"
+        >
+          PNG 저장
+        </AppButton>
         <AppButton
           v-if="qrValue"
           variant="outline"
@@ -343,7 +364,7 @@ onMounted(() => {
           icon="i-lucide-copy"
           @click="copyQr"
         >
-          복사
+          토큰 복사
         </AppButton>
         <AppButton
           size="sm"

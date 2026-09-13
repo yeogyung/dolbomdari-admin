@@ -54,15 +54,8 @@ function jobsApp(): AppNav {
           to: `/${t.name}`,
         })),
       },
-      SYSTEM_SECTION,
     ],
   }
-}
-
-// 앱 공통 — 시스템(어드민 접근 계정 관리)
-const SYSTEM_SECTION: NavSection = {
-  label: '시스템',
-  items: [{ label: '관리자', icon: 'i-lucide-shield-check', to: '/admins' }],
 }
 
 // 시니어 출퇴근·채팅 앱 — dbo-admin API 연동
@@ -94,7 +87,6 @@ const seniorApp: AppNav = {
         { label: '계정·권한', icon: 'i-lucide-shield-check', to: '/senior/accounts' },
       ],
     },
-    SYSTEM_SECTION,
   ],
 }
 
