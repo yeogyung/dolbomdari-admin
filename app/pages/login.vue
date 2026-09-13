@@ -141,18 +141,8 @@ async function verifyOtp() {
       return
     }
 
-    // 세션이 생겨도 어드민 자격은 별개다. 구인구직 OTP 는 종사자에게도 세션을 주므로
-    // 여기서 막지 않으면 종사자가 로그인 직후 빈 화면을 보게 된다.
-    try {
-      await $fetch('/api/admin/me', {
-        headers: { Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
-      })
-    } catch {
-      await supabase.auth.signOut()
-      errorMsg.value = '어드민 접근 권한이 없는 계정입니다.'
-      return
-    }
-
+    // 어드민 자격 확인과 첫 화면 결정은 전역 미들웨어(auth.global.ts)가 한다.
+    // 자격이 없으면 거기서 세션을 지우고 다시 로그인 화면으로 돌려보낸다.
     await navigateTo('/')
   } catch (e: any) {
     errorMsg.value = e?.data?.error || '인증에 실패했습니다.'

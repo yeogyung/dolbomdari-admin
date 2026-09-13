@@ -4,7 +4,7 @@ import { getApps, appKeyForPath } from '#shared/nav'
 
 const route = useRoute()
 const supabase = useSupabase()
-const { me, load, clear } = useAdminRole()
+const { me, clear } = useAdminRole()
 
 // 롤을 받기 전에는 메뉴를 그리지 않는다 — 잠깐이라도 권한 밖 메뉴를 보여 주면
 // 눌렀을 때 404 를 받고 고장난 것처럼 보인다.
@@ -14,13 +14,19 @@ const activeApp = computed(
   () => apps.value.find((a) => a.key === activeKey.value) ?? apps.value[0] ?? null,
 )
 
+const ROLE_LABEL: Record<string, string> = {
+  master: '운영관리자',
+  worksite: '수요처 담당자',
+  org: '기관 관리자',
+}
+const roleLabel = computed(() => ROLE_LABEL[me.value?.role ?? ''] ?? '관리자')
+
 const email = ref('')
 onMounted(async () => {
   const {
     data: { user },
   } = await supabase.auth.getUser()
   email.value = user?.email ?? ''
-  await load()
 })
 
 async function logout() {
@@ -93,7 +99,7 @@ function isActive(to: string): boolean {
       </span>
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-semibold text-ink">{{ email || '관리자' }}</p>
-        <p class="text-xs text-muted">운영관리자</p>
+        <p class="text-xs text-muted">{{ roleLabel }}</p>
       </div>
       <button
         type="button"

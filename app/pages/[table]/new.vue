@@ -10,7 +10,11 @@ const tableName = computed(() => String(route.params.table))
 const def = computed(() => getTable(tableName.value))
 const submitting = ref(false)
 
-const allowed = computed(() => def.value?.mode === 'crud' && def.value.canCreate)
+// 주소를 직접 쳐도 열리지 않게 한다 — 목록에서 버튼을 감추는 것만으로는 부족하다
+const { me } = useAdminRole()
+const allowed = computed(
+  () => me.value?.role === 'master' && def.value?.mode === 'crud' && def.value.canCreate,
+)
 
 async function onSubmit(payload: Record<string, any>) {
   submitting.value = true

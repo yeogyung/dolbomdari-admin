@@ -156,8 +156,16 @@ async function removeRow(row: Record<string, any>) {
   }
 }
 
-const canEdit = computed(() => def.value?.mode === 'crud' && def.value.pk.length === 1)
-const canCreate = computed(() => def.value?.mode === 'crud' && def.value.canCreate)
+// 쓰기는 master 만 한다. 서버(assertWriteAllowed)가 이미 403 으로 막지만,
+// 누를 수 없는 버튼을 보여 주면 눌러 보고 실패하는 경험이 된다.
+const { me } = useAdminRole()
+const canWrite = computed(() => me.value?.role === 'master')
+const canEdit = computed(
+  () => canWrite.value && def.value?.mode === 'crud' && def.value.pk.length === 1,
+)
+const canCreate = computed(
+  () => canWrite.value && def.value?.mode === 'crud' && def.value.canCreate,
+)
 const pkValue = (row: Record<string, any>) => String(row[def.value!.pk[0]!])
 
 watchEffect(() => {
@@ -239,7 +247,7 @@ onMounted(load)
           >
             수정
           </NuxtLink>
-          <button type="button" class="text-sm font-medium text-down hover:underline" @click="removeRow(row)">삭제</button>
+          <button v-if="canEdit" type="button" class="text-sm font-medium text-down hover:underline" @click="removeRow(row)">삭제</button>
         </div>
       </template>
     </DataTable>
@@ -260,7 +268,7 @@ onMounted(load)
       </template>
       <template #footer>
         <div class="flex justify-end gap-2">
-          <AppButton v-if="detailRow" color="down" variant="soft" size="sm" @click="removeRow(detailRow)">삭제</AppButton>
+          <AppButton v-if="detailRow && canEdit" color="down" variant="soft" size="sm" @click="removeRow(detailRow)">삭제</AppButton>
           <AppButton color="neutral" variant="outline" size="sm" @click="detailOpen = false">닫기</AppButton>
         </div>
       </template>

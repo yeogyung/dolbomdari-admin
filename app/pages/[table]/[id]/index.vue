@@ -13,7 +13,12 @@ const def = computed(() => getTable(tableName.value))
 const record = ref<Record<string, any> | null>(null)
 const loading = ref(true)
 
-const canEdit = computed(() => def.value?.mode === 'crud' && def.value!.pk.length === 1)
+// 쓰기는 master 만. 서버가 403 으로 막지만 버튼 자체를 보여 주지 않는다.
+const { me } = useAdminRole()
+const canWrite = computed(() => me.value?.role === 'master')
+const canEdit = computed(
+  () => canWrite.value && def.value?.mode === 'crud' && def.value!.pk.length === 1,
+)
 
 function labelFor(col: string): string {
   return def.value?.fields.find((f) => f.name === col)?.label || col
@@ -78,7 +83,7 @@ async function onDelete() {
         <UButton v-if="canEdit" color="primary" :to="`/${tableName}/${encodeURIComponent(id)}/edit`">
           수정
         </UButton>
-        <UButton color="error" variant="soft" @click="onDelete">삭제</UButton>
+        <UButton v-if="canWrite" color="error" variant="soft" @click="onDelete">삭제</UButton>
       </div>
     </div>
 

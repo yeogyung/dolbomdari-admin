@@ -14,7 +14,11 @@ const record = ref<Record<string, any> | null>(null)
 const loading = ref(true)
 const submitting = ref(false)
 
-const editable = computed(() => def.value?.mode === 'crud' && def.value.pk.length === 1)
+// 주소를 직접 쳐도 열리지 않게 한다
+const { me } = useAdminRole()
+const editable = computed(
+  () => me.value?.role === 'master' && def.value?.mode === 'crud' && def.value.pk.length === 1,
+)
 const detailPath = computed(() => `/${tableName.value}/${encodeURIComponent(id.value)}`)
 
 onMounted(async () => {
