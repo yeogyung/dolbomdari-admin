@@ -2,8 +2,10 @@
 import { requireAdmin, assertTable, serviceClient, sanitizePayload } from '~~/server/utils/admin'
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  const actor = await requireAdmin(event)
   const def = assertTable(event)
+  assertTableAccess(actor, def.name)
+  assertWriteAllowed(actor)
   const id = getRouterParam(event, 'id')
 
   if (def.mode !== 'crud' || def.pk.length !== 1) {

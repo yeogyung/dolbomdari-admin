@@ -35,10 +35,28 @@ function adminEmails(): string[] {
 }
 
 /**
- * 요청의 Bearer 토큰을 검증하고 관리자 여부를 확인한다.
- * 통과 시 사용자 이메일 반환, 실패 시 401/403 throw.
+ * 어드민 롤 — 권한 경계의 **단일 지점**이다.
+ *
+ * 라우트마다 롤을 다시 판정하면 스무 곳 중 한 곳만 빠뜨려도 그곳이 조용히
+ * 열린다. 모든 라우트가 requireAdmin 을 거치게 하고 여기서만 판정한다.
  */
-export async function requireAdmin(event: H3Event): Promise<string> {
+export type AdminRole = "master" | "worksite" | "org";
+
+export interface AdminActor {
+  userId: string;
+  email: string;
+  role: AdminRole;
+  /** role='org' 일 때 소속 기관. 그 외에는 null */
+  organizationId: string | null;
+  /** role='worksite' 일 때 담당 근무지. master 는 null 이어도 된다 */
+  worksiteId: string | null;
+}
+
+/**
+ * 요청의 Bearer 토큰을 검증하고 어드민 자격을 판정한다.
+ * 통과 시 actor 반환, 실패 시 401/403 throw.
+ */
+export async function requireAdmin(event: H3Event): Promise<AdminActor> {
   const auth = getRequestHeader(event, "authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!token) {
@@ -56,26 +74,72 @@ export async function requireAdmin(event: H3Event): Promise<string> {
     });
   }
 
+  const userId = data.user.id;
   const email = (data.user.email || "").toLowerCase();
+  const db = serviceClient();
+
+  // ── 1) 부트스트랩 관리자 — env allowlist 또는 app_metadata.admin
+  //    DB 밖에 있어 조회·감사가 안 되므로 새로 늘리지 않는다. 기존 계정 보호용이다.
   const allow = adminEmails();
-  // 관리자 판별: env allowlist(부트스트랩) 또는 app_metadata.admin === true (UI로 생성한 관리자)
   const isMetaAdmin =
     (data.user.app_metadata as Record<string, unknown> | undefined)?.admin === true;
   if (isMetaAdmin || (allow.length > 0 && allow.includes(email))) {
-    return email;
+    return { userId, email, role: "master", organizationId: null, worksiteId: null };
   }
 
-  // 운영센터 마스터도 통과시킨다 — 두 앱이 DB 하나를 공유하므로 마스터는 양쪽을 본다.
-  // 판정 기준을 dbo_profiles 로 둔 이유는 그것이 유일하게 DB 안에 있는 롤이기 때문이다
-  // (구인구직 쪽 관리자 권한은 auth 메타데이터와 환경변수에만 있어 조회·감사가 안 된다).
-  // dbo-admin Edge Function 과 같은 테이블을 보므로 두 문지기의 판정이 어긋나지 않는다.
-  const { data: profile } = await serviceClient()
+  // ── 2) 운영센터 롤 — dbo_profiles 가 정본이다.
+  //    dbo-admin Edge Function 과 같은 테이블을 보므로 두 문지기의 판정이 어긋나지 않는다.
+  const { data: profile } = await db
     .from("dbo_profiles")
-    .select("role")
-    .eq("id", data.user.id)
+    .select("role, directory_id")
+    .eq("id", userId)
     .maybeSingle();
+
   if (profile?.role === "master") {
-    return email || data.user.id;
+    return { userId, email, role: "master", organizationId: null, worksiteId: null };
+  }
+
+  if (profile?.role === "worksite") {
+    // 담당 근무지는 명부에 있다. 없으면 **던진다** — 전체로 떨어뜨리면 수요처 계정이
+    // 명부를 통째로 보게 된다. 조용히 넓어지는 실패는 만들지 않는다.
+    const { data: dir } = await db
+      .from("dbo_directory")
+      .select("worksite_id, status")
+      .eq("id", profile.directory_id)
+      .maybeSingle();
+    if (!dir || dir.status !== "active" || !dir.worksite_id) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: "담당 근무지가 지정되지 않았습니다.",
+      });
+    }
+    return {
+      userId,
+      email,
+      role: "worksite",
+      organizationId: null,
+      worksiteId: dir.worksite_id as string,
+    };
+  }
+
+  // ── 3) 구인구직 기관 관리자
+  //    ⚠ 구인구직 OTP(mode:'login')는 종사자도 세션을 준다. 그래서 여기서
+  //    organization_manager 존재를 반드시 확인해야 한다 — 빠뜨리면 종사자 누구나
+  //    어드민에 들어온다. 시니어 경로에는 이 문제가 없다(명부에 없으면 문자도 안 나간다).
+  const { data: orgManager } = await db
+    .from("organization_manager")
+    .select("organization_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (orgManager) {
+    return {
+      userId,
+      email,
+      role: "org",
+      organizationId: (orgManager.organization_id as string | null) ?? null,
+      worksiteId: null,
+    };
   }
 
   throw createError({
@@ -119,4 +183,60 @@ export function sanitizePayload(
     out[field.name] = value;
   }
   return out;
+}
+
+/**
+ * 롤이 접근할 수 있는 구인구직 테이블.
+ *
+ * **기본은 거부다.** 목록에 없는 테이블은 막힌다 — 새 테이블을 레지스트리에
+ * 추가해도 자동으로 열리지 않는다. 반대로 짜면(막을 것만 나열) 추가할 때마다
+ * 빠뜨리고, 빠뜨린 쪽이 열린 상태가 된다.
+ */
+const ROLE_TABLES: Record<AdminRole, readonly string[] | "all"> = {
+  master: "all",
+  // 기관 관리자는 종사자와 기관만 본다. 기관은 본인 것만(assertTableAccess 아래의 스코프).
+  org: ["users", "organization"],
+  // 수요처 담당자는 구인구직 쪽을 보지 않는다 — 시니어 전용 롤이다.
+  worksite: [],
+};
+
+/** 이 롤이 그 테이블을 볼 수 있는가. 볼 수 없으면 404 로 막는다. */
+export function assertTableAccess(actor: AdminActor, table: string): void {
+  const allowed = ROLE_TABLES[actor.role];
+  if (allowed === "all") return;
+  if (allowed.includes(table)) return;
+  // 403 이 아니라 404 다 — 403 은 "그 테이블이 존재한다"를 알려 준다.
+  throw createError({ statusCode: 404, statusMessage: "알 수 없는 테이블입니다." });
+}
+
+/**
+ * 목록/단건 조회에 롤 스코프를 건다.
+ *
+ * 기관 관리자는 `organization` 에서 **자기 기관 한 행만** 본다. `users`(종사자)는
+ * 제한하지 않는다 — 앱의 `users_select_for_org_managers` 정책이 이미 기관 담당자에게
+ * 종사자 전체 조회를 열어 두고 있어 그쪽과 기준을 맞춘다.
+ */
+// deno-lint-ignore no-explicit-any
+export function applyRoleScope<T extends { eq: (c: string, v: any) => T }>(
+  query: T,
+  actor: AdminActor,
+  table: string,
+): T {
+  if (actor.role === "org" && table === "organization") {
+    // 소속 기관이 없는 담당자는 아무 기관도 못 본다. 전체로 떨어뜨리지 않는다.
+    return query.eq("id", actor.organizationId ?? "00000000-0000-0000-0000-000000000000");
+  }
+  return query;
+}
+
+/**
+ * 쓰기는 master 만 한다.
+ *
+ * 기관 관리자에게 준 것은 조회 권한이다. 생성·수정·삭제까지 열면 자기 기관 행을
+ * 고쳐 소속을 바꾸는 식으로 스코프 자체를 우회할 수 있다.
+ */
+export function assertWriteAllowed(actor: AdminActor): void {
+  if (actor.role !== "master") {
+    throw createError({ statusCode: 403, statusMessage: "쓰기 권한이 없습니다." });
+  }
 }

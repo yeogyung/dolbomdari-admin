@@ -90,8 +90,44 @@ const seniorApp: AppNav = {
   ],
 }
 
-export function getApps(): AppNav[] {
-  return [jobsApp(), seniorApp]
+/** 어드민 롤 — server/utils/admin.ts 의 AdminRole 과 같은 값이다 */
+export type NavRole = 'master' | 'worksite' | 'org'
+
+/**
+ * 롤이 볼 수 있는 메뉴만 남긴다.
+ *
+ * **화면을 가리는 것은 편의일 뿐 보안이 아니다.** 실제 차단은 서버가
+ * assertTableAccess·applyRoleScope 로 한다. 여기서 숨겨도 주소를 직접 치면
+ * 요청은 가고, 거기서 404/403 이 난다.
+ */
+export function getApps(role: NavRole = 'master'): AppNav[] {
+  if (role === 'master') return [jobsApp(), seniorApp]
+
+  if (role === 'org') {
+    // 기관 관리자 — 구인구직의 종사자·기관만
+    const allowed = new Set(['/users', '/organization'])
+    const jobs = jobsApp()
+    return [
+      {
+        ...jobs,
+        sections: jobs.sections
+          .map((s) => ({ ...s, items: s.items.filter((i) => allowed.has(i.to)) }))
+          .filter((s) => s.items.length > 0),
+      },
+    ]
+  }
+
+  // 수요처 담당자 — 시니어의 근무지·출퇴근 기록만
+  const allowed = new Set(['/senior/worksites', '/senior/attendance'])
+  return [
+    {
+      ...seniorApp,
+      home: '/senior/worksites',
+      sections: seniorApp.sections
+        .map((s) => ({ ...s, items: s.items.filter((i) => allowed.has(i.to)) }))
+        .filter((s) => s.items.length > 0),
+    },
+  ]
 }
 
 // 현재 경로로 활성 앱 판별

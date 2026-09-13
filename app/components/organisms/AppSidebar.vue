@@ -4,9 +4,15 @@ import { getApps, appKeyForPath } from '#shared/nav'
 
 const route = useRoute()
 const supabase = useSupabase()
-const apps = getApps()
+const { me, load, clear } = useAdminRole()
+
+// 롤을 받기 전에는 메뉴를 그리지 않는다 — 잠깐이라도 권한 밖 메뉴를 보여 주면
+// 눌렀을 때 404 를 받고 고장난 것처럼 보인다.
+const apps = computed(() => (me.value ? getApps(me.value.role) : []))
 const activeKey = computed(() => appKeyForPath(route.path))
-const activeApp = computed(() => apps.find((a) => a.key === activeKey.value) ?? apps[0]!)
+const activeApp = computed(
+  () => apps.value.find((a) => a.key === activeKey.value) ?? apps.value[0] ?? null,
+)
 
 const email = ref('')
 onMounted(async () => {
@@ -14,9 +20,11 @@ onMounted(async () => {
     data: { user },
   } = await supabase.auth.getUser()
   email.value = user?.email ?? ''
+  await load()
 })
 
 async function logout() {
+  clear()
   await supabase.auth.signOut()
   await navigateTo('/login')
 }
@@ -35,8 +43,8 @@ function isActive(to: string): boolean {
       <span class="text-[17px] font-semibold tracking-tight text-ink">돌봄다리 어드민</span>
     </div>
 
-    <!-- 앱 스위처 -->
-    <div class="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-surface-soft p-1">
+    <!-- 앱 스위처 — 앱이 하나뿐인 롤에게는 고를 것이 없으므로 숨긴다 -->
+    <div v-if="apps.length > 1" class="mt-5 grid grid-cols-2 gap-1 rounded-xl bg-surface-soft p-1">
       <NuxtLink
         v-for="a in apps"
         :key="a.key"
@@ -51,7 +59,7 @@ function isActive(to: string): boolean {
 
     <!-- 네비게이션 -->
     <nav class="mt-5 flex-1 space-y-5 overflow-y-auto">
-      <div v-for="(section, si) in activeApp.sections" :key="si">
+      <div v-for="(section, si) in activeApp?.sections ?? []" :key="si">
         <p v-if="section.label" class="mb-1.5 px-3 text-[11px] font-semibold tracking-wide text-muted-soft uppercase">
           {{ section.label }}
         </p>

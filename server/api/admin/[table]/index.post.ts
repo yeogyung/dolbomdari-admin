@@ -3,8 +3,10 @@ import { randomUUID } from 'node:crypto'
 import { requireAdmin, assertTable, serviceClient, sanitizePayload } from '~~/server/utils/admin'
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  const actor = await requireAdmin(event)
   const def = assertTable(event)
+  assertTableAccess(actor, def.name)
+  assertWriteAllowed(actor)
 
   if (def.mode !== 'crud' || !def.canCreate) {
     throw createError({ statusCode: 405, statusMessage: '이 테이블은 생성할 수 없습니다.' })

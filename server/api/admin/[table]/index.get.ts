@@ -1,12 +1,19 @@
 // 테이블 목록 조회 — 페이지네이션 + 검색 + 정렬 + 컬럼 필터 (엑셀용 all=true 지원)
-import { requireAdmin, assertTable, serviceClient } from '~~/server/utils/admin'
+import {
+  requireAdmin,
+  assertTable,
+  assertTableAccess,
+  applyRoleScope,
+  serviceClient,
+} from '~~/server/utils/admin'
 
 const EXPORT_CAP = 10000
 const COL = /^[a-z_][a-z0-9_]*$/ // 안전한 컬럼명 패턴
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  const actor = await requireAdmin(event)
   const def = assertTable(event)
+  assertTableAccess(actor, def.name)
 
   const q = getQuery(event)
   const all = q.all === 'true' || q.all === '1'
@@ -17,6 +24,9 @@ export default defineEventHandler(async (event) => {
   let query = serviceClient()
     .from(def.name)
     .select('*', { count: 'exact' })
+
+  // 롤 스코프 — 기관 관리자는 자기 기관만 본다
+  query = applyRoleScope(query, actor, def.name)
 
   // 검색 (ilike or)
   if (search && def.searchColumns?.length) {
