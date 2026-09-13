@@ -93,28 +93,8 @@ export function useAdminApi() {
     })
   }
 
-  /** 어드민 접근 계정 목록 */
-  async function listAdmins(): Promise<ListResult> {
-    return await $fetch('/api/admin/admins', { headers: await authHeader() })
-  }
 
-  /** 어드민 접근 계정 생성 */
-  async function createAdmin(body: { email: string; password: string }): Promise<any> {
-    return await $fetch('/api/admin/admins', {
-      method: 'POST',
-      headers: await authHeader(),
-      body,
-    })
-  }
 
-  /** 어드민 접근 권한 해제 */
-  async function revokeAdmin(id: string): Promise<any> {
-    return await $fetch('/api/admin/admins', {
-      method: 'DELETE',
-      headers: await authHeader(),
-      query: { id },
-    })
-  }
 
   return {
     list,
@@ -124,8 +104,5 @@ export function useAdminApi() {
     remove,
     statsSummary,
     action,
-    listAdmins,
-    createAdmin,
-    revokeAdmin,
   }
 }

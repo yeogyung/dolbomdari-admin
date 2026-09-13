@@ -25,14 +25,17 @@ export function serviceClient(): SupabaseClient {
   return _client;
 }
 
-/** 관리자 이메일 allowlist */
-function adminEmails(): string[] {
-  const raw = useRuntimeConfig().adminEmails || "";
-  return raw
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
+/*
+ * 이메일 allowlist(NUXT_ADMIN_EMAILS)는 제거했다.
+ *
+ * DB 밖(환경변수)에 있는 권한이라 누가 관리자인지 조회도 감사도 되지 않았고,
+ * 무엇보다 두 문지기의 판정을 어긋나게 했다 — 어드민 Nitro 는 allowlist 로
+ * master 를 통과시키는데 dbo-admin 은 그 목록을 모른다. 그래서 사이드바에는
+ * 시니어 메뉴가 보이는데 열면 403 이 나는 상태가 생겼다.
+ *
+ * 이제 권한은 dbo_profiles(운영센터)와 organization_manager(구인구직) 두 테이블,
+ * 즉 DB 안에서만 결정된다.
+ */
 
 /**
  * 어드민 롤 — 권한 경계의 **단일 지점**이다.
@@ -78,12 +81,11 @@ export async function requireAdmin(event: H3Event): Promise<AdminActor> {
   const email = (data.user.email || "").toLowerCase();
   const db = serviceClient();
 
-  // ── 1) 부트스트랩 관리자 — env allowlist 또는 app_metadata.admin
-  //    DB 밖에 있어 조회·감사가 안 되므로 새로 늘리지 않는다. 기존 계정 보호용이다.
-  const allow = adminEmails();
+  // ── 1) 부트스트랩 관리자 — app_metadata.admin
+  //    이것도 DB 밖 권한이라 새로 늘리지 않는다. 기존 계정 하나를 위해 남겨 둔 것이다.
   const isMetaAdmin =
     (data.user.app_metadata as Record<string, unknown> | undefined)?.admin === true;
-  if (isMetaAdmin || (allow.length > 0 && allow.includes(email))) {
+  if (isMetaAdmin) {
     return { userId, email, role: "master", organizationId: null, worksiteId: null };
   }
 
