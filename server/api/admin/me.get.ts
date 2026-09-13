@@ -4,6 +4,7 @@ import { requireAdmin } from '~~/server/utils/admin'
 export default defineEventHandler(async (event) => {
   const actor = await requireAdmin(event)
   return {
+    name: actor.name,
     role: actor.role,
     organizationId: actor.organizationId,
     worksiteId: actor.worksiteId,

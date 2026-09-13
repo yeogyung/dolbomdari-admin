@@ -2,6 +2,7 @@
 import type { NavRole } from '#shared/nav'
 
 export interface AdminMe {
+  name: string
   role: NavRole
   organizationId: string | null
   worksiteId: string | null

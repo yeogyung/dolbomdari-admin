@@ -48,6 +48,8 @@ export type AdminRole = "master" | "worksite" | "org";
 export interface AdminActor {
   userId: string;
   email: string;
+  /** 화면에 보이는 이름. 명부(dbo_directory)나 기관 담당자명이 정본이다 */
+  name: string;
   role: AdminRole;
   /** role='org' 일 때 소속 기관. 그 외에는 null */
   organizationId: string | null;
@@ -86,19 +88,34 @@ export async function requireAdmin(event: H3Event): Promise<AdminActor> {
   const isMetaAdmin =
     (data.user.app_metadata as Record<string, unknown> | undefined)?.admin === true;
   if (isMetaAdmin) {
-    return { userId, email, role: "master", organizationId: null, worksiteId: null };
+    // 이 경로에는 이름이 없다 — DB 밖 권한이라 프로필이 붙어 있지 않다
+    return {
+      userId,
+      email,
+      name: email.split("@")[0] || "관리자",
+      role: "master",
+      organizationId: null,
+      worksiteId: null,
+    };
   }
 
   // ── 2) 운영센터 롤 — dbo_profiles 가 정본이다.
   //    dbo-admin Edge Function 과 같은 테이블을 보므로 두 문지기의 판정이 어긋나지 않는다.
   const { data: profile } = await db
     .from("dbo_profiles")
-    .select("role, directory_id")
+    .select("role, directory_id, name")
     .eq("id", userId)
     .maybeSingle();
 
   if (profile?.role === "master") {
-    return { userId, email, role: "master", organizationId: null, worksiteId: null };
+    return {
+      userId,
+      email,
+      name: (profile.name as string) || "운영관리자",
+      role: "master",
+      organizationId: null,
+      worksiteId: null,
+    };
   }
 
   if (profile?.role === "worksite") {
@@ -118,6 +135,7 @@ export async function requireAdmin(event: H3Event): Promise<AdminActor> {
     return {
       userId,
       email,
+      name: (profile.name as string) || "수요처 담당자",
       role: "worksite",
       organizationId: null,
       worksiteId: dir.worksite_id as string,
@@ -130,7 +148,7 @@ export async function requireAdmin(event: H3Event): Promise<AdminActor> {
   //    어드민에 들어온다. 시니어 경로에는 이 문제가 없다(명부에 없으면 문자도 안 나간다).
   const { data: orgManager } = await db
     .from("organization_manager")
-    .select("organization_id")
+    .select("organization_id, manager_name")
     .eq("id", userId)
     .maybeSingle();
 
@@ -138,6 +156,7 @@ export async function requireAdmin(event: H3Event): Promise<AdminActor> {
     return {
       userId,
       email,
+      name: (orgManager.manager_name as string) || "기관 관리자",
       role: "org",
       organizationId: (orgManager.organization_id as string | null) ?? null,
       worksiteId: null,

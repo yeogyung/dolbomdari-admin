@@ -21,13 +21,7 @@ const ROLE_LABEL: Record<string, string> = {
 }
 const roleLabel = computed(() => ROLE_LABEL[me.value?.role ?? ''] ?? '관리자')
 
-const email = ref('')
-onMounted(async () => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  email.value = user?.email ?? ''
-})
+const displayName = computed(() => me.value?.name || '관리자')
 
 async function logout() {
   clear()
@@ -95,10 +89,10 @@ function isActive(to: string): boolean {
     <!-- 계정 (하단) -->
     <div class="mt-2 flex items-center gap-2.5 border-t border-hairline px-2 pt-3">
       <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-strong text-xs font-semibold text-muted">
-        {{ (email[0] || '관').toUpperCase() }}
+        {{ displayName[0] }}
       </span>
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-semibold text-ink">{{ email || '관리자' }}</p>
+        <p class="truncate text-sm font-semibold text-ink">{{ displayName }}</p>
         <p class="text-xs text-muted">{{ roleLabel }}</p>
       </div>
       <button
