@@ -3,7 +3,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { downloadExcel, type ExcelColumn } from '~/utils/excel'
 import type { Column } from '~/types/table'
-import type { AttendanceRecord, AttendanceShift, Worksite } from '~/types/dbo'
+import type { AttendanceShift, Worksite } from '~/types/dbo'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -38,9 +38,6 @@ const columns: Column[] = [
   { key: 'edited', label: '수정 이력' },
   { key: 'memo', label: '메모' },
 ]
-
-/** shift 1건에 출결 기록은 최대 1행이다 */
-const recordOf = (row: AttendanceShift): AttendanceRecord | null => row.attendance?.[0] ?? null
 
 async function load() {
   loading.value = true
@@ -99,7 +96,7 @@ watch(worksiteId, search)
 const summary = computed(() => {
   const stat = { total: rows.value.length, working: 0, done: 0, missing: 0 }
   for (const row of rows.value) {
-    const rec = recordOf(row)
+    const rec = attendanceOf(row)
     if (!rec) stat.missing++
     else if (rec.status === 'absent') stat.missing++
     else if (rec.ended_at) stat.done++
@@ -120,7 +117,7 @@ const form = ref({
 })
 
 function openEdit(row: AttendanceShift) {
-  const rec = recordOf(row)
+  const rec = attendanceOf(row)
   target.value = row
   form.value = {
     status: rec?.status ?? 'present',
@@ -178,7 +175,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 ]
 
 function toExcelRow(row: AttendanceShift) {
-  const rec = recordOf(row)
+  const rec = attendanceOf(row)
   return {
     work_date: row.work_date,
     name: row.directory?.name ?? '',
@@ -323,29 +320,29 @@ onMounted(() => {
         {{ hhmm(row.planned_start) }} – {{ hhmm(row.planned_end) }}
       </template>
       <template #cell-status="{ row }">
-        <StatusBadge :tone="attendanceTone(recordOf(row)?.status)">
-          {{ attendanceLabel(recordOf(row)?.status) }}
+        <StatusBadge :tone="attendanceTone(attendanceOf(row)?.status)">
+          {{ attendanceLabel(attendanceOf(row)?.status) }}
         </StatusBadge>
       </template>
-      <template #cell-started_at="{ row }">{{ fmtClock(recordOf(row)?.started_at) }}</template>
-      <template #cell-ended_at="{ row }">{{ fmtClock(recordOf(row)?.ended_at) }}</template>
+      <template #cell-started_at="{ row }">{{ fmtClock(attendanceOf(row)?.started_at) }}</template>
+      <template #cell-ended_at="{ row }">{{ fmtClock(attendanceOf(row)?.ended_at) }}</template>
       <template #cell-worked="{ row }">
         <span class="tabular-nums">
-          {{ workedDuration(recordOf(row)?.started_at, recordOf(row)?.ended_at) }}
+          {{ workedDuration(attendanceOf(row)?.started_at, attendanceOf(row)?.ended_at) }}
         </span>
       </template>
       <template #cell-method="{ row }">
-        <span class="text-muted">{{ recordOf(row)?.method ?? '—' }}</span>
+        <span class="text-muted">{{ attendanceOf(row)?.method ?? '—' }}</span>
       </template>
       <!-- 고친 사람의 이름은 API 가 안 준다(updated_by 는 프로필 UUID 다). 시각만 적는다. -->
       <template #cell-edited="{ row }">
-        <span v-if="recordOf(row)?.updated_by" class="text-muted">
-          수정됨 · {{ fmtStamp(recordOf(row)!.updated_at) }}
+        <span v-if="attendanceOf(row)?.updated_by" class="text-muted">
+          수정됨 · {{ fmtStamp(attendanceOf(row)!.updated_at) }}
         </span>
         <span v-else class="text-muted">—</span>
       </template>
       <template #cell-memo="{ row }">
-        <span class="text-muted">{{ recordOf(row)?.memo ?? '—' }}</span>
+        <span class="text-muted">{{ attendanceOf(row)?.memo ?? '—' }}</span>
       </template>
 
       <template #actions="{ row }">

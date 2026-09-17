@@ -1,7 +1,7 @@
 <!-- 시니어 어드민 대시보드 — 오늘 출결 현황 + 운영 규모 요약 (dbo-admin 목록 API 집계) -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import type { AttendanceRecord, AttendanceShift } from '~/types/dbo'
+import type { AttendanceShift } from '~/types/dbo'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -20,12 +20,10 @@ const scale = ref<{ seniors: number | null; managers: number | null; worksites: 
   rooms: null,
 })
 
-const recordOf = (row: AttendanceShift): AttendanceRecord | null => row.attendance?.[0] ?? null
-
 const stat = computed(() => {
   const out = { total: shifts.value.length, done: 0, working: 0, absent: 0, missing: 0 }
   for (const row of shifts.value) {
-    const rec = recordOf(row)
+    const rec = attendanceOf(row)
     if (!rec) out.missing++
     // 완료는 ended_at 으로 판정한다 — status 는 퇴근해도 present 그대로다.
     else if (rec.status === 'absent') out.absent++
@@ -40,7 +38,7 @@ const attention = computed(() =>
   [...shifts.value]
     .sort((a, b) => {
       const rank = (row: AttendanceShift) => {
-        const s = recordOf(row)?.status
+        const s = attendanceOf(row)?.status
         if (!s) return 0
         if (s === 'absent') return 1
         if (s === 'late') return 2
@@ -151,15 +149,15 @@ onMounted(() => {
                   {{ hhmm(row.planned_start) }} – {{ hhmm(row.planned_end) }}
                 </td>
                 <td class="border-t border-hairline py-[15px] pr-3">
-                  <StatusBadge :tone="attendanceTone(recordOf(row)?.status)">
-                    {{ attendanceLabel(recordOf(row)?.status) }}
+                  <StatusBadge :tone="attendanceTone(attendanceOf(row)?.status)">
+                    {{ attendanceLabel(attendanceOf(row)?.status) }}
                   </StatusBadge>
                 </td>
                 <td class="border-t border-hairline py-[15px] pr-3 text-[15px] text-body">
-                  {{ fmtClock(recordOf(row)?.started_at) }}
+                  {{ fmtClock(attendanceOf(row)?.started_at) }}
                 </td>
                 <td class="border-t border-hairline py-[15px] text-[15px] text-body">
-                  {{ fmtClock(recordOf(row)?.ended_at) }}
+                  {{ fmtClock(attendanceOf(row)?.ended_at) }}
                 </td>
               </tr>
             </tbody>

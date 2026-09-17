@@ -1,5 +1,19 @@
 // 시니어 어드민 공용 포맷·라벨 유틸 — 요일·출결 상태·시간(Asia/Seoul) 표기
-import type { LifeStatus } from '~/types/dbo'
+import type { AttendanceRecord, AttendanceShift, LifeStatus } from '~/types/dbo'
+
+/**
+ * 출결 목록 행에서 출결 기록을 꺼낸다.
+ *
+ * **응답의 attendance 는 배열이 아니라 객체(기록이 없으면 null)다.** dbo_attendance.shift_id
+ * 에 unique 제약이 있어서 PostgREST 가 이 조인을 to-one 으로 판정하고 배열 대신 단일 객체를
+ * 내려 준다(2026-09-17 실측). 배열로 읽으면 QR 출퇴근이 DB 에 멀쩡히 들어와 있어도
+ * 출근·퇴근·상태 칸이 조용히 전부 빈 채로 보인다.
+ */
+export function attendanceOf(
+  shift: Pick<AttendanceShift, 'attendance'>,
+): AttendanceRecord | null {
+  return shift.attendance ?? null
+}
 
 /** ISO-8601 요일 번호 (1=월 … 7=일) */
 export const WEEKDAYS: { value: number; label: string }[] = [

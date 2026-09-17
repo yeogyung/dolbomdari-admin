@@ -101,7 +101,8 @@ export interface AttendanceShift {
   metadata: Record<string, unknown>
   directory: { name: string; phone: string | null } | null
   worksite: { name: string } | null
-  attendance: AttendanceRecord[]
+  /* 배열이 아니다 — attendanceOf() 주석 참고 */
+  attendance: AttendanceRecord | null
 }
 
 export interface ChatRoom {

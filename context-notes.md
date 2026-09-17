@@ -71,3 +71,14 @@
 - 기존 `AppButton`은 `to` prop을 받지 않는다(`<button>`에 attr로 흘러 이동이 안 된다).
   `app/pages/[table]/index.vue`의 "새로 만들기"가 그 상태다 — 이번 변경 범위가 아니라
   손대지 않았고, 신규 화면은 `@click="navigateTo(...)"`나 `NuxtLink`를 쓴다.
+
+### 출결 조인 모양 (2026-09-17)
+- **`attendance` 는 배열이 아니라 객체다.** 출퇴근 기록이 어드민에 안 보인다는 신고를 받아
+  운영 DB 를 실측했다. QR 출근은 `dbo_attendance` 에 정상으로 들어와 있었고 `shift_id` 도
+  당일 shift 에 제대로 걸려 있었다 — 끊긴 곳은 읽는 쪽이었다.
+- 원인은 `dbo_attendance.shift_id` 의 unique 제약이다. PostgREST 가 이 조인을 to-one 으로
+  판정해 배열이 아닌 단일 객체(없으면 `null`)를 내려 주는데, 화면은 `row.attendance?.[0]`
+  으로 배열처럼 꺼내고 있었다. 그래서 상태·출근·퇴근·근무시간 칸이 전부 `—` 로 보였다.
+- 타입(`AttendanceRecord[]`)이 틀려 있던 탓에 컴파일러가 이 실수를 못 잡았다. 타입을 실측대로
+  고치고 꺼내는 규칙은 `attendanceOf()` 한 곳으로 모았다(`test/dbo-attendance.test.ts` 가
+  실측 응답을 픽스처로 고정한다).
