@@ -3,6 +3,32 @@ export type DirectoryRole = 'senior' | 'manager' | 'worksite' | 'master'
 export type AdminRole = 'master' | 'worksite'
 export type LifeStatus = 'active' | 'ended'
 
+export interface NoticeSummary {
+  id: string
+  title: string
+  kind: 'normal' | 'urgent'
+  status: 'draft' | 'sent' | 'revoked'
+  published_at: string | null
+  program_id: string | null
+}
+export interface NoticeDetail extends NoticeSummary {
+  body: string
+  metadata: { delivery?: { recipients?: number; historyFailed?: number; status?: string } }
+  trackedRecipients: number
+}
+export type DeliveryStatus = 'skipped' | 'pending' | 'accepted' | 'failed'
+export interface NoticeRecipient {
+  notice_id: string
+  directory_id: string
+  name: string
+  phone: string | null
+  can_read: boolean
+  sms_status: DeliveryStatus
+  push_status: DeliveryStatus
+  read_at: string | null
+  read_method: string | null
+}
+
 export interface Paged<T> {
   items: T[]
   total: number

@@ -77,6 +77,7 @@ const seniorApp: AppNav = {
     {
       label: '소통',
       items: [
+        { label: '공지·미열람 관리', icon: 'i-lucide-megaphone', to: '/senior/notices' },
         { label: '채팅방', icon: 'i-lucide-message-square', to: '/senior/chat' },
       ],
     },
