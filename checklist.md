@@ -91,3 +91,19 @@
 - 출결 CSV 서버 내보내기(현재는 클라이언트 엑셀로 대체)
 - 게시판·댓글·시니어 메모, 인앱 알림함, AI 근거 문서·FAQ·미답변, 리포트·날씨
 - 어드민 채팅방 생성(열람·상태 변경만 가능)
+
+## Phase 5 — 구인구직 상세·수정·생성 화면 디자인 통일
+목록 화면은 이미 시안 디자인으로 넘어왔는데 상세·수정·생성만 Nuxt UI 날것으로 남아 있었다.
+`<script setup>` 은 건드리지 않는다 — 마크업과 클래스만 바꾼다.
+
+- [x] `RecordForm.vue` — 입력 위젯을 프로젝트 atoms 로, 버튼 pill 화
+- [x] `[table]/[id]/index.vue` 상세 — 제목·액션 상단바로, 키-값 카드 재구성
+- [x] `[table]/[id]/edit.vue` 수정 — 제목 상단바로, AppCard
+- [x] `[table]/new.vue` 생성 — 제목 상단바로, AppCard
+- [x] `WorkerRelations.vue` — 종사자 상세 하단
+- [x] `OrgRelations.vue` — 기관 상세 하단
+- [x] `JobRelations.vue` — 공고 상세 하단(요약 타일 + 추천 모달)
+- [x] `ResumeSharePanel.vue` — 이력서 공유 패널
+- [x] 검증: `<script>` 블록 무변경 확인 + `vue-tsc --noEmit` + `npm test`
+- [ ] 브라우저 육안 확인 (로그인 계정이 없어 사용자 확인 필요)
+- [x] 고아가 된 구식 `Spinner.vue` 삭제(전부 `AppSpinner` 로 옮겨감)
