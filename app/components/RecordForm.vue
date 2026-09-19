@@ -62,64 +62,51 @@ function displayReadonly(field: FormField): string {
 </script>
 
 <template>
-  <form class="space-y-4" @submit.prevent="emit('submit', buildPayload())">
-    <UFormField
-      v-for="field in visibleFields"
-      :key="field.name"
-      :label="field.label"
-      :name="field.name"
-    >
-      <USwitch v-if="field.type === 'boolean'" v-model="form[field.name]" />
+  <form class="space-y-6" @submit.prevent="emit('submit', buildPayload())">
+    <div class="grid gap-5 md:grid-cols-2">
+      <FormField
+        v-for="field in visibleFields"
+        :key="field.name"
+        :label="field.label"
+        :hint="field.type === 'array' ? '쉼표(,)로 구분해 여러 값을 입력하세요.' : undefined"
+        :class="field.type === 'textarea' ? 'md:col-span-2' : ''"
+      >
+        <Toggle v-if="field.type === 'boolean'" v-model="form[field.name]" />
 
-      <USelect
-        v-else-if="field.type === 'select'"
-        v-model="form[field.name]"
-        :items="field.options || []"
-        class="w-full"
-      />
+        <SelectField
+          v-else-if="field.type === 'select'"
+          v-model="form[field.name]"
+          :options="field.options || []"
+        />
 
-      <UTextarea
-        v-else-if="field.type === 'textarea'"
-        v-model="form[field.name]"
-        :rows="4"
-        class="w-full"
-      />
+        <AppTextarea v-else-if="field.type === 'textarea'" v-model="form[field.name]" :rows="4" />
 
-      <UInput
-        v-else-if="field.type === 'number'"
-        v-model="form[field.name]"
-        type="number"
-        class="w-full"
-      />
+        <TextField v-else-if="field.type === 'number'" v-model="form[field.name]" type="number" />
 
-      <UInput
-        v-else-if="field.type === 'date'"
-        v-model="form[field.name]"
-        type="date"
-        class="w-full"
-      />
+        <DateField v-else-if="field.type === 'date'" v-model="form[field.name]" />
 
-      <template v-else>
-        <UInput v-model="form[field.name]" class="w-full" />
-        <p v-if="field.type === 'array'" class="mt-1 text-xs text-gray-500">
-          쉼표(,)로 구분해 여러 값을 입력하세요.
-        </p>
-      </template>
-    </UFormField>
-
-    <!-- 읽기전용 참고 필드 -->
-    <div v-if="readonlyFields.length" class="rounded-md bg-gray-50 p-3 text-sm">
-      <div v-for="field in readonlyFields" :key="field.name" class="flex gap-2 py-0.5">
-        <span class="w-28 shrink-0 text-gray-500">{{ field.label }}</span>
-        <span class="text-gray-700">{{ displayReadonly(field) }}</span>
-      </div>
+        <TextField v-else v-model="form[field.name]" />
+      </FormField>
     </div>
 
-    <div class="flex gap-2 pt-2">
-      <UButton type="submit" :loading="submitting" color="primary">
+    <!-- 읽기전용 참고 필드 — 고칠 수 없는 값이라 입력칸과 섞지 않고 따로 묶는다 -->
+    <div v-if="readonlyFields.length" class="rounded-2xl bg-surface-soft px-5 py-4">
+      <p class="mb-2.5 text-[11px] font-semibold tracking-wide text-muted-soft uppercase">참고</p>
+      <dl class="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+        <div v-for="field in readonlyFields" :key="field.name" class="flex gap-3">
+          <dt class="w-28 shrink-0 text-muted">{{ field.label }}</dt>
+          <dd class="min-w-0 break-words text-body">{{ displayReadonly(field) }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="flex justify-end gap-2 border-t border-hairline-soft pt-5">
+      <AppButton type="button" variant="outline" color="neutral" @click="emit('cancel')">
+        취소
+      </AppButton>
+      <AppButton type="submit" :loading="submitting">
         {{ mode === 'create' ? '생성' : '저장' }}
-      </UButton>
-      <UButton type="button" variant="ghost" color="neutral" @click="emit('cancel')">취소</UButton>
+      </AppButton>
     </div>
   </form>
 </template>
