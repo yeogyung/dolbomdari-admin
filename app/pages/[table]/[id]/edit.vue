@@ -5,6 +5,7 @@ import { getTable } from '#shared/tables'
 const route = useRoute()
 const api = useAdminApi()
 const toast = useToast()
+const { setHeader } = useAdminHeader()
 
 const tableName = computed(() => String(route.params.table))
 const id = computed(() => String(route.params.id))
@@ -20,6 +21,10 @@ const editable = computed(
   () => me.value?.role === 'master' && def.value?.mode === 'crud' && def.value.pk.length === 1,
 )
 const detailPath = computed(() => `/${tableName.value}/${encodeURIComponent(id.value)}`)
+
+watchEffect(() => {
+  if (def.value) setHeader('수정', [{ label: def.value.label, to: `/${tableName.value}` }])
+})
 
 onMounted(async () => {
   if (!editable.value) {
@@ -50,14 +55,19 @@ async function onSubmit(payload: Record<string, any>) {
 </script>
 
 <template>
-  <div v-if="!editable">
-    <p class="text-red-600">이 테이블은 수정할 수 없습니다.</p>
-  </div>
-  <div v-else class="max-w-2xl">
-    <h1 class="mb-4 text-xl font-bold">{{ def!.label }} 수정</h1>
+  <EmptyState
+    v-if="!editable"
+    icon="i-lucide-lock"
+    title="수정할 수 없는 테이블입니다."
+    description="운영관리자만, 그리고 키가 하나인 테이블만 수정할 수 있습니다."
+  />
 
-    <Spinner v-if="loading" label="불러오는 중…" />
-    <UCard v-else-if="record">
+  <div v-else class="max-w-3xl">
+    <AppSpinner v-if="loading" label="불러오는 중…" />
+    <AppCard v-else-if="record" padding="lg">
+      <template #header>
+        <h2 class="text-[18px] font-semibold text-ink">{{ def!.label }} 수정</h2>
+      </template>
       <RecordForm
         :def="def!"
         :initial="record"
@@ -66,6 +76,6 @@ async function onSubmit(payload: Record<string, any>) {
         @submit="onSubmit"
         @cancel="navigateTo(detailPath)"
       />
-    </UCard>
+    </AppCard>
   </div>
 </template>

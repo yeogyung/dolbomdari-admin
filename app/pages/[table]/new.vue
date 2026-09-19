@@ -5,6 +5,7 @@ import { getTable } from '#shared/tables'
 const route = useRoute()
 const api = useAdminApi()
 const toast = useToast()
+const { setHeader } = useAdminHeader()
 
 const tableName = computed(() => String(route.params.table))
 const def = computed(() => getTable(tableName.value))
@@ -15,6 +16,10 @@ const { me } = useAdminRole()
 const allowed = computed(
   () => me.value?.role === 'master' && def.value?.mode === 'crud' && def.value.canCreate,
 )
+
+watchEffect(() => {
+  if (def.value) setHeader('새로 만들기', [{ label: def.value.label, to: `/${tableName.value}` }])
+})
 
 async function onSubmit(payload: Record<string, any>) {
   submitting.value = true
@@ -31,12 +36,18 @@ async function onSubmit(payload: Record<string, any>) {
 </script>
 
 <template>
-  <div v-if="!allowed">
-    <p class="text-red-600">이 테이블은 생성할 수 없습니다.</p>
-  </div>
-  <div v-else class="max-w-2xl">
-    <h1 class="mb-4 text-xl font-bold">{{ def!.label }} 생성</h1>
-    <UCard>
+  <EmptyState
+    v-if="!allowed"
+    icon="i-lucide-lock"
+    title="생성할 수 없는 테이블입니다."
+    description="운영관리자만, 그리고 생성이 열려 있는 테이블만 만들 수 있습니다."
+  />
+
+  <div v-else class="max-w-3xl">
+    <AppCard padding="lg">
+      <template #header>
+        <h2 class="text-[18px] font-semibold text-ink">{{ def!.label }} 생성</h2>
+      </template>
       <RecordForm
         :def="def!"
         :initial="{}"
@@ -45,6 +56,6 @@ async function onSubmit(payload: Record<string, any>) {
         @submit="onSubmit"
         @cancel="navigateTo(`/${tableName}`)"
       />
-    </UCard>
+    </AppCard>
   </div>
 </template>
