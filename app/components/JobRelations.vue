@@ -80,92 +80,98 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-6">
     <!-- 액션 -->
     <div class="flex justify-end">
-      <UButton icon="i-lucide-send" color="primary" @click="showRec = true">
-        종사자에게 추천
-      </UButton>
+      <AppButton icon="i-lucide-send" @click="showRec = true">종사자에게 추천</AppButton>
     </div>
 
     <!-- 요약 카운트 -->
-    <div class="grid grid-cols-5 gap-2">
-      <div v-for="s in sections" :key="s.table" class="rounded-lg border border-gray-200 p-3 text-center">
-        <div class="text-xs text-gray-500">{{ s.title }}</div>
-        <div class="text-lg font-semibold">{{ loading ? '…' : (data[s.table]?.total ?? 0) }}</div>
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div
+        v-for="s in sections"
+        :key="s.table"
+        class="flex flex-col gap-1.5 rounded-2xl border border-hairline bg-white p-4 text-center"
+      >
+        <span class="text-xs font-medium text-muted">{{ s.title }}</span>
+        <span class="text-[22px] leading-none font-medium tabular-nums text-ink">
+          {{ loading ? '…' : (data[s.table]?.total ?? 0) }}
+        </span>
       </div>
     </div>
 
     <!-- 섹션별 목록 -->
-    <UCard v-for="s in sections" :key="s.table">
+    <AppCard v-for="s in sections" :key="s.table">
       <template #header>
-        <div class="flex items-center gap-2">
-          <span class="font-semibold">{{ s.title }}</span>
-          <span class="text-sm text-gray-400">{{ data[s.table]?.total ?? 0 }}건</span>
-        </div>
+        <h3 class="text-[15px] font-semibold text-ink">{{ s.title }}</h3>
+        <Tag>{{ data[s.table]?.total ?? 0 }}건</Tag>
       </template>
 
-      <Spinner v-if="loading" label="불러오는 중…" />
-      <p v-else-if="!data[s.table]?.rows.length" class="py-4 text-center text-sm text-gray-400">
+      <AppSpinner v-if="loading" size="sm" label="불러오는 중…" />
+      <p v-else-if="!data[s.table]?.rows.length" class="py-6 text-center text-sm text-muted-soft">
         기록이 없습니다.
       </p>
-      <table v-else class="min-w-full text-sm">
-        <thead class="text-left text-gray-500">
-          <tr>
-            <th class="w-12 py-1.5 font-medium">No.</th>
-            <th class="py-1.5 font-medium">대상</th>
-            <th v-if="s.extraCol" class="py-1.5 font-medium">{{ s.extraCol }}</th>
-            <th class="py-1.5 font-medium">시각</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-for="(row, i) in data[s.table]!.rows" :key="i">
-            <td class="py-1.5 text-gray-400">{{ i + 1 }}</td>
-            <td class="py-1.5">
-              <NuxtLink
-                v-if="row[s.idCol]"
-                :to="`/users/${encodeURIComponent(row[s.idCol])}`"
-                class="text-primary-600 hover:underline"
-              >
-                {{ row[s.idCol] }}
-              </NuxtLink>
-              <span v-else class="text-gray-400">비회원</span>
-            </td>
-            <td v-if="s.extraCol" class="py-1.5 text-gray-600">{{ row[s.extraCol] ?? '—' }}</td>
-            <td class="py-1.5 text-gray-600">{{ fmtTime(row[s.timeCol]) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </UCard>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full border-collapse">
+          <thead>
+            <tr>
+              <th class="w-12 pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">No.</th>
+              <th class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">대상</th>
+              <th v-if="s.extraCol" class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">{{ s.extraCol }}</th>
+              <th class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">시각</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, i) in data[s.table]!.rows" :key="i">
+              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm tabular-nums text-muted-soft">{{ i + 1 }}</td>
+              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm">
+                <NuxtLink
+                  v-if="row[s.idCol]"
+                  :to="`/users/${encodeURIComponent(row[s.idCol])}`"
+                  class="font-medium text-brand-500 hover:underline"
+                >
+                  {{ row[s.idCol] }}
+                </NuxtLink>
+                <span v-else class="text-muted-soft">비회원</span>
+              </td>
+              <td v-if="s.extraCol" class="border-t border-hairline-soft py-2.5 pr-3 text-sm text-body">{{ row[s.extraCol] ?? '—' }}</td>
+              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm whitespace-nowrap text-body">{{ fmtTime(row[s.timeCol]) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </AppCard>
 
     <!-- 수동 추천 모달 -->
-    <UModal v-model:open="showRec" title="종사자에게 공고 추천">
-      <template #body>
-        <div class="space-y-3">
-          <div class="flex gap-2">
-            <UInput
-              v-model="search"
-              placeholder="이름·전화·직종 검색"
-              class="flex-1"
-              @keyup.enter="searchWorkers"
-            />
-            <UButton :loading="searching" @click="searchWorkers">검색</UButton>
-          </div>
-          <p v-if="recMsg" class="text-sm text-primary-600">{{ recMsg }}</p>
-          <div v-if="results.length" class="max-h-80 divide-y divide-gray-100 overflow-y-auto">
-            <div v-for="w in results" :key="w.id" class="flex items-center justify-between py-2 text-sm">
-              <div>
-                <div class="font-medium">{{ w.name || w.id }}</div>
-                <div class="text-gray-500">{{ w.phone }} · {{ w.job_type }}</div>
-              </div>
-              <UButton size="xs" variant="soft" @click="recommend(w.id)">추천</UButton>
-            </div>
-          </div>
-          <p v-else-if="!searching" class="py-4 text-center text-sm text-gray-400">
-            검색해 종사자를 선택하세요.
-          </p>
+    <AppModal v-model:open="showRec" title="종사자에게 공고 추천" width="max-w-lg">
+      <div class="space-y-4">
+        <div class="flex gap-2">
+          <TextField
+            v-model="search"
+            placeholder="이름·전화·직종 검색"
+            class="flex-1"
+            @keyup.enter="searchWorkers"
+          />
+          <AppButton :loading="searching" @click="searchWorkers">검색</AppButton>
         </div>
-      </template>
-    </UModal>
+
+        <p v-if="recMsg" class="rounded-lg bg-brand-soft px-3.5 py-2.5 text-sm text-brand-500">
+          {{ recMsg }}
+        </p>
+
+        <div v-if="results.length" class="max-h-80 divide-y divide-hairline-soft overflow-y-auto">
+          <div v-for="w in results" :key="w.id" class="flex items-center justify-between gap-3 py-3">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-ink">{{ w.name || w.id }}</p>
+              <p class="truncate text-sm text-muted">{{ w.phone }} · {{ w.job_type }}</p>
+            </div>
+            <AppButton size="sm" variant="soft" @click="recommend(w.id)">추천</AppButton>
+          </div>
+        </div>
+        <p v-else-if="!searching" class="py-6 text-center text-sm text-muted-soft">
+          검색해 종사자를 선택하세요.
+        </p>
+      </div>
+    </AppModal>
   </div>
 </template>

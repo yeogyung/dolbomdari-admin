@@ -38,6 +38,14 @@ function fmt(v: string | null) {
   return v ? v.replace('T', ' ').slice(0, 16) : '—'
 }
 
+/** statusOf 의 색 이름을 StatusBadge 톤으로 옮긴다 — 표시용 매핑이다 */
+const SHARE_TONE = {
+  success: 'green',
+  error: 'red',
+  warning: 'amber',
+  neutral: 'gray',
+} as const
+
 function statusOf(l: ShareLink) {
   if (l.revoked_at) return { text: '폐기됨', color: 'neutral' as const }
   if (l.locked_at) return { text: '잠김', color: 'error' as const }
@@ -144,82 +152,88 @@ defineExpose({ load })
 </script>
 
 <template>
-  <UCard class="mt-4">
+  <AppCard>
     <template #header>
-      <div class="flex items-center justify-between">
-        <span class="font-semibold">이력서 공유</span>
-        <div class="flex gap-2">
-          <UButton size="xs" variant="soft" @click="downloadPdf">PDF 다운로드</UButton>
-          <UButton size="xs" color="primary" :loading="issuing" @click="issue">
-            공개 링크 발급
-          </UButton>
-        </div>
+      <h3 class="text-[15px] font-semibold text-ink">이력서 공유</h3>
+      <div class="flex gap-2">
+        <AppButton size="sm" variant="outline" color="neutral" icon="i-lucide-download" @click="downloadPdf">
+          PDF 다운로드
+        </AppButton>
+        <AppButton size="sm" icon="i-lucide-link" :loading="issuing" @click="issue">
+          공개 링크 발급
+        </AppButton>
       </div>
     </template>
 
-    <Spinner v-if="loading" label="불러오는 중…" />
-    <p v-else-if="!links.length" class="py-4 text-center text-sm text-gray-400">
+    <AppSpinner v-if="loading" size="sm" label="불러오는 중…" />
+    <p v-else-if="!links.length" class="py-6 text-center text-sm text-muted-soft">
       발급한 링크가 없습니다.
     </p>
 
     <div v-else class="space-y-3">
-      <div v-for="l in links" :key="l.token" class="rounded border border-gray-200 p-3 text-sm">
-        <div class="mb-2 flex items-center gap-2">
-          <UBadge :color="statusOf(l).color" variant="subtle" size="xs">
-            {{ statusOf(l).text }}
-          </UBadge>
-          <span class="text-gray-500">
+      <div
+        v-for="l in links"
+        :key="l.token"
+        class="rounded-2xl border border-hairline bg-surface-soft p-4 text-sm"
+      >
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+          <StatusBadge :tone="SHARE_TONE[statusOf(l).color]">{{ statusOf(l).text }}</StatusBadge>
+          <span class="text-muted">
             만료 {{ fmt(l.expires_at) }} · 열람 {{ l.view_count }}회
           </span>
-          <span v-if="l.last_viewed_at" class="text-gray-400">
+          <span v-if="l.last_viewed_at" class="text-muted-soft">
             (마지막 {{ fmt(l.last_viewed_at) }})
           </span>
         </div>
 
-        <div class="mb-2 break-all font-mono text-xs text-gray-700">{{ linkUrl(l.token) }}</div>
+        <div class="mb-3 rounded-lg border border-hairline bg-white px-3 py-2 font-mono text-xs break-all text-body">
+          {{ linkUrl(l.token) }}
+        </div>
 
-        <div class="mb-2 flex items-center gap-2">
-          <span class="text-gray-500">비밀번호</span>
-          <span class="font-mono">{{ revealed[l.token] ? l.password : '••••••' }}</span>
-          <UButton
-            size="xs"
-            variant="ghost"
+        <div class="mb-3 flex items-center gap-2">
+          <span class="text-muted">비밀번호</span>
+          <span class="font-mono text-ink">{{ revealed[l.token] ? l.password : '••••••' }}</span>
+          <button
+            type="button"
+            class="text-sm font-medium text-brand-500 hover:underline"
             @click="revealed[l.token] = !revealed[l.token]"
           >
             {{ revealed[l.token] ? '숨기기' : '보기' }}
-          </UButton>
+          </button>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-          <UButton size="xs" variant="soft" @click="copyLink(l)">복사</UButton>
-          <UButton
+          <AppButton size="sm" variant="outline" color="neutral" icon="i-lucide-copy" @click="copyLink(l)">
+            복사
+          </AppButton>
+          <AppButton
             v-if="!l.revoked_at"
-            size="xs"
-            color="error"
+            size="sm"
             variant="soft"
+            color="down"
+            icon="i-lucide-ban"
             @click="revoke(l.token)"
           >
             폐기
-          </UButton>
+          </AppButton>
           <template v-if="statusOf(l).text === '사용 가능'">
-            <UInput
+            <TextField
               v-model="smsTarget[l.token]"
-              size="xs"
               placeholder="010-0000-0000"
-              class="w-40"
+              class="!h-9 w-40"
             />
-            <UButton
-              size="xs"
-              color="primary"
+            <AppButton
+              size="sm"
               variant="soft"
+              icon="i-lucide-message-square"
               :loading="sending[l.token]"
               @click="sendLink(l)"
             >
               문자 발송
-            </UButton>
+            </AppButton>
           </template>
         </div>
       </div>
     </div>
-  </UCard>
+  </AppCard>
 </template>
