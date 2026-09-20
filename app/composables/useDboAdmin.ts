@@ -12,6 +12,9 @@ import type {
   Paged,
   Program,
   Worksite,
+  NoticeSummary,
+  NoticeDetail,
+  NoticeRecipient,
 } from '~/types/dbo'
 
 /** Edge Function 오류 응답({ error })과 상태 코드를 사람이 읽는 한국어로 바꾼다 */
@@ -65,6 +68,11 @@ export function useDboAdmin() {
   }
 
   return {
+    /* 공지 발송 채널·열람 관리 — master 전용 */
+    listNotices: (q: ListQuery = {}) => req<Paged<NoticeSummary>>('/notices', { query: clean(q) }),
+    getNotice: (id: string) => req<NoticeDetail>(`/notices/${id}`),
+    listNoticeRecipients: (id: string, q: ListQuery & { channel?: string; read?: string } = {}) =>
+      req<Paged<NoticeRecipient>>(`/notices/${id}/recipients`, { query: clean(q) }),
     /* 사업 — master 전용 */
     listPrograms: () => req<{ items: Program[] }>('/programs'),
     createProgram: (body: { name: string; color?: string }) =>

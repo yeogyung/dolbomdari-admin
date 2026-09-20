@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { Assignment, DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
+import { phoneKindFromMemo, withPhoneKind } from '~/utils/phoneKind'
 
 const route = useRoute()
 const api = useDboAdmin()
@@ -15,6 +16,10 @@ const loading = ref(true)
 const saving = ref(false)
 
 const form = ref({ name: '', phone: '', memo: '', status: 'active' as LifeStatus })
+const phoneKind = computed({
+  get: () => phoneKindFromMemo(form.value.memo),
+  set: (value: string | number | null) => { form.value.memo = withPhoneKind(form.value.memo, value) },
+})
 const phoneChanged = computed(() => !!entry.value && form.value.phone !== (entry.value.phone ?? ''))
 
 const worksites = ref<Worksite[]>([])
@@ -261,6 +266,16 @@ onMounted(() => {
           </FormField>
           <FormField label="이메일" hint="앱 계정에 연결된 값으로, 어드민에서 바꾸지 않습니다.">
             <TextField :model-value="entry.email ?? '—'" readonly />
+          </FormField>
+          <FormField v-if="entry.role === 'senior'" label="휴대폰 종류" hint="선택한 종류는 메모에 함께 기록됩니다 저장 버튼을 눌러 반영해 주세요">
+            <SelectField
+              v-model="phoneKind"
+              :options="[
+                { label: '미확인', value: 'unknown' },
+                { label: '스마트폰', value: 'smartphone' },
+                { label: '일반폰', value: 'feature' },
+              ]"
+            />
           </FormField>
           <div class="md:col-span-2">
             <FormField label="메모" hint="담당자 참고용. 앱에는 보이지 않습니다.">
