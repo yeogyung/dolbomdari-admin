@@ -148,3 +148,20 @@ export interface ChatMessage {
   created_at: string
   [key: string]: unknown
 }
+
+/** FAQ 승인 상태 — 담당자가 앱에서 올리면 pending, 승인은 웹 어드민에서만 한다 */
+export type FaqStatus = 'pending' | 'approved' | 'rejected'
+
+/** dbo_faqs 행 + 적용 범위 embed (범위 행이 없으면 기관 전체) */
+export interface Faq {
+  id: string
+  question: string
+  answer: string
+  enabled: boolean
+  sort: number
+  status: FaqStatus
+  category: string | null
+  created_by: string | null
+  created_at: string
+  dbo_faq_worksites: { worksite_id: string; dbo_worksites: { id: string; name: string } | null }[]
+}

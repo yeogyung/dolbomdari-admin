@@ -1,4 +1,4 @@
-// 브라우저 전용 Supabase(anon) 클라이언트 — 로그인/세션 관리에만 사용 (데이터 접근은 자체 서버 API)
+// 브라우저 전용 Supabase(anon) 클라이언트 — 로그인/세션 관리 + RLS 로 열린 dbo 조회(useFaqs). 쓰기는 서버 API
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 let client: SupabaseClient | null = null
