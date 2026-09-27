@@ -165,3 +165,36 @@ export interface Faq {
   created_at: string
   dbo_faq_worksites: { worksite_id: string; dbo_worksites: { id: string; name: string } | null }[]
 }
+
+/** AI 문서 상태 — 저장값이 아니라 서버가 발효일·종료일·제외 여부로 계산한다. AI 근거는 현행뿐 */
+export type DocumentState = '현행' | '발효예정' | '만료' | '미정' | '제외함'
+
+/** GET /dbo-admin/documents 행 — 본문 없음. 적용 범위가 비면 기관 전체 */
+export interface DocumentListItem {
+  id: string
+  filename: string
+  kind: string
+  version: string | null
+  effective_date: string | null
+  expiry_date: string | null
+  updated_at: string
+  state: DocumentState
+  excluded_at: string | null
+  byte_size: number | null
+  created_by: string | null
+  dbo_document_worksites: { worksite_id: string }[]
+}
+
+/** GET /dbo-admin/documents/{id} — 본문과 색인 청크 수(0 이면 색인 전) */
+export interface DocumentDetail extends DocumentListItem {
+  body: string
+  chunks: number
+}
+
+/** PATCH /dbo-admin/documents/{id} — 보낸 항목만 고친다. expiryDate: null 은 종료일 삭제(무기한) */
+export interface DocumentPatch {
+  body?: string
+  version?: string
+  effectiveDate?: string
+  expiryDate?: string | null
+}

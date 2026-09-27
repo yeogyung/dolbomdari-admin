@@ -16,6 +16,10 @@ import type {
   NoticeDetail,
   NoticeRecipient,
   FaqStatus,
+  DocumentListItem,
+  DocumentDetail,
+  DocumentPatch,
+  DocumentState,
 } from '~/types/dbo'
 
 /** Edge Function 오류 응답({ error })과 상태 코드를 사람이 읽는 한국어로 바꾼다 */
@@ -74,6 +78,11 @@ export function useDboAdmin() {
     getNotice: (id: string) => req<NoticeDetail>(`/notices/${id}`),
     listNoticeRecipients: (id: string, q: ListQuery & { channel?: string; read?: string } = {}) =>
       req<Paged<NoticeRecipient>>(`/notices/${id}/recipients`, { query: clean(q) }),
+    /* AI 문서 — master 전용. 상태(state)는 서버가 날짜로 계산한다. 본문을 고친 경우에만 재색인(indexed) */
+    listDocuments: (q: ListQuery = {}) => req<Paged<DocumentListItem>>('/documents', { query: clean(q) }),
+    getDocument: (id: string) => req<DocumentDetail>(`/documents/${id}`),
+    updateDocument: (id: string, body: DocumentPatch) =>
+      req<{ ok: true; state: DocumentState; indexed?: boolean }>(`/documents/${id}`, { method: 'PATCH', body }),
     /* FAQ 승인·반려 — master 전용. 조회는 useFaqs(PostgREST 직접). enabled 는 서버가 status 에 맞춰 켜고 끈다 */
     updateFaqStatus: (id: string, status: FaqStatus) =>
       req<{ ok: true }>(`/faqs/${id}`, { method: 'PATCH', body: { status } }),
