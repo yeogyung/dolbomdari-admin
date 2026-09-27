@@ -21,6 +21,7 @@ import type {
   DocumentPatch,
   DocumentState,
 } from '~/types/dbo'
+import type { DocumentCreateBody } from '~/utils/documentImport'
 
 /** Edge Function 오류 응답({ error })과 상태 코드를 사람이 읽는 한국어로 바꾼다 */
 export function dboErrorMessage(e: any, fallback = '요청을 처리하지 못했습니다.'): string {
@@ -81,6 +82,8 @@ export function useDboAdmin() {
     /* AI 문서 — master 전용. 상태(state)는 서버가 날짜로 계산한다. 본문을 고친 경우에만 재색인(indexed) */
     listDocuments: (q: ListQuery = {}) => req<Paged<DocumentListItem>>('/documents', { query: clean(q) }),
     getDocument: (id: string) => req<DocumentDetail>(`/documents/${id}`),
+    createDocument: (body: DocumentCreateBody) =>
+      req<{ id: string; indexed: boolean }>('/documents', { method: 'POST', body: { ...body } }),
     updateDocument: (id: string, body: DocumentPatch) =>
       req<{ ok: true; state: DocumentState; indexed?: boolean }>(`/documents/${id}`, { method: 'PATCH', body }),
     /* FAQ 승인·반려 — master 전용. 조회는 useFaqs(PostgREST 직접). enabled 는 서버가 status 에 맞춰 켜고 끈다 */
