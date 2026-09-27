@@ -1,4 +1,4 @@
-<!-- 유기체: 데이터 테이블 — 툴바(검색·필터 슬롯) + 정렬 + 체크박스 + 페이지네이션 + N개씩 (시안 W2/W4 기준) -->
+<!-- 유기체: 데이터 테이블 — 툴바(검색·필터 슬롯) + 정렬 + 페이지네이션 + N개씩 (시안 W2/W4 기준) -->
 <script setup lang="ts">
 import type { Column } from '~/types/table'
 
@@ -14,7 +14,6 @@ const props = withDefaults(
     pageSize?: number
     total?: number
     pageSizeOptions?: number[]
-    selectable?: boolean
     emptyText?: string
   }>(),
   {
@@ -85,9 +84,6 @@ function fmt(v: unknown): string {
         <table class="w-full border-collapse">
           <thead>
             <tr>
-              <th v-if="selectable" class="w-11 pr-3 pb-3">
-                <span class="block size-[18px] rounded border border-muted-soft" />
-              </th>
               <th
                 v-for="col in columns"
                 :key="col.key"
@@ -123,9 +119,6 @@ function fmt(v: unknown): string {
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row[rowKey]" class="align-middle">
-              <td v-if="selectable" class="border-t border-hairline py-[15px] pr-3">
-                <span class="block size-[18px] rounded border border-muted-soft" />
-              </td>
               <td
                 v-for="col in columns"
                 :key="col.key"

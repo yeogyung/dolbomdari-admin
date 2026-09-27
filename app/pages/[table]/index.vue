@@ -206,7 +206,6 @@ onMounted(load)
       :page="page"
       :page-size="pageSize"
       :total="total"
-      selectable
       @sort="toggleSort"
       @update:page="changePage"
       @update:page-size="changePageSize"
