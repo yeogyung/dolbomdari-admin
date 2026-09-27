@@ -171,3 +171,15 @@
 - [x] 좌측 메뉴 '소통' 에 AI 문서 관리 추가
 - [x] `npm test` + `npm run build`
 - [ ] master 세션으로 목록·상세·수정·근거에서 빼기 브라우저 확인 (사용자 확인 필요)
+
+## Phase 9 — AI 문서 등록 (md·docx·pdf)
+
+HWP 는 지원하지 않는다(사용자 결정). 서버는 텍스트만 받으므로 브라우저가 추출한다.
+
+- [x] `pdfjs-dist`·`mammoth` 설치 — 등록 화면에서만 동적 import
+- [x] `utils/documentImport.ts` 형식 판별·텍스트 정리·등록 본문 검증 + `test/documentImport.test.ts`
+- [x] `useDocumentExtract` — md(텍스트)·docx(mammoth)·pdf(pdf.js) 추출
+- [x] `createDocument` API + `/senior/documents/new` 등록 화면(추출 → 검수·수정 → 등록)
+- [x] 목록 상단 「문서 등록」 버튼
+- [x] `npm test` + `npm run build`
+- [ ] 실제 md·docx·pdf 파일로 추출 품질 브라우저 확인 (사용자 확인 필요)
