@@ -133,3 +133,18 @@
 서버의 `20260917000000_dbo_notice_deliveries.sql` 적용이 선행되어야 한다.
 문자·푸시 필터는 공급자 접수 기준이며 단말 수신 보장이나 열람 완료를 뜻하지 않는다.
 이력 없는 기존 공지는 화면에서 이력 없음으로 안내한다.
+
+## Phase 6 — FAQ 승인 관리 (`/senior/faqs`)
+
+담당자가 앱에서 올린 FAQ(`pending`)를 master 가 웹에서 승인·반려한다. 서버 변경 없음.
+조회는 supabase-js 로 RLS 를 타고 직접 읽고, 승인·반려만 dbo-admin `PATCH /faqs/{id}` 로 쓴다.
+
+- [x] `Faq`·`FaqStatus` 타입, `useFaqs`(조회), `updateFaqStatus`(쓰기)
+- [x] `utils/faqs.ts` 라벨·톤·필터·범위·오류 메시지 + `test/faqs.test.ts`
+- [x] `/senior/faqs` 목록 — 승인 상태 배지, 상태 필터, 질문·답변 검색
+- [x] `/senior/faqs/[id]` 상세 — 승인·반려(사유 없음, 결정 번복 허용)
+- [x] 좌측 메뉴 '소통' 에 FAQ 관리 추가
+- [x] `npm test` + `npm run build`
+- [ ] master 세션으로 목록·상세·승인·반려 왕복 브라우저 확인 (사용자 확인 필요)
+
+원격 DB 에 서버의 `20260925000000_dbo_knowledge_manager.sql` 이 적용되어 있어야 한다.

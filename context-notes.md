@@ -102,3 +102,22 @@
   공용 컴포넌트로 묶지 않았다. 슬롯으로 받으면 결국 지금과 같은 모양이 된다.
 - 하위 목록의 빈 상태는 `EmptyState`(py-12) 대신 한 줄짜리 문구를 썼다. 한 화면에 네다섯 개가
   쌓이면 빈 공간만 400px 넘게 생긴다.
+
+### FAQ 승인 관리 (2026-09-27)
+- **읽기는 supabase-js 직접, 쓰기는 Edge Function.** 사용자 요청으로 GET 을 웹에서 PostgREST 로
+  부른다. 서버 마이그레이션 `20260925000000_dbo_knowledge_manager.sql` 이 `dbo_faqs`·
+  `dbo_faq_worksites` 의 select 를 `dbo_can_manage_knowledge()`(master·manager)로 열어 두었다.
+  쓰기 정책은 없다 — 서버 원칙(AGENTS §1.5)대로 승인·반려는 `PATCH /dbo-admin/faqs/{id}` 다.
+- 덕분에 Edge Function 에 없던 단건 조회가 생긴다. 상세는 목록을 받아 find 하지 않고
+  `.eq('id').maybeSingle()` 로 읽는다.
+- **`dbo_worksites` 는 컬럼을 적어서 embed 한다.** qr_token 을 가리려고 테이블 select 를
+  걷고 컬럼 단위로만 grant 했기 때문에(`20260906030000_dbo_worksite_qr_token_guard.sql`)
+  `*` 로 읽으면 42501 권한 오류가 난다.
+- 조회 클라이언트는 `useDboAdmin` 에 넣지 않고 `useFaqs` 로 분리했다. `useDboAdmin` 은
+  Edge Function 전용 `req` 를 공유하는 파일이라 섞으면 오류 처리(`dboErrorMessage` 는 HTTP
+  상태 기준, PostgREST 는 `code` 기준)가 한 파일 안에서 두 갈래가 된다.
+- **승인·반려는 `status` 만 보낸다.** 승인 시 `enabled=true`, 반려 시 `enabled=false` 는 서버
+  `parseFaqPatch` 가 채운다. 화면에서 enabled 를 따로 보내면 그 규칙을 덮어쓴다.
+- 반려 사유는 받지 않는다(저장할 컬럼이 없다). 결정은 언제든 바꿀 수 있다 — 대기는 승인·반려,
+  승인은 반려만, 반려는 승인만 보인다. 서버도 전이 제약이 없다.
+- 이번 범위 밖: FAQ 생성·수정·순서 변경·enabled 수동 토글·미답변 질문 화면.
