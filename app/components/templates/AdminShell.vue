@@ -28,9 +28,7 @@ watch(() => route.fullPath, () => (sidebarOpen.value = false))
     <div class="flex min-w-0 flex-1 flex-col">
       <AppTopbar @toggle-sidebar="sidebarOpen = true" />
       <main class="flex-1 overflow-y-auto bg-surface-soft p-4 lg:p-8">
-        <div class="mx-auto max-w-[1200px]">
-          <slot />
-        </div>
+        <slot />
       </main>
     </div>
   </div>
