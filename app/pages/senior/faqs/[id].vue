@@ -25,6 +25,8 @@ async function loadFaq() {
   try {
     faq.value = await faqs.getFaq(id.value)
   } catch (e: any) {
+    // 승인 후 다시 불러오다 실패하면 이전 상태의 카드가 남아 결정 전 버튼을 보여 준다 — 비운다
+    faq.value = null
     loadError.value = faqReadErrorMessage(e)
     toast.add({ title: 'FAQ 조회 실패', description: loadError.value, color: 'error' })
   } finally {
