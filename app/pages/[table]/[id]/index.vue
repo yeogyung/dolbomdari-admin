@@ -45,6 +45,12 @@ const entries = computed<[string, unknown][]>(() => {
   return keys.map((k) => [k, row[k]])
 })
 
+// 2열 배치에서 긴 값은 두 칸을 합친다 — 반 칸에 넣으면 줄바꿈이 심해 읽기 어렵다
+function isWide(value: unknown): boolean {
+  const text = displayFull(value)
+  return text.includes('\n') || text.length > 60
+}
+
 watchEffect(() => {
   if (def.value) setHeader('상세', [{ label: def.value.label, to: `/${tableName.value}` }])
 })
@@ -84,7 +90,7 @@ async function onDelete() {
     description="키가 여러 개인 테이블은 목록에서만 확인할 수 있습니다."
   />
 
-  <div v-else class="max-w-4xl space-y-6">
+  <div v-else class="space-y-6">
     <Teleport to="#admin-topbar-actions">
       <AppButton
         variant="outline"
@@ -114,14 +120,17 @@ async function onDelete() {
           <h2 class="text-[18px] font-semibold text-ink">{{ def?.label }} 정보</h2>
           <span class="text-sm text-muted tabular-nums">{{ entries.length }}개 항목</span>
         </template>
-        <dl class="divide-y divide-hairline-soft">
+        <!-- 2열에서는 divide-y 가 칸 단위로 안 그려져 칸마다 border-b 를 준다.
+             마지막 줄은 2칸일 수 있어 last: 로 못 지운다 — pb 로 카드 테두리와 떼어 겹선을 막는다 -->
+        <dl class="grid grid-cols-1 px-6 pb-4 md:grid-flow-row-dense md:grid-cols-2 md:gap-x-8">
           <div
             v-for="[key, val] in entries"
             :key="key"
-            class="grid grid-cols-3 gap-4 px-6 py-3.5 text-sm"
+            class="grid grid-cols-[8rem_1fr] gap-4 border-b border-hairline-soft py-3.5 text-sm"
+            :class="{ 'md:col-span-2': isWide(val) }"
           >
-            <dt class="col-span-1 font-medium text-muted">{{ labelFor(key) }}</dt>
-            <dd class="col-span-2 break-words whitespace-pre-wrap text-body">
+            <dt class="font-medium text-muted">{{ labelFor(key) }}</dt>
+            <dd class="min-w-0 break-words whitespace-pre-wrap text-body">
               {{ displayFull(val) }}
             </dd>
           </div>
