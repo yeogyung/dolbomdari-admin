@@ -148,3 +148,13 @@
 - [ ] master 세션으로 목록·상세·승인·반려 왕복 브라우저 확인 (사용자 확인 필요)
 
 원격 DB 에 서버의 `20260925000000_dbo_knowledge_manager.sql` 이 적용되어 있어야 한다.
+
+## Phase 7 — 목록 체크박스 제거·본문 최대 폭 해제·상세 2열
+
+체크박스는 디자인 개편(6007301)에서 시안을 옮기며 들어온 장식이다. 선택 기능이 없다.
+
+- [x] `[table]/index.vue` 의 `selectable` 제거 + DataTable 의 `selectable` prop·마크업 제거
+- [x] `AdminShell.vue` 본문 `max-w-[1200px]` 제거 (폼 화면은 자체 `max-w-3xl` 유지)
+- [x] `[table]/[id]/index.vue` 상세 — `max-w-4xl` 제거, 항목 2열(긴 값은 2칸 병합)
+- [x] `npm test` + `npm run build`
+- [ ] 브라우저 육안 확인 (사용자 확인 필요)
