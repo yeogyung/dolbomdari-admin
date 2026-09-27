@@ -158,3 +158,16 @@
 - [x] `[table]/[id]/index.vue` 상세 — `max-w-4xl` 제거, 항목 2열(긴 값은 2칸 병합)
 - [x] `npm test` + `npm run build`
 - [ ] 브라우저 육안 확인 (사용자 확인 필요)
+
+## Phase 8 — AI(RAG) 문서 관리 (`/senior/documents`)
+
+서버 설계: `dolbomdari-server/docs/superpowers/specs/2026-09-15-dbo-documents-admin-design.md`.
+이번 범위는 목록·상세·수정. 신규 등록(파일 추출)은 다음 라운드.
+
+- [x] `DocumentListItem`·`DocumentDetail`·`DocumentState` 타입, `listDocuments`·`getDocument`·`updateDocument`
+- [x] `utils/documents.ts` 상태 톤·범위 라벨·용량·`buildDocumentPatch`·`utcYesterday` + `test/documents.test.ts`
+- [x] `/senior/documents` 목록 — 상태 배지, 파일명 검색, 서버 페이지·정렬
+- [x] `/senior/documents/[id]` 상세 — 버전·발효일·종료일·본문 수정, 색인 청크 수, 근거에서 빼기
+- [x] 좌측 메뉴 '소통' 에 AI 문서 관리 추가
+- [x] `npm test` + `npm run build`
+- [ ] master 세션으로 목록·상세·수정·근거에서 빼기 브라우저 확인 (사용자 확인 필요)
