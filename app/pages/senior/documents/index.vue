@@ -74,6 +74,10 @@ onMounted(() => {
 
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
+    <Teleport to="#admin-topbar-actions">
+      <AppButton icon="i-lucide-file-plus" @click="navigateTo('/senior/documents/new')">문서 등록</AppButton>
+    </Teleport>
+
     <DataTable
       :columns="columns"
       :rows="rows"
