@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="105 175 324 324">
+  <!-- 돌봄다리 마크 — public/og-default.png 로고의 좌표를 그대로 옮겼다 -->
+  <rect x="113" y="302" width="68" height="161" fill="#81b7ff"/>
+  <rect x="353" y="302" width="68" height="161" fill="#81b7ff"/>
+  <path d="M113 302A154 154 0 0 0 421 302H353A86 86 0 0 1 181 302Z" fill="#0370ff"/>
+  <circle cx="147" cy="245" r="34" fill="#0370ff"/>
+  <circle cx="387" cy="245" r="34" fill="#0370ff"/>
+</svg>
