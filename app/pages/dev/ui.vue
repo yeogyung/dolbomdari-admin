@@ -1,5 +1,8 @@
 <!-- 개발용: 공용 컴포넌트(원자) 미리보기 갤러리 -->
 <script setup lang="ts">
+// 탭·상단바 제목이 직전 페이지 것으로 남지 않게 직접 정한다
+useAdminHeader().setHeader('UI 컴포넌트')
+
 const text = ref('입력값')
 const sel = ref<string | null>(null)
 const toggle = ref(true)

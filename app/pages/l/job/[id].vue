@@ -2,6 +2,8 @@
 <script setup lang="ts">
 // 관리자 레이아웃(헤더/사이드바) 없이 단독 랜딩으로 렌더
 definePageMeta({ layout: false })
+// 일반 사용자가 보는 공개 페이지라 기본 제목(돌봄다리 어드민)을 쓰지 않는다
+useHead({ title: '돌봄다리' })
 
 const route = useRoute()
 const id = computed(() => String(route.params.id ?? ''))

@@ -161,3 +161,15 @@
 - 발효일 기본값은 서울 기준 오늘이다. 서버 판정은 UTC 라 서울 00~09시에 등록하면 몇 시간 「발효예정」으로
   보일 수 있다. 사람에게 자연스러운 날짜를 우선했다.
 - 원본 파일은 Storage 에 올리지 않는다(`storagePath` 미사용). 버킷·정책이 아직 없다(서버 설계 §7).
+
+### 웹 아이콘·탭 제목 (2026-09-28)
+- 기존 `public/favicon.ico` 는 Nuxt 기본 아이콘(4,286B)이었다. 돌봄다리 마크로 바꿨다.
+- **원본은 `public/favicon.svg` 하나다.** 별도 로고 파일이 없어 `public/og-default.png` 의 로고 좌표를 재서
+  옮겼다(#0370ff = brand-500, #81b7ff = brand-300). `favicon.ico`(16·32·48 PNG 내장)와
+  `apple-touch-icon.png`(180, 흰 배경 — iOS 는 투명을 검게 칠한다)는 이 SVG 를 `@resvg/resvg-js` 로
+  렌더링해 만든 것이다. 프로젝트 의존성에는 넣지 않았다. 로고가 바뀌면 SVG 를 고치고 다시 렌더링한다.
+- **탭 제목은 상단바 제목을 따라간다.** `layouts/default.vue` 가 `useAdminHeader` 의 title 로
+  `「명부 관리 · 돌봄다리 어드민」` 을 만든다. 페이지마다 useHead 를 두지 않는다 — setHeader 가 이미
+  모든 어드민 페이지에 있다. setHeader 를 안 부르는 페이지는 직전 제목이 남으므로 새 페이지에서 꼭 부른다.
+- 공통 head 에 OG 태그를 넣지 않는다. 공유 링크(`/l/job`) 카드는 `server/plugins/og-meta.ts` 가 서버에서
+  주입하고, 겹치면 카카오톡이 어느 쪽을 읽을지 보장이 없다. 공유 페이지 탭 제목은 「돌봄다리」다.
