@@ -44,7 +44,7 @@ export function useDboAdmin() {
   async function req<T>(
     path: string,
     opts: {
-      method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+      method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
       query?: Record<string, any>
       body?: Record<string, any>
     } = {},
@@ -149,6 +149,9 @@ export function useDboAdmin() {
       body: { name?: string; phone?: string; memo?: string | null; status?: LifeStatus },
     ) => req<{ ok: true }>(`/directory/${id}`, { method: 'PATCH', body }),
     endDirectory: (id: string) => req<{ ok: true }>(`/directory/${id}/end`, { method: 'POST' }),
+    /** 담당자가 맡을 수요처 전체 — 보낸 목록이 곧 결과다 */
+    setManagerWorksites: (id: string, worksiteIds: string[]) =>
+      req<{ ok: true }>(`/directory/${id}/worksites`, { method: 'PUT', body: { worksiteIds } }),
 
     /* 반복 배정 — 읽기는 worksite 범위 제한, 쓰기는 master 전용 */
     listAssignments: (q: { page?: number; size?: number; directoryId?: string } = {}) =>
