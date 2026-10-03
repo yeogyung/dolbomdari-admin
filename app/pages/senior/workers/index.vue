@@ -1,4 +1,4 @@
-<!-- 명부 관리 — 시니어·담당자 목록/검색/상태 필터 + 신규 등록 (GET·POST /dbo-admin/directory) -->
+<!-- 명부 관리 — 시니어·담당자 목록/검색/역할·상태 필터 + 신규 등록 (GET·POST /dbo-admin/directory) -->
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
@@ -15,6 +15,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const q = ref('')
 const statusFilter = ref<'' | LifeStatus>('')
+const roleFilter = ref<'' | 'senior' | 'manager'>('')
 const sortKey = ref('created_at')
 const loading = ref(false)
 
@@ -36,6 +37,7 @@ async function load() {
       q: q.value,
       sort: sortKey.value,
       status: statusFilter.value || undefined,
+      role: roleFilter.value || undefined,
     })
     rows.value = res.items
     total.value = res.total
@@ -51,7 +53,7 @@ function search() {
   load()
 }
 
-watch(statusFilter, search)
+watch([statusFilter, roleFilter], search)
 
 function toggleSort(key: string) {
   sortKey.value = key
@@ -119,6 +121,14 @@ onMounted(load)
     >
       <template #toolbar>
         <PillSearch v-model="q" placeholder="이름 또는 전화번호" @search="search" />
+        <PillSelect
+          v-model="roleFilter"
+          :options="[
+            { label: '역할 전체', value: '' },
+            { label: '시니어', value: 'senior' },
+            { label: '담당자', value: 'manager' },
+          ]"
+        />
         <PillSelect
           v-model="statusFilter"
           :options="[
