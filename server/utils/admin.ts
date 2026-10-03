@@ -43,7 +43,7 @@ export function serviceClient(): SupabaseClient {
  * 라우트마다 롤을 다시 판정하면 스무 곳 중 한 곳만 빠뜨려도 그곳이 조용히
  * 열린다. 모든 라우트가 requireAdmin 을 거치게 하고 여기서만 판정한다.
  */
-export type AdminRole = "master" | "worksite" | "org";
+export type AdminRole = "master" | "worksite" | "org" | "manager";
 
 export interface AdminActor {
   userId: string;
@@ -60,8 +60,15 @@ export interface AdminActor {
 /**
  * 요청의 Bearer 토큰을 검증하고 어드민 자격을 판정한다.
  * 통과 시 actor 반환, 실패 시 401/403 throw.
+ *
+ * 담당자(manager)는 **명시한 라우트에서만** 통과한다(`allowManager`). 담당자의 화면은
+ * 출퇴근 기록 하나이고 그 데이터는 dbo-admin 이 준다. 이 Nitro 의 라우트들(이력서 링크·
+ * [table] 등)은 롤을 다시 보지 않는 곳이 많아, 기본으로 열면 그대로 샌다.
  */
-export async function requireAdmin(event: H3Event): Promise<AdminActor> {
+export async function requireAdmin(
+  event: H3Event,
+  opts: { allowManager?: boolean } = {},
+): Promise<AdminActor> {
   const auth = getRequestHeader(event, "authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!token) {
@@ -142,6 +149,29 @@ export async function requireAdmin(event: H3Event): Promise<AdminActor> {
     };
   }
 
+  // ── 담당자(사회복지사). 맡은 수요처 범위는 dbo-admin 이 판정한다 — 여기서는 롤만 확인한다.
+  if (profile?.role === "manager") {
+    const { data: dir } = await db
+      .from("dbo_directory")
+      .select("status")
+      .eq("id", profile.directory_id)
+      .maybeSingle();
+    if (!dir || dir.status !== "active") {
+      throw createError({ statusCode: 403, statusMessage: "종료된 담당자 계정입니다." });
+    }
+    if (!opts.allowManager) {
+      throw createError({ statusCode: 403, statusMessage: "담당자는 사용할 수 없습니다." });
+    }
+    return {
+      userId,
+      email,
+      name: (profile.name as string) || "담당자",
+      role: "manager",
+      organizationId: null,
+      worksiteId: null,
+    };
+  }
+
   // ── 3) 구인구직 기관 관리자
   //    ⚠ 구인구직 OTP(mode:'login')는 종사자도 세션을 준다. 그래서 여기서
   //    organization_manager 존재를 반드시 확인해야 한다 — 빠뜨리면 종사자 누구나
@@ -219,6 +249,8 @@ const ROLE_TABLES: Record<AdminRole, readonly string[] | "all"> = {
   org: ["users", "organization"],
   // 수요처 담당자는 구인구직 쪽을 보지 않는다 — 시니어 전용 롤이다.
   worksite: [],
+  // 담당자도 시니어 전용이다. requireAdmin 이 먼저 막지만 표가 비면 includes 가 터진다.
+  manager: [],
 };
 
 /** 이 롤이 그 테이블을 볼 수 있는가. 볼 수 없으면 404 로 막는다. */

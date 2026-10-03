@@ -151,6 +151,21 @@ async function verifyOtp() {
   }
 }
 
+// 자격 없는 계정은 미들웨어가 세션을 지우고 ?denied=<시각> 으로 돌려보낸다. /login → /login?denied= 는
+// 같은 페이지 인스턴스라 setup 이 다시 돌지 않는다 — 쿼리를 지켜봐야 인증 직후에도 문구가 뜬다.
+const route = useRoute()
+watch(
+  () => route.query.denied,
+  (denied) => {
+    if (!denied) return
+    step.value = 'phone'
+    code.value = ''
+    noticeMsg.value = ''
+    errorMsg.value = '어드민을 이용할 수 없는 계정입니다. 관리자에게 문의해 주세요.'
+  },
+  { immediate: true },
+)
+
 function backToPhone() {
   step.value = 'phone'
   code.value = ''

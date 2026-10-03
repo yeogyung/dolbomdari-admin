@@ -94,7 +94,7 @@ const seniorApp: AppNav = {
 }
 
 /** 어드민 롤 — server/utils/admin.ts 의 AdminRole 과 같은 값이다 */
-export type NavRole = 'master' | 'worksite' | 'org'
+export type NavRole = 'master' | 'worksite' | 'org' | 'manager'
 
 /**
  * 롤이 볼 수 있는 메뉴만 남긴다.
@@ -120,17 +120,23 @@ export function getApps(role: NavRole = 'master'): AppNav[] {
     ]
   }
 
+  // 담당자(사회복지사) — 맡은 수요처의 출퇴근 기록만
+  if (role === 'manager') return [seniorOnly(['/senior/attendance'], '/senior/attendance')]
+
   // 수요처 담당자 — 시니어의 근무지·출퇴근 기록만
-  const allowed = new Set(['/senior/worksites', '/senior/attendance'])
-  return [
-    {
-      ...seniorApp,
-      home: '/senior/worksites',
-      sections: seniorApp.sections
-        .map((s) => ({ ...s, items: s.items.filter((i) => allowed.has(i.to)) }))
-        .filter((s) => s.items.length > 0),
-    },
-  ]
+  return [seniorOnly(['/senior/worksites', '/senior/attendance'], '/senior/worksites')]
+}
+
+/** 시니어 앱에서 허용한 메뉴만 남긴다. home 은 남긴 메뉴 중 하나여야 한다. */
+function seniorOnly(paths: string[], home: string): AppNav {
+  const allowed = new Set(paths)
+  return {
+    ...seniorApp,
+    home,
+    sections: seniorApp.sections
+      .map((s) => ({ ...s, items: s.items.filter((i) => allowed.has(i.to)) }))
+      .filter((s) => s.items.length > 0),
+  }
 }
 
 // 현재 경로로 활성 앱 판별

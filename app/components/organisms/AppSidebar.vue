@@ -17,6 +17,7 @@ const activeApp = computed(
 const ROLE_LABEL: Record<string, string> = {
   master: '운영관리자',
   worksite: '수요처 담당자',
+  manager: '담당자',
   org: '기관 관리자',
 }
 const roleLabel = computed(() => ROLE_LABEL[me.value?.role ?? ''] ?? '관리자')

@@ -7,6 +7,7 @@ const ROLE_HOME: Record<string, string> = {
   master: '/',
   worksite: '/senior/worksites',
   org: '/users',
+  manager: '/senior/attendance',
 }
 
 export default defineNuxtRouteMiddleware(async (to) => {
@@ -39,7 +40,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
     if (to.path === '/login') return
     clear()
     await supabase.auth.signOut()
-    return navigateTo('/login')
+    // 인증번호까지 맞았는데 말없이 로그인 화면으로 돌아오면 고장으로 보인다. 이유를 알린다.
+    // 값을 매번 바꾼다 — 이미 ?denied 가 붙은 로그인 화면에서 또 거부돼도 화면이 알아채게.
+    return navigateTo({ path: '/login', query: { denied: String(Date.now()) } })
   }
 
   // 대시보드는 전체 집계 화면이라 master 만 본다. 범위가 제한된 롤에게는
@@ -47,6 +50,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const home = ROLE_HOME[me.value?.role ?? 'master'] ?? '/'
   const isDashboard = to.path === '/' || to.path === '/senior'
   if (isDashboard && me.value?.role !== 'master') {
+    return navigateTo(home)
+  }
+
+  // 담당자에게 연 화면은 출퇴근 기록 하나다. 다른 화면은 열어도 데이터가 403 이라 빈 화면이 된다.
+  if (me.value?.role === 'manager' && !to.path.startsWith(home)) {
     return navigateTo(home)
   }
 
