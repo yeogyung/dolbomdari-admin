@@ -56,10 +56,11 @@ async function loadRefs() {
   try {
     const [pg, dir] = await Promise.all([
       api.listPrograms(),
-      api.listDirectory({ size: 100, status: 'active' }),
+      // 명부 목록에 수요처 계정도 섞이므로 역할을 서버에서 거른다 — 100건 안에서 밀려나지 않게
+      api.listDirectory({ size: 100, status: 'active', role: 'manager' }),
     ])
     programs.value = pg.items
-    managers.value = dir.items.filter((d) => d.role === 'manager')
+    managers.value = dir.items
   } catch {
     // 사업·담당자 목록은 선택 편의용이다.
   }

@@ -69,17 +69,16 @@ async function loadToday() {
 }
 
 async function loadScale() {
-  const [dir, ws, pg, rooms] = await Promise.allSettled([
-    api.listDirectory({ size: 100, status: 'active' }),
+  const [seniors, managers, ws, pg, rooms] = await Promise.allSettled([
+    api.listDirectory({ size: 1, status: 'active', role: 'senior' }),
+    api.listDirectory({ size: 1, status: 'active', role: 'manager' }),
     api.listWorksites({ size: 1 }),
     api.listPrograms(),
     api.listRooms({ size: 1 }),
   ])
-  if (dir.status === 'fulfilled') {
-    // 역할별 수는 첫 100건 기준이다. 총원은 total 을 쓴다.
-    scale.value.seniors = dir.value.items.filter((d) => d.role === 'senior').length
-    scale.value.managers = dir.value.items.filter((d) => d.role === 'manager').length
-  }
+  // 역할별로 서버에서 거른 total 을 쓴다. 명부에 수요처 계정도 섞여 첫 페이지로 세면 틀린다.
+  if (seniors.status === 'fulfilled') scale.value.seniors = seniors.value.total
+  if (managers.status === 'fulfilled') scale.value.managers = managers.value.total
   if (ws.status === 'fulfilled') scale.value.worksites = ws.value.total
   if (pg.status === 'fulfilled') scale.value.programs = pg.value.items.filter((p) => p.status === 'active').length
   if (rooms.status === 'fulfilled') scale.value.rooms = rooms.value.total

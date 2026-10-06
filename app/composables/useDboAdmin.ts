@@ -135,7 +135,9 @@ export function useDboAdmin() {
       req<{ qrToken: string; rotatedAt: string }>(`/worksites/${id}/qr`, { method: 'POST' }),
 
     /* 명부(시니어·담당자) — master 전용 */
-    listDirectory: (q: ListQuery & { status?: LifeStatus; role?: 'senior' | 'manager' } = {}) =>
+    listDirectory: (
+      q: ListQuery & { status?: LifeStatus; role?: 'senior' | 'manager' | 'worksite' } = {},
+    ) =>
       req<Paged<DirectoryEntry>>('/directory', { query: clean(q) }),
     getDirectory: (id: string) => req<DirectoryEntry>(`/directory/${id}`),
     createDirectory: (body: {

@@ -1,4 +1,4 @@
-<!-- 명부 관리 — 시니어·담당자 목록/검색/역할·상태 필터 + 신규 등록 (GET·POST /dbo-admin/directory) -->
+<!-- 명부 관리 — 시니어·담당자·수요처 목록/검색/역할·상태 필터 + 신규 등록 (GET·POST /dbo-admin/directory) -->
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
@@ -15,7 +15,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const q = ref('')
 const statusFilter = ref<'' | LifeStatus>('')
-const roleFilter = ref<'' | 'senior' | 'manager'>('')
+const roleFilter = ref<'' | 'senior' | 'manager' | 'worksite'>('')
 const sortKey = ref('created_at')
 const loading = ref(false)
 
@@ -127,6 +127,7 @@ onMounted(load)
             { label: '역할 전체', value: '' },
             { label: '시니어', value: 'senior' },
             { label: '담당자', value: 'manager' },
+            { label: '수요처', value: 'worksite' },
           ]"
         />
         <PillSelect
@@ -143,7 +144,8 @@ onMounted(load)
         <span class="text-sm text-muted tabular-nums">전체 {{ total.toLocaleString() }}명</span>
       </template>
 
-      <template #cell-phone="{ row }">{{ fmtPhone(row.phone) }}</template>
+      <!-- 수요처 계정은 이메일로 로그인해 전화번호가 없을 수 있다 -->
+      <template #cell-phone="{ row }">{{ row.phone ? fmtPhone(row.phone) : (row.email ?? '—') }}</template>
       <template #cell-role="{ row }">
         <Tag>{{ ROLE_LABELS[row.role] ?? row.role }}</Tag>
       </template>
@@ -156,7 +158,15 @@ onMounted(load)
       <template #cell-created_at="{ row }">{{ fmtStamp(row.created_at) }}</template>
 
       <template #actions="{ row }">
-        <NuxtLink :to="`/senior/workers/${row.id}`" class="text-sm font-medium text-brand-500 hover:underline">
+        <!-- 수요처 계정의 발급·수정은 계정·권한 화면 몫이다. 명부 상세는 시니어·담당자만 다룬다 -->
+        <NuxtLink
+          v-if="row.role === 'worksite'"
+          to="/senior/accounts"
+          class="text-sm font-medium text-brand-500 hover:underline"
+        >
+          계정·권한
+        </NuxtLink>
+        <NuxtLink v-else :to="`/senior/workers/${row.id}`" class="text-sm font-medium text-brand-500 hover:underline">
           상세
         </NuxtLink>
       </template>
