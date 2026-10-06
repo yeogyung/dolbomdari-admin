@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
-import type { DirectoryEntry, LifeStatus } from '~/types/dbo'
+import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -64,26 +64,82 @@ function toggleSort(key: string) {
 /* 신규 등록 */
 const createOpen = ref(false)
 const saving = ref(false)
-const form = ref({ name: '', phone: '', role: 'senior' as 'senior' | 'manager', memo: '' })
+type CreateRole = 'senior' | 'manager' | 'worksite'
+const emptyForm = () => ({
+  name: '',
+  phone: '',
+  role: 'senior' as CreateRole,
+  memo: '',
+  /** 담당자 — 맡을 수요처들 */
+  worksiteIds: [] as string[],
+  /** 수요처 담당자 — 근무지 1곳 */
+  worksiteId: null as string | null,
+})
+const form = ref(emptyForm())
+
+/* 근무지·사업 — 담당자·수요처 담당자 등록에서 고른다. 처음 열 때 한 번 받는다 */
+const worksites = ref<Worksite[]>([])
+const programs = ref<Program[]>([])
+const refsLoaded = ref(false)
+const refsLoading = ref(false)
+
+async function loadRefs() {
+  if (refsLoaded.value || refsLoading.value) return
+  refsLoading.value = true
+  try {
+    const [ws, pg] = await Promise.all([api.listAllWorksites(), api.listPrograms()])
+    worksites.value = ws
+    programs.value = pg.items.filter((p) => p.status === 'active')
+    refsLoaded.value = true
+  } catch (e: any) {
+    toast.add({ title: '근무지 목록 조회 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    refsLoading.value = false
+  }
+}
+
+/** 새 담당자에게 다른 담당자가 있던 근무지는 넘어온다 */
+const takenByOther = (w: Worksite) => !!w.manager_directory_id
 
 function openCreate() {
-  form.value = { name: '', phone: '', role: 'senior', memo: '' }
+  form.value = emptyForm()
   createOpen.value = true
+  loadRefs()
 }
 
 async function submitCreate() {
-  if (!form.value.name.trim() || !form.value.phone.trim()) {
+  const f = form.value
+  if (!f.name.trim() || !f.phone.trim()) {
     toast.add({ title: '이름과 전화번호를 입력해 주세요.', color: 'warning' })
     return
+  }
+  if (f.role === 'worksite' && !f.worksiteId) {
+    toast.add({ title: '수요처 담당자의 근무지를 선택해 주세요.', color: 'warning' })
+    return
+  }
+  if (f.role === 'manager') {
+    const moving = worksites.value.filter((w) => f.worksiteIds.includes(w.id) && takenByOther(w))
+    if (
+      moving.length &&
+      !confirm(
+        `${moving.map((w) => w.name).join(', ')} 은(는) 다른 담당자가 맡고 있습니다. 새 담당자로 옮기시겠습니까?`,
+      )
+    )
+      return
   }
   saving.value = true
   try {
     await api.createDirectory({
-      name: form.value.name.trim(),
-      phone: form.value.phone.trim(),
-      role: form.value.role,
-      memo: form.value.memo.trim() || null,
+      name: f.name.trim(),
+      phone: f.phone.trim(),
+      role: f.role,
+      memo: f.memo.trim() || null,
+      // 역할에 맞는 값만 보낸다 — 서버는 맞지 않는 값을 400 으로 거절한다
+      ...(f.role === 'manager' ? { worksiteIds: f.worksiteIds } : {}),
+      ...(f.role === 'worksite' ? { worksiteId: f.worksiteId! } : {}),
     })
+    // 담당자 지정이 근무지 쪽 칸을 바꿨으므로 다음 등록 때 다시 받는다
+    if (f.role === 'manager' && f.worksiteIds.length) refsLoaded.value = false
     toast.add({ title: '등록되었습니다.', color: 'success' })
     createOpen.value = false
     page.value = 1
@@ -181,7 +237,11 @@ onMounted(load)
         <FormField
           label="전화번호"
           required
-          hint="앱 로그인의 열쇠입니다. 시니어는 이 번호로 본인 인증만 하면 바로 연결됩니다."
+          :hint="
+            form.role === 'worksite'
+              ? '어드민 로그인의 열쇠입니다. 이 번호로 문자 인증해 담당 근무지의 출퇴근 기록을 봅니다.'
+              : '앱 로그인의 열쇠입니다. 이 번호로 본인 인증만 하면 바로 연결됩니다.'
+          "
         >
           <TextField v-model="form.phone" placeholder="010-1234-5678" />
         </FormField>
@@ -191,8 +251,33 @@ onMounted(load)
             :options="[
               { label: '시니어', value: 'senior' },
               { label: '담당자', value: 'manager' },
+              { label: '수요처 담당자', value: 'worksite' },
             ]"
           />
+        </FormField>
+        <p v-if="form.role === 'senior'" class="text-sm text-muted">
+          근무지·요일·시간은 등록 후 상세 화면의 반복 배정에서 정합니다.
+        </p>
+        <FormField
+          v-else
+          :label="form.role === 'manager' ? '담당 근무지' : '근무지'"
+          :required="form.role === 'worksite'"
+          :hint="
+            form.role === 'manager'
+              ? '사업으로 좁혀 여러 곳을 고를 수 있습니다. 나중에 상세 화면에서 바꿀 수 있습니다.'
+              : '수요처 담당자는 근무지 1곳만 맡습니다.'
+          "
+        >
+          <AppSpinner v-if="refsLoading" label="근무지 불러오는 중…" />
+          <WorksitePicker
+            v-else-if="form.role === 'manager'"
+            v-model="form.worksiteIds"
+            :worksites="worksites"
+            :programs="programs"
+            :is-taken="takenByOther"
+            multiple
+          />
+          <WorksitePicker v-else v-model="form.worksiteId" :worksites="worksites" :programs="programs" />
         </FormField>
         <FormField label="메모" hint="담당자 참고용. 앱에는 보이지 않습니다.">
           <AppTextarea v-model="form.memo" :rows="3" />

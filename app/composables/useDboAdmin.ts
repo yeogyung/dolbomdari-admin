@@ -22,6 +22,7 @@ import type {
   DocumentState,
 } from '~/types/dbo'
 import type { DocumentCreateBody } from '~/utils/documentImport'
+import { fetchAllPages } from '~/utils/paging'
 
 /** Edge Function 오류 응답({ error })과 상태 코드를 사람이 읽는 한국어로 바꾼다 */
 export function dboErrorMessage(e: any, fallback = '요청을 처리하지 못했습니다.'): string {
@@ -113,6 +114,12 @@ export function useDboAdmin() {
 
     /* 근무지 — 읽기는 master 전체·worksite 담당 한 곳, 쓰기는 master 전용 */
     listWorksites: (q: ListQuery = {}) => req<Paged<Worksite>>('/worksites', { query: clean(q) }),
+    /** 근무지 전부 — 서버 페이지 상한(100)을 넘어 이어 받는다. 고르는 화면은 이걸 쓴다 */
+    listAllWorksites: () =>
+      fetchAllPages(
+        (page, size) => req<Paged<Worksite>>('/worksites', { query: { page, size, sort: 'name' } }),
+        (w) => w.id,
+      ),
     createWorksite: (body: {
       name: string
       programId?: string | null
@@ -143,8 +150,12 @@ export function useDboAdmin() {
     createDirectory: (body: {
       name: string
       phone: string
-      role?: 'senior' | 'manager'
+      role?: 'senior' | 'manager' | 'worksite'
       memo?: string | null
+      /** role=manager — 맡을 수요처들 */
+      worksiteIds?: string[]
+      /** role=worksite — 근무지 1곳(필수) */
+      worksiteId?: string
     }) => req<{ id: string }>('/directory', { method: 'POST', body }),
     updateDirectory: (
       id: string,

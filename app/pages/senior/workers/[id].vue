@@ -59,12 +59,15 @@ async function loadAssignments() {
 }
 
 async function loadRefs() {
+  // 다시 받다가 실패하면 이전 목록으로 저장하지 않게 먼저 내려 둔다
+  worksitesComplete.value = false
   try {
-    const [ws, pg] = await Promise.all([api.listWorksites({ size: 100 }), api.listPrograms()])
-    worksites.value = ws.items
+    // 근무지는 100곳을 넘는다 — 첫 페이지만 받으면 배정·담당 수요처 선택지에서 빠진다
+    const [ws, pg] = await Promise.all([api.listAllWorksites(), api.listPrograms()])
+    worksites.value = ws
     programs.value = pg.items
-    managed.value = ws.items.filter((w) => w.manager_directory_id === id.value).map((w) => w.id)
-    worksitesComplete.value = ws.items.length >= ws.total
+    managed.value = ws.filter((w) => w.manager_directory_id === id.value).map((w) => w.id)
+    worksitesComplete.value = true
   } catch {
     // 근무지·사업 목록은 선택 편의용이다. 실패해도 상세는 보여준다.
   }
@@ -75,18 +78,13 @@ const managed = ref<string[]>([])
 const managedSaving = ref(false)
 /**
  * 수요처 목록을 빠짐없이 받았는가. 저장은 「보낸 목록이 곧 결과」라, 일부만 받은 채 저장하면
- * 화면에 없던 담당 수요처가 해제된다. 다 받지 못했으면(조회 실패·100곳 초과) 저장을 막는다.
+ * 화면에 없던 담당 수요처가 해제된다. 조회에 실패했으면 저장을 막는다.
  */
 const worksitesComplete = ref(false)
 
 /** 다른 담당자가 맡고 있는 수요처 — 고르면 이 담당자로 넘어온다 */
 const takenByOther = (w: Worksite) => !!w.manager_directory_id && w.manager_directory_id !== id.value
 
-function toggleManaged(wid: string) {
-  const i = managed.value.indexOf(wid)
-  if (i >= 0) managed.value.splice(i, 1)
-  else managed.value.push(wid)
-}
 
 async function saveManaged() {
   const moving = worksites.value.filter((w) => managed.value.includes(w.id) && takenByOther(w))
@@ -354,17 +352,14 @@ onMounted(async () => {
           수요처 목록을 모두 불러오지 못해 저장할 수 없습니다. 새로고침해 주세요.
         </p>
         <EmptyState v-if="!worksites.length" description="등록된 수요처가 없습니다." />
-        <div v-else class="grid gap-3 md:grid-cols-2">
-          <div v-for="w in worksites" :key="w.id" class="flex items-center gap-2">
-            <Checkbox
-              :model-value="managed.includes(w.id)"
-              :label="w.name"
-              @update:model-value="toggleManaged(w.id)"
-            />
-            <Tag v-if="w.status === 'ended'">종료</Tag>
-            <span v-if="takenByOther(w)" class="text-xs text-muted">다른 담당자 지정됨</span>
-          </div>
-        </div>
+        <WorksitePicker
+          v-else
+          v-model="managed"
+          :worksites="worksites"
+          :programs="programs"
+          :is-taken="takenByOther"
+          multiple
+        />
       </AppCard>
 
       <!-- 반복 배정 — 시니어에게 근무지를 잇는다 -->
