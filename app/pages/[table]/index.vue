@@ -193,7 +193,8 @@ onMounted(load)
       <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" @click="exportExcel">
         엑셀 다운로드
       </AppButton>
-      <AppButton v-if="canCreate" icon="i-lucide-plus" :to="`/${tableName}/new`">
+      <!-- AppButton 은 <button> 이라 to 가 없다 — 눌러도 이동하지 않던 버그 -->
+      <AppButton v-if="canCreate" icon="i-lucide-plus" @click="navigateTo(`/${tableName}/new`)">
         새로 만들기
       </AppButton>
     </Teleport>
