@@ -179,7 +179,6 @@ export function useDboAdmin() {
       endTime: string
       periodStart?: string | null
       periodEnd?: string | null
-      managerProfileId?: string | null
     }) => req<{ id: string }>('/assignments', { method: 'POST', body }),
     updateAssignment: (
       id: string,

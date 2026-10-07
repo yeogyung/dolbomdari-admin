@@ -31,7 +31,9 @@ const columns: Column[] = [
   { key: 'name', label: '근무지', sortable: true, strong: true },
   { key: 'program_id', label: '사업' },
   { key: 'address', label: '주소' },
-  { key: 'manager_directory_id', label: '수요처 담당자' },
+  // 근무지 담당자(사회복지사, role=manager) — 이 근무지에 배정된 시니어를 관리한다.
+  // 수요처 담당자(role=worksite)는 명부의 worksite_id 로 이어지는 별개의 사람이다.
+  { key: 'manager_directory_id', label: '근무지 담당자' },
   { key: 'status', label: '상태' },
   { key: 'qr_token', label: 'QR' },
 ]
@@ -315,7 +317,7 @@ onMounted(() => {
         <FormField label="지역 코드" hint="날씨 조회에 사용합니다.">
           <TextField v-model="form.regionCode" placeholder="예: 1168000000" />
         </FormField>
-        <FormField label="수요처 담당자" hint="명부에 등록된 담당자만 선택할 수 있습니다.">
+        <FormField label="근무지 담당자" hint="명부에 등록된 담당자(사회복지사)만 선택할 수 있습니다.">
           <SelectField
             v-model="form.managerDirectoryId"
             :options="managers.map((m) => ({ label: `${m.name} (${fmtPhone(m.phone)})`, value: m.id }))"
