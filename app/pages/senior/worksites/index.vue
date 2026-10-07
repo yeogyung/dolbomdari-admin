@@ -1,4 +1,4 @@
-<!-- 근무지·수요처 관리 — 목록/등록/수정 + QR 토큰 재발급 (/dbo-admin/worksites) -->
+<!-- 근무지·수요처 관리 — 목록/사업 필터/등록/수정 + QR 토큰 재발급 (/dbo-admin/worksites) -->
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
@@ -14,6 +14,8 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 const q = ref('')
+/** 사업 필터. 근무지가 300곳 가까이라 서버에서 거른다 */
+const programFilter = ref('')
 const sortKey = ref('name')
 const loading = ref(false)
 
@@ -42,6 +44,7 @@ async function load() {
       size: pageSize.value,
       q: q.value,
       sort: sortKey.value,
+      programId: programFilter.value || undefined,
     })
     rows.value = res.items
     total.value = res.total
@@ -75,6 +78,8 @@ function search() {
   page.value = 1
   load()
 }
+
+watch(programFilter, search)
 
 function toggleSort(key: string) {
   sortKey.value = key
@@ -240,6 +245,10 @@ onMounted(() => {
     >
       <template #toolbar>
         <PillSearch v-model="q" placeholder="근무지 이름 또는 전화번호" @search="search" />
+        <PillSelect
+          v-model="programFilter"
+          :options="[{ label: '사업 전체', value: '' }, ...programs.map((p) => ({ label: p.name, value: p.id }))]"
+        />
       </template>
       <template #toolbar-end>
         <span class="text-sm text-muted tabular-nums">전체 {{ total.toLocaleString() }}곳</span>

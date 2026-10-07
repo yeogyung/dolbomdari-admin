@@ -113,7 +113,8 @@ export function useDboAdmin() {
     endAccount: (id: string) => req<{ ok: true }>(`/accounts/${id}`, { method: 'DELETE' }),
 
     /* 근무지 — 읽기는 master 전체·worksite 담당 한 곳, 쓰기는 master 전용 */
-    listWorksites: (q: ListQuery = {}) => req<Paged<Worksite>>('/worksites', { query: clean(q) }),
+    listWorksites: (q: ListQuery & { programId?: string } = {}) =>
+      req<Paged<Worksite>>('/worksites', { query: clean(q) }),
     /** 근무지 전부 — 서버 페이지 상한(100)을 넘어 이어 받는다. 고르는 화면은 이걸 쓴다 */
     listAllWorksites: () =>
       fetchAllPages(
