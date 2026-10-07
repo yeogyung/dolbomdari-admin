@@ -11,6 +11,8 @@ const counts = ref<Record<string, number | null>>({})
 const loading = ref(true)
 
 const kpi = ref<Record<string, number> | null>(null)
+/** 통계 조회 실패. 이게 없으면 실패해도 「…」(조회 중)으로 남는다 */
+const kpiFailed = ref(false)
 const kpiCards: { key: string; label: string; tone?: 'ink' | 'up' | 'down' }[] = [
   { key: 'workersTotal', label: '종사자' },
   { key: 'jobSeekers', label: '구직중', tone: 'up' },
@@ -28,7 +30,10 @@ onMounted(async () => {
   api
     .statsSummary()
     .then((res) => (kpi.value = res))
-    .catch(() => (kpi.value = null))
+    .catch(() => {
+      kpi.value = null
+      kpiFailed.value = true
+    })
   await Promise.all(
     tables.map(async (t) => {
       try {
@@ -53,8 +58,8 @@ onMounted(async () => {
           v-for="c in kpiCards"
           :key="c.key"
           :label="c.label"
-          :value="kpi ? (kpi[c.key] ?? 0).toLocaleString() : '…'"
-          :tone="c.tone ?? 'ink'"
+          :value="kpi ? (kpi[c.key] ?? 0).toLocaleString() : kpiFailed ? '오류' : '…'"
+          :tone="kpiFailed ? 'down' : (c.tone ?? 'ink')"
         />
       </div>
     </section>
