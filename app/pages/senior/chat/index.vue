@@ -5,6 +5,8 @@ import type { ChatMessage, ChatRoom } from '~/types/dbo'
 
 const api = useDboAdmin()
 const toast = useToast()
+/** 방을 여는 중에는 다른 방을 열지 않는다 — 늦게 온 응답이 다른 방 메시지를 덮지 않게 */
+const openGuard = createClickGuard()
 const { setHeader } = useAdminHeader()
 setHeader('채팅방')
 
@@ -77,10 +79,11 @@ function search() {
   loadRooms()
 }
 
+// 조회 Promise 를 돌려준다 — 이전·다음 버튼(AppButton)이 끝날 때까지 다시 눌리지 않게
 function goPage(p: number) {
   if (p < 1 || p > lastPage.value) return
   page.value = p
-  loadRooms()
+  return loadRooms()
 }
 
 const senderName = (m: ChatMessage) =>
@@ -111,7 +114,8 @@ onMounted(loadRooms)
             type="button"
             class="flex w-full flex-col gap-1.5 border-t border-hairline-soft px-6 py-4 text-left transition-colors"
             :class="selected?.id === room.id ? 'bg-brand-soft' : 'hover:bg-surface-soft'"
-            @click="openRoom(room)"
+            :disabled="openGuard.pending.value"
+            @click="openGuard.run(() => openRoom(room))"
           >
             <span class="flex items-center gap-2">
               <span class="truncate text-[15px] font-semibold text-ink">{{ room.title }}</span>

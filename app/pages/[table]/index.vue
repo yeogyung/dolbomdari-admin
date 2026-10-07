@@ -8,6 +8,8 @@ import type { Column } from '~/types/table'
 const route = useRoute()
 const api = useAdminApi()
 const toast = useToast()
+/** 행 삭제 중복 클릭 방지 — 행마다 있는 일반 버튼이 잠금 하나를 나눠 쓴다 */
+const removeGuard = createClickGuard()
 const { setHeader } = useAdminHeader()
 
 const tableName = computed(() => String(route.params.table))
@@ -246,7 +248,7 @@ onMounted(load)
           >
             수정
           </NuxtLink>
-          <button v-if="canEdit" type="button" class="text-sm font-medium text-down hover:underline" @click="removeRow(row)">삭제</button>
+          <button v-if="canEdit" type="button" class="text-sm font-medium text-down hover:underline disabled:opacity-50" :disabled="removeGuard.pending.value" @click="removeGuard.run(() => removeRow(row))">삭제</button>
         </div>
       </template>
     </DataTable>

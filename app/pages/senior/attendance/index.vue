@@ -69,15 +69,16 @@ async function loadWorksites() {
   }
 }
 
+// 조회 Promise 를 돌려준다 — 조회 버튼(AppButton)이 끝날 때까지 다시 눌리지 않게
 function search() {
   page.value = 1
-  load()
+  return load()
 }
 
 function setRange(days: number) {
   to.value = todaySeoul()
   from.value = days === 0 ? todaySeoul() : daysAgoSeoul(days)
-  search()
+  return search()
 }
 
 function toggleSort(key: string) {

@@ -24,6 +24,9 @@ const roleLabel = computed(() => ROLE_LABEL[me.value?.role ?? ''] ?? '관리자'
 
 const displayName = computed(() => me.value?.name || '관리자')
 
+/** 로그아웃 중복 클릭 방지 */
+const logoutGuard = createClickGuard()
+
 async function logout() {
   clear()
   await supabase.auth.signOut()
@@ -101,7 +104,8 @@ function isActive(to: string): boolean {
         class="inline-flex size-7 items-center justify-center rounded-lg text-muted hover:bg-surface-soft"
         aria-label="로그아웃"
         title="로그아웃"
-        @click="logout"
+        :disabled="logoutGuard.pending.value"
+        @click="logoutGuard.run(logout)"
       >
         <UIcon name="i-lucide-log-out" class="size-4" />
       </button>

@@ -95,6 +95,7 @@ function fmt(v: unknown): string {
                   type="button"
                   class="inline-flex items-center gap-1 hover:text-body"
                   :class="col.align === 'right' ? 'flex-row-reverse' : ''"
+                  :disabled="loading"
                   @click="emit('sort', col.key)"
                 >
                   {{ col.label }}
@@ -151,7 +152,7 @@ function fmt(v: unknown): string {
           <button
             type="button"
             class="flex size-9 items-center justify-center rounded-full border border-hairline text-muted transition-colors hover:bg-surface-soft disabled:opacity-40"
-            :disabled="page <= 1"
+            :disabled="loading || page <= 1"
             @click="go(page - 1)"
           >
             <UIcon name="i-lucide-chevron-left" class="size-4" />
@@ -163,6 +164,7 @@ function fmt(v: unknown): string {
               type="button"
               class="flex size-9 items-center justify-center rounded-full text-sm tabular-nums transition-colors"
               :class="p === page ? 'bg-brand-500 font-semibold text-white' : 'font-medium text-body hover:bg-surface-soft'"
+              :disabled="loading"
               @click="go(p)"
             >
               {{ p }}
@@ -171,7 +173,7 @@ function fmt(v: unknown): string {
           <button
             type="button"
             class="flex size-9 items-center justify-center rounded-full border border-hairline text-body transition-colors hover:bg-surface-soft disabled:opacity-40"
-            :disabled="page >= lastPage"
+            :disabled="loading || page >= lastPage"
             @click="go(page + 1)"
           >
             <UIcon name="i-lucide-chevron-right" class="size-4" />
@@ -179,8 +181,10 @@ function fmt(v: unknown): string {
         </div>
 
         <div class="relative">
+          <!-- 조회 중에는 정렬·페이지를 바꾸지 못한다 — 겹친 요청의 늦은 응답이 화면을 덮지 않게 -->
           <select
             :value="pageSize"
+            :disabled="loading"
             class="h-9 appearance-none rounded-full border border-hairline bg-white pr-8 pl-4 text-sm font-medium text-body outline-none tabular-nums focus:border-brand-500"
             @change="emit('update:pageSize', Number(($event.target as HTMLSelectElement).value))"
           >

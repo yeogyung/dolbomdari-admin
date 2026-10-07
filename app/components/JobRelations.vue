@@ -150,7 +150,7 @@ onMounted(async () => {
             v-model="search"
             placeholder="이름·전화·직종 검색"
             class="flex-1"
-            @keyup.enter="searchWorkers"
+            @keyup.enter="!searching && searchWorkers()"
           />
           <AppButton :loading="searching" @click="searchWorkers">검색</AppButton>
         </div>

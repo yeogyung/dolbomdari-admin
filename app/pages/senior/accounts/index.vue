@@ -6,6 +6,8 @@ import type { AdminAccount, AdminRole, LifeStatus, Worksite } from '~/types/dbo'
 
 const api = useDboAdmin()
 const toast = useToast()
+/** 계정 종료 중복 클릭 방지 — 행마다 있는 일반 버튼이 잠금 하나를 나눠 쓴다 */
+const endGuard = createClickGuard()
 const { setHeader } = useAdminHeader()
 setHeader('계정·권한')
 
@@ -188,8 +190,9 @@ onMounted(() => {
           <button
             v-if="row.status === 'active'"
             type="button"
-            class="text-sm font-medium text-down hover:underline"
-            @click="endAccount(row)"
+            class="text-sm font-medium text-down hover:underline disabled:opacity-50"
+            :disabled="endGuard.pending.value"
+            @click="endGuard.run(() => endAccount(row))"
           >
             종료
           </button>

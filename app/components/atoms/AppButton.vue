@@ -1,5 +1,7 @@
-<!-- 원자: 공용 버튼 — 알약(pill) 형태, variant/color/size + 로딩·아이콘 -->
+<!-- 원자: 공용 버튼 — 알약(pill) 형태, variant/color/size + 로딩·아이콘 + 중복 클릭 방지 -->
 <script setup lang="ts">
+import { createClickGuard } from '~/utils/clickGuard'
+
 type Variant = 'solid' | 'soft' | 'outline' | 'ghost'
 type Color = 'primary' | 'neutral' | 'up' | 'down'
 type Size = 'sm' | 'md' | 'lg'
@@ -15,6 +17,11 @@ const props = withDefaults(
     disabled?: boolean
     block?: boolean
     type?: 'button' | 'submit'
+    /**
+     * `@click` 은 여기로 들어온다. 처리기가 Promise 를 돌려주면(async 함수) 끝날 때까지
+     * 버튼을 잠근다 — 저장을 두 번 눌러 같은 요청이 겹치지 않게.
+     */
+    onClick?: (e: MouseEvent) => unknown
   }>(),
   { variant: 'solid', color: 'primary', size: 'md', type: 'button' },
 )
@@ -52,6 +59,14 @@ const styles: Record<Variant, Record<Color, string>> = {
   },
 }
 
+const guard = createClickGuard()
+const busy = computed(() => props.loading || guard.pending.value)
+
+function handleClick(e: MouseEvent) {
+  if (props.disabled || busy.value || !props.onClick) return
+  return guard.run(() => props.onClick!(e))
+}
+
 const cls = computed(() => [
   'inline-flex items-center justify-center rounded-full whitespace-nowrap transition-colors select-none',
   props.variant === 'solid' ? 'font-semibold' : 'font-medium',
@@ -63,10 +78,10 @@ const cls = computed(() => [
 </script>
 
 <template>
-  <button :type="type" :disabled="disabled || loading" :class="cls">
-    <UIcon v-if="loading" name="i-lucide-loader-circle" class="size-4 animate-spin" />
+  <button :type="type" :disabled="disabled || busy" :aria-busy="busy" :class="cls" @click="handleClick">
+    <UIcon v-if="busy" name="i-lucide-loader-circle" class="size-4 animate-spin" />
     <UIcon v-else-if="icon" :name="icon" class="size-4" />
     <slot />
-    <UIcon v-if="trailingIcon && !loading" :name="trailingIcon" class="size-4" />
+    <UIcon v-if="trailingIcon && !busy" :name="trailingIcon" class="size-4" />
   </button>
 </template>

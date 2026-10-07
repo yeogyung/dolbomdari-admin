@@ -256,6 +256,9 @@ async function removeAssign(row: Assignment) {
 
 onMounted(async () => {
   loadRefs()
+/** 배정 삭제 중복 클릭 방지 — 일반 버튼이라 AppButton 의 잠금이 없다 */
+const removeGuard = createClickGuard()
+
   await loadEntry()
   // 반복 배정은 시니어에게 근무지를 잇는 것이다. 담당자에게는 없다.
   if (entry.value?.role === 'senior') loadAssignments()
@@ -423,8 +426,9 @@ onMounted(async () => {
                     </button>
                     <button
                       type="button"
-                      class="text-sm font-medium text-down hover:underline"
-                      @click="removeAssign(a)"
+                      class="text-sm font-medium text-down hover:underline disabled:opacity-50"
+                      :disabled="removeGuard.pending.value"
+                      @click="removeGuard.run(() => removeAssign(a))"
                     >
                       삭제
                     </button>
