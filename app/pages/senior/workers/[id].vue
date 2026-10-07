@@ -1,6 +1,6 @@
 <!-- 명부 상세 — 인적사항 수정·계약 종료 + 시니어는 반복 배정, 담당자는 담당 수요처 (/dbo-admin/directory, /dbo-admin/assignments) -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import type { Assignment, DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
 import { phoneKindFromMemo, withPhoneKind } from '~/utils/phoneKind'
 
@@ -173,7 +173,6 @@ const assignSaving = ref(false)
 const editingId = ref<string | null>(null)
 const assignForm = ref({
   worksiteId: null as string | null,
-  programId: null as string | null,
   weekdays: [] as number[],
   startTime: '09:00',
   endTime: '11:00',
@@ -181,12 +180,39 @@ const assignForm = ref({
   periodEnd: null as string | null,
 })
 
+/*
+ * 사업 → 근무지 순서로 고른다. 근무지가 300곳 가까이라 사업으로 먼저 좁힌다.
+ * 배정의 사업은 근무지의 사업을 따른다(운영 데이터에서 어긋난 배정 0건) — 폼에 따로 두지 않고
+ * 고른 사업에서 계산해 둘이 어긋날 수 없게 한다. 사업이 없는 근무지는 「사업 미지정」으로 고른다.
+ */
+const NO_PROGRAM = '__none'
+const assignProgram = ref<string | null>(null)
+const assignProgramId = computed(() =>
+  !assignProgram.value || assignProgram.value === NO_PROGRAM ? null : assignProgram.value,
+)
+const assignWorksiteOptions = computed(() => {
+  const pick = assignProgram.value
+  const list = pick
+    ? worksites.value.filter((w) => (pick === NO_PROGRAM ? !w.program_id : w.program_id === pick))
+    : []
+  // 수정 중에는 근무지를 바꿀 수 없지만 셀렉트가 이름을 보여 주도록 남긴다
+  const current = worksites.value.find((w) => w.id === assignForm.value.worksiteId)
+  if (current && !list.includes(current)) list.unshift(current)
+  return list.map((w) => ({ label: w.status === 'ended' ? `${w.name} (종료)` : w.name, value: w.id }))
+})
+// 사업을 바꾸면 그 사업 밖의 근무지 선택을 비운다
+watch(assignProgram, () => {
+  if (editingId.value) return
+  const w = worksites.value.find((x) => x.id === assignForm.value.worksiteId)
+  if (w && (w.program_id ?? null) !== assignProgramId.value) assignForm.value.worksiteId = null
+})
+
 function openAssign(row?: Assignment) {
   editingId.value = row?.id ?? null
+  assignProgram.value = row ? (row.program_id ?? NO_PROGRAM) : null
   assignForm.value = row
     ? {
         worksiteId: row.worksite_id,
-        programId: row.program_id,
         weekdays: [...row.weekdays],
         startTime: hhmm(row.start_time),
         endTime: hhmm(row.end_time),
@@ -195,7 +221,6 @@ function openAssign(row?: Assignment) {
       }
     : {
         worksiteId: null,
-        programId: null,
         weekdays: [],
         startTime: '09:00',
         endTime: '11:00',
@@ -214,6 +239,10 @@ function toggleWeekday(day: number) {
 
 async function submitAssign() {
   const f = assignForm.value
+  if (!editingId.value && !assignProgram.value) {
+    toast.add({ title: '사업을 먼저 선택해 주세요.', color: 'warning' })
+    return
+  }
   if (!editingId.value && !f.worksiteId) {
     toast.add({ title: '근무지를 선택해 주세요.', color: 'warning' })
     return
@@ -227,7 +256,7 @@ async function submitAssign() {
     if (editingId.value) {
       // 근무지·대상은 배정 수정에서 바꿀 수 없다(API 계약). 바꿔야 하면 삭제 후 재등록한다.
       await api.updateAssignment(editingId.value, {
-        programId: f.programId,
+        programId: assignProgramId.value,
         weekdays: f.weekdays,
         startTime: f.startTime,
         endTime: f.endTime,
@@ -238,7 +267,7 @@ async function submitAssign() {
       await api.createAssignment({
         directoryId: id.value,
         worksiteId: f.worksiteId!,
-        programId: f.programId,
+        programId: assignProgramId.value,
         weekdays: f.weekdays,
         startTime: f.startTime,
         endTime: f.endTime,
@@ -481,24 +510,36 @@ onMounted(async () => {
     >
       <div class="space-y-4">
         <FormField
-          label="근무지"
+          label="사업"
           required
           :hint="
-            editingId ? '근무지는 수정할 수 없습니다. 바꿔야 하면 삭제 후 다시 등록해 주세요.' : undefined
+            editingId
+              ? '사업·근무지는 수정할 수 없습니다. 바꿔야 하면 삭제 후 다시 등록해 주세요.'
+              : '사업을 고르면 그 사업의 근무지가 나옵니다.'
           "
         >
           <SelectField
-            v-model="assignForm.worksiteId"
+            v-model="assignProgram"
             :disabled="!!editingId"
-            :options="worksites.map((w) => ({ label: w.name, value: w.id }))"
-            placeholder="근무지 선택"
+            :options="[
+              ...programs.map((p) => ({ label: p.name, value: p.id })),
+              { label: '사업 미지정', value: NO_PROGRAM },
+            ]"
+            placeholder="사업 선택"
           />
         </FormField>
-        <FormField label="사업">
+        <FormField label="근무지" required>
           <SelectField
-            v-model="assignForm.programId"
-            :options="programs.map((p) => ({ label: p.name, value: p.id }))"
-            placeholder="사업 선택(선택)"
+            v-model="assignForm.worksiteId"
+            :disabled="!!editingId || !assignProgram"
+            :options="assignWorksiteOptions"
+            :placeholder="
+              !assignProgram
+                ? '사업을 먼저 선택해 주세요'
+                : assignWorksiteOptions.length
+                  ? `근무지 선택 (${assignWorksiteOptions.length}곳)`
+                  : '이 사업에 근무지가 없습니다'
+            "
           />
         </FormField>
         <FormField label="근무 요일" required>
