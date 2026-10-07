@@ -57,13 +57,15 @@ onMounted(load)
     <NuxtLink to="/senior/notices" class="text-sm text-brand-500 hover:underline">공지 목록으로</NuxtLink>
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
     <AppSpinner v-if="!notice && loading" label="공지 불러오는 중…" />
-    <Card v-if="notice" class="space-y-3 p-6">
+    <AppCard v-if="notice">
+      <div class="space-y-3">
       <p class="text-sm text-muted">{{ notice.kind === 'urgent' ? '긴급 공지' : '일반 공지' }}</p>
       <h1 class="text-xl font-semibold">{{ notice.title }}</h1>
       <p class="whitespace-pre-wrap break-words text-body">{{ notice.body }}</p>
       <p v-if="notice.trackedRecipients === 0" class="text-sm text-amber-700">저장된 수신자별 발송 이력이 없습니다 기존 공지의 발송 채널은 확인할 수 없습니다</p>
       <p v-if="notice.metadata.delivery?.status === 'pending' || notice.metadata.delivery?.historyFailed" class="text-sm text-amber-700">일부 발송 이력이 처리 중이거나 저장되지 않았습니다 아래 목록이 전체 발송 결과와 다를 수 있습니다</p>
-    </Card>
+      </div>
+    </AppCard>
     <p class="text-sm text-muted">문자와 푸시는 발송 접수된 참여자를 표시합니다 둘 다 발송한 경우 양쪽 필터에 포함됩니다</p>
     <p class="text-sm text-muted">문자 발송은 열람 확인이 아닙니다 앱 미가입자는 미열람 대상에서 제외됩니다 실패와 결과 미확정 내역은 전체에서 확인할 수 있습니다</p>
     <DataTable :columns="columns" :rows="rows" row-key="directory_id" :loading="loading" :total="total"
