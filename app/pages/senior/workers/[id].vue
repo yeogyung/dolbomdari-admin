@@ -61,6 +61,7 @@ async function loadAssignments() {
 async function loadRefs() {
   // 다시 받다가 실패하면 이전 목록으로 저장하지 않게 먼저 내려 둔다
   worksitesComplete.value = false
+  refsFailed.value = false
   try {
     // 근무지는 100곳을 넘는다 — 첫 페이지만 받으면 배정·담당 수요처 선택지에서 빠진다
     const [ws, pg] = await Promise.all([api.listAllWorksites(), api.listPrograms()])
@@ -70,12 +71,18 @@ async function loadRefs() {
     worksitesComplete.value = true
   } catch {
     // 근무지·사업 목록은 선택 편의용이다. 실패해도 상세는 보여준다.
+    refsFailed.value = true
   }
 }
 
 /* 담당 수요처 — 담당자만. 담당 관계는 근무지 쪽(manager_directory_id)에 있다 */
+/** 저장된 담당 수요처. 모달에서 고치는 값은 managedDraft 다 — 취소하면 버린다 */
 const managed = ref<string[]>([])
+const managedDraft = ref<string[]>([])
+const managedOpen = ref(false)
 const managedSaving = ref(false)
+const refsFailed = ref(false)
+const managedWorksites = computed(() => worksites.value.filter((w) => managed.value.includes(w.id)))
 /**
  * 수요처 목록을 빠짐없이 받았는가. 저장은 「보낸 목록이 곧 결과」라, 일부만 받은 채 저장하면
  * 화면에 없던 담당 수요처가 해제된다. 조회에 실패했으면 저장을 막는다.
@@ -85,9 +92,13 @@ const worksitesComplete = ref(false)
 /** 다른 담당자가 맡고 있는 수요처 — 고르면 이 담당자로 넘어온다 */
 const takenByOther = (w: Worksite) => !!w.manager_directory_id && w.manager_directory_id !== id.value
 
+function openManaged() {
+  managedDraft.value = [...managed.value]
+  managedOpen.value = true
+}
 
 async function saveManaged() {
-  const moving = worksites.value.filter((w) => managed.value.includes(w.id) && takenByOther(w))
+  const moving = worksites.value.filter((w) => managedDraft.value.includes(w.id) && takenByOther(w))
   if (
     moving.length &&
     !confirm(
@@ -97,8 +108,9 @@ async function saveManaged() {
     return
   managedSaving.value = true
   try {
-    await api.setManagerWorksites(id.value, managed.value)
+    await api.setManagerWorksites(id.value, managedDraft.value)
     toast.add({ title: '담당 수요처가 저장되었습니다.', color: 'success' })
+    managedOpen.value = false
     loadRefs()
   } catch (e: any) {
     toast.add({ title: '담당 수요처 저장 실패', description: dboErrorMessage(e), color: 'error' })
@@ -338,28 +350,22 @@ onMounted(async () => {
               고른 수요처의 출퇴근 기록을 이 담당자가 어드민에서 보고 고칠 수 있습니다.
             </p>
           </div>
-          <AppButton
-            size="sm"
-            :loading="managedSaving"
-            :disabled="!worksitesComplete"
-            @click="saveManaged"
-          >
-            저장
+          <AppButton size="sm" icon="i-lucide-pencil" :disabled="!worksitesComplete" @click="openManaged">
+            담당 수요처 변경
           </AppButton>
         </template>
 
-        <p v-if="!worksitesComplete" class="mb-4 text-sm text-down">
-          수요처 목록을 모두 불러오지 못해 저장할 수 없습니다. 새로고침해 주세요.
+        <p v-if="refsFailed" class="mb-4 text-sm text-down">
+          수요처 목록을 모두 불러오지 못해 변경할 수 없습니다. 새로고침해 주세요.
         </p>
-        <EmptyState v-if="!worksites.length" description="등록된 수요처가 없습니다." />
-        <WorksitePicker
-          v-else
-          v-model="managed"
-          :worksites="worksites"
-          :programs="programs"
-          :is-taken="takenByOther"
-          multiple
-        />
+        <EmptyState v-if="!managedWorksites.length" description="지정된 담당 수요처가 없습니다." />
+        <ul v-else class="divide-y divide-hairline">
+          <li v-for="w in managedWorksites" :key="w.id" class="flex items-center gap-3 py-3">
+            <span class="text-[15px] font-semibold text-ink">{{ w.name }}</span>
+            <span class="text-sm text-muted">{{ programName(w.program_id) }}</span>
+            <Tag v-if="w.status === 'ended'">종료</Tag>
+          </li>
+        </ul>
       </AppCard>
 
       <!-- 반복 배정 — 시니어에게 근무지를 잇는다 -->
@@ -430,6 +436,23 @@ onMounted(async () => {
         </div>
       </AppCard>
     </template>
+
+    <!-- 담당 수요처 모달 — 담당자 -->
+    <AppModal v-model:open="managedOpen" title="담당 수요처 배정" width="max-w-2xl">
+      <WorksitePicker
+        v-model="managedDraft"
+        :worksites="worksites"
+        :programs="programs"
+        :is-taken="takenByOther"
+        multiple
+      />
+      <template #footer>
+        <AppButton variant="outline" color="neutral" size="sm" @click="managedOpen = false">
+          취소
+        </AppButton>
+        <AppButton size="sm" :loading="managedSaving" @click="saveManaged">저장</AppButton>
+      </template>
+    </AppModal>
 
     <!-- 배정 모달 -->
     <AppModal
