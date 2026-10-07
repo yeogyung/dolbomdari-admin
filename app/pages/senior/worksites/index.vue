@@ -20,20 +20,24 @@ const sortKey = ref('name')
 const loading = ref(false)
 
 const programs = ref<Program[]>([])
+/** 근무지 담당자 후보(role=manager, 사회복지사) */
 const managers = ref<DirectoryEntry[]>([])
+/** 수요처 담당자 후보(role=worksite, 수요처 계정) */
+const contacts = ref<DirectoryEntry[]>([])
 
 const programName = (pid: string | null) =>
   pid ? (programs.value.find((p) => p.id === pid)?.name ?? pid) : '—'
-const managerName = (did: string | null) =>
-  did ? (managers.value.find((m) => m.id === did)?.name ?? did) : '—'
+const personName = (list: DirectoryEntry[], did: string | null) =>
+  did ? (list.find((m) => m.id === did)?.name ?? did) : '—'
 
 const columns: Column[] = [
   { key: 'name', label: '근무지', sortable: true, strong: true },
   { key: 'program_id', label: '사업' },
   { key: 'address', label: '주소' },
-  // 근무지 담당자(사회복지사, role=manager) — 이 근무지에 배정된 시니어를 관리한다.
-  // 수요처 담당자(role=worksite)는 명부의 worksite_id 로 이어지는 별개의 사람이다.
-  { key: 'manager_directory_id', label: '근무지 담당자' },
+  // 근무지 담당자(사회복지사, role=manager) — 이 근무지에 배정된 시니어를 앱·어드민에서 관리한다.
+  { key: 'care_manager_directory_id', label: '근무지 담당자' },
+  // 수요처 담당자(role=worksite) — 근무지 쪽 출석 담당. 지정·표시용이고 권한은 명부의 worksite_id 다.
+  { key: 'manager_directory_id', label: '수요처 담당자' },
   { key: 'status', label: '상태' },
   { key: 'qr_token', label: 'QR' },
 ]
@@ -62,13 +66,15 @@ const refsSettled = ref(false)
 
 async function loadRefs() {
   try {
-    const [pg, dir] = await Promise.all([
+    const [pg, mgr, ws] = await Promise.all([
       api.listPrograms(),
-      // 명부 목록에 수요처 계정도 섞이므로 역할을 서버에서 거른다 — 100건 안에서 밀려나지 않게
+      // 명부 목록에 여러 역할이 섞이므로 역할을 서버에서 거른다 — 100건 안에서 밀려나지 않게
       api.listDirectory({ size: 100, status: 'active', role: 'manager' }),
+      api.listDirectory({ size: 100, status: 'active', role: 'worksite' }),
     ])
     programs.value = pg.items
-    managers.value = dir.items
+    managers.value = mgr.items
+    contacts.value = ws.items
   } catch {
     // 사업·담당자 목록은 선택 편의용이다.
   } finally {
@@ -99,6 +105,7 @@ const form = ref({
   address: '',
   regionCode: '',
   managerDirectoryId: null as string | null,
+  careManagerDirectoryId: null as string | null,
   status: 'active' as LifeStatus,
 })
 
@@ -111,6 +118,7 @@ function openForm(row?: Worksite) {
         address: row.address ?? '',
         regionCode: row.region_code ?? '',
         managerDirectoryId: row.manager_directory_id,
+        careManagerDirectoryId: row.care_manager_directory_id,
         status: row.status,
       }
     : {
@@ -119,6 +127,7 @@ function openForm(row?: Worksite) {
         address: '',
         regionCode: '',
         managerDirectoryId: null,
+        careManagerDirectoryId: null,
         status: 'active',
       }
   formOpen.value = true
@@ -137,6 +146,7 @@ async function submitForm() {
       address: form.value.address.trim() || null,
       regionCode: form.value.regionCode.trim() || null,
       managerDirectoryId: form.value.managerDirectoryId,
+      careManagerDirectoryId: form.value.careManagerDirectoryId,
     }
     if (editing.value) {
       await api.updateWorksite(editing.value.id, { ...body, status: form.value.status })
@@ -260,8 +270,11 @@ onMounted(() => {
       <template #cell-address="{ row }">
         <span class="text-muted">{{ row.address || '—' }}</span>
       </template>
+      <template #cell-care_manager_directory_id="{ row }">
+        {{ personName(managers, row.care_manager_directory_id) }}
+      </template>
       <template #cell-manager_directory_id="{ row }">
-        {{ managerName(row.manager_directory_id) }}
+        {{ personName(contacts, row.manager_directory_id) }}
       </template>
       <template #cell-status="{ row }">
         <StatusBadge :tone="lifeStatusTone(row.status)">
@@ -317,11 +330,21 @@ onMounted(() => {
         <FormField label="지역 코드" hint="날씨 조회에 사용합니다.">
           <TextField v-model="form.regionCode" placeholder="예: 1168000000" />
         </FormField>
-        <FormField label="근무지 담당자" hint="명부에 등록된 담당자(사회복지사)만 선택할 수 있습니다.">
+        <FormField
+          label="근무지 담당자"
+          hint="이 근무지에 배정된 시니어를 관리할 담당자(사회복지사)입니다."
+        >
+          <SelectField
+            v-model="form.careManagerDirectoryId"
+            :options="managers.map((m) => ({ label: `${m.name} (${fmtPhone(m.phone)})`, value: m.id }))"
+            placeholder="근무지 담당자 선택(선택)"
+          />
+        </FormField>
+        <FormField label="수요처 담당자" hint="근무지 쪽 출석 담당자(수요처 계정)입니다.">
           <SelectField
             v-model="form.managerDirectoryId"
-            :options="managers.map((m) => ({ label: `${m.name} (${fmtPhone(m.phone)})`, value: m.id }))"
-            placeholder="담당자 선택(선택)"
+            :options="contacts.map((m) => ({ label: m.phone ? `${m.name} (${fmtPhone(m.phone)})` : m.name, value: m.id }))"
+            placeholder="수요처 담당자 선택(선택)"
           />
         </FormField>
         <FormField v-if="editing" label="상태">

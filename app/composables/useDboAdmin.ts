@@ -127,6 +127,7 @@ export function useDboAdmin() {
       address?: string | null
       regionCode?: string | null
       managerDirectoryId?: string | null
+      careManagerDirectoryId?: string | null
     }) => req<{ id: string; qrToken: string }>('/worksites', { method: 'POST', body }),
     updateWorksite: (
       id: string,
@@ -136,6 +137,7 @@ export function useDboAdmin() {
         address?: string | null
         regionCode?: string | null
         managerDirectoryId?: string | null
+        careManagerDirectoryId?: string | null
         status?: LifeStatus
       },
     ) => req<{ ok: true }>(`/worksites/${id}`, { method: 'PATCH', body }),

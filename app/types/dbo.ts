@@ -71,7 +71,10 @@ export interface Worksite {
   address: string | null
   region_code: string | null
   status: LifeStatus
+  /** 수요처 담당자(role=worksite). 지정·표시용 — 권한은 명부의 worksite_id 가 정한다 */
   manager_directory_id: string | null
+  /** 근무지 담당자(role=manager, 사회복지사). 앱·어드민 담당자 범위의 기준 */
+  care_manager_directory_id: string | null
   qr_token: string | null
 }
 

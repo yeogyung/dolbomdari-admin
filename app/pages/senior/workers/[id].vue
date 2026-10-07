@@ -78,7 +78,7 @@ async function loadRefs() {
     const [ws, pg] = await Promise.all([api.listAllWorksites(), api.listPrograms()])
     worksites.value = ws
     programs.value = pg.items
-    managed.value = ws.filter((w) => w.manager_directory_id === id.value).map((w) => w.id)
+    managed.value = ws.filter((w) => w.care_manager_directory_id === id.value).map((w) => w.id)
     worksitesComplete.value = true
   } catch {
     // 근무지·사업 목록은 선택 편의용이다. 실패해도 상세는 보여준다.
@@ -88,7 +88,8 @@ async function loadRefs() {
   }
 }
 
-/* 담당 수요처 — 담당자만. 담당 관계는 근무지 쪽(manager_directory_id)에 있다 */
+/* 담당 수요처 — 담당자만. 담당 관계는 근무지의 근무지 담당자 칸(care_manager_directory_id)에 있다.
+   수요처 담당자 칸(manager_directory_id, role=worksite)과 다르다 */
 /** 저장된 담당 수요처. 모달에서 고치는 값은 managedDraft 다 — 취소하면 버린다 */
 const managed = ref<string[]>([])
 const managedDraft = ref<string[]>([])
@@ -103,7 +104,8 @@ const managedWorksites = computed(() => worksites.value.filter((w) => managed.va
 const worksitesComplete = ref(false)
 
 /** 다른 담당자가 맡고 있는 수요처 — 고르면 이 담당자로 넘어온다 */
-const takenByOther = (w: Worksite) => !!w.manager_directory_id && w.manager_directory_id !== id.value
+const takenByOther = (w: Worksite) =>
+  !!w.care_manager_directory_id && w.care_manager_directory_id !== id.value
 
 function openManaged() {
   managedDraft.value = [...managed.value]

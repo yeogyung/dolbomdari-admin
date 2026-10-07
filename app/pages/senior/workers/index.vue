@@ -99,7 +99,7 @@ async function loadRefs() {
 }
 
 /** 새 담당자에게 다른 담당자가 있던 근무지는 넘어온다 */
-const takenByOther = (w: Worksite) => !!w.manager_directory_id
+const takenByOther = (w: Worksite) => !!w.care_manager_directory_id
 
 function openCreate() {
   form.value = emptyForm()
