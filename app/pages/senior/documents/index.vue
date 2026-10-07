@@ -47,11 +47,17 @@ async function load() {
   }
 }
 
+/** 근무지 이름 목록이 왔는가(실패 포함). 오기 전에는 적용 범위가 id 로 보여 행을 미룬다 */
+const worksitesSettled = ref(false)
+
 async function loadWorksites() {
   try {
-    worksites.value = (await api.listWorksites({ size: 100 })).items
+    // 근무지는 100곳을 넘는다 — 첫 페이지만 받으면 101번째부터 id 로 보인다
+    worksites.value = await api.listAllWorksites()
   } catch {
     // 근무지 이름은 표기 편의다. 실패하면 id 로 보인다.
+  } finally {
+    worksitesSettled.value = true
   }
 }
 
@@ -80,8 +86,8 @@ onMounted(() => {
 
     <DataTable
       :columns="columns"
-      :rows="rows"
-      :loading="loading"
+      :rows="worksitesSettled ? rows : []"
+      :loading="loading || !worksitesSettled"
       :sort-key="sortKey"
       :sort-dir="sortDir"
       :page="page"

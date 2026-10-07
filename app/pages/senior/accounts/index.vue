@@ -39,12 +39,17 @@ async function load() {
   }
 }
 
+/** 근무지 이름 목록이 왔는가(실패 포함). 오기 전에는 표가 이름 대신 id 를 보여 행을 미룬다 */
+const worksitesSettled = ref(false)
+
 async function loadWorksites() {
   try {
-    const res = await api.listWorksites({ size: 100, sort: 'name' })
-    worksites.value = res.items
+    // 근무지는 100곳을 넘는다 — 첫 페이지만 받으면 101번째부터 id 로 보이고 선택지에서 빠진다
+    worksites.value = await api.listAllWorksites()
   } catch {
     // 근무지 목록은 선택 편의용이다.
+  } finally {
+    worksitesSettled.value = true
   }
 }
 
@@ -154,8 +159,8 @@ onMounted(() => {
 
     <DataTable
       :columns="columns"
-      :rows="rows"
-      :loading="loading"
+      :rows="worksitesSettled ? rows : []"
+      :loading="loading || !worksitesSettled"
       :total="rows.length"
       :page-size="100"
       empty-text="발급된 계정이 없습니다."

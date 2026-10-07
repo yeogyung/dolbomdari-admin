@@ -51,7 +51,7 @@ onMounted(async () => {
     <AppCard v-for="s in sections" :key="s.table">
       <template #header>
         <h3 class="text-[15px] font-semibold text-ink">{{ s.title }}</h3>
-        <Tag>{{ data[s.table]?.total ?? 0 }}건</Tag>
+        <Tag>{{ loading ? '…' : (data[s.table]?.total ?? 0) }}건</Tag>
       </template>
 
       <AppSpinner v-if="loading" size="sm" label="불러오는 중…" />

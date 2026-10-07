@@ -28,9 +28,10 @@ async function load() {
   loading.value = true
   error.value = ''
   rows.value = []
-  notice.value = null
+  const id = String(route.params.id)
+  // 같은 공지를 다시 받을 때(필터·새로고침)는 본문 카드를 비우지 않는다 — 카드가 사라졌다 나타난다
+  if (notice.value?.id !== id) notice.value = null
   try {
-    const id = String(route.params.id)
     const [detail, recipients] = await Promise.all([
       api.getNotice(id),
       api.listNoticeRecipients(id, { channel: channel.value, read: read.value, page: page.value, size: 20, q: q.value }),
@@ -55,6 +56,7 @@ onMounted(load)
   <div class="space-y-5">
     <NuxtLink to="/senior/notices" class="text-sm text-brand-500 hover:underline">공지 목록으로</NuxtLink>
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
+    <AppSpinner v-if="!notice && loading" label="공지 불러오는 중…" />
     <Card v-if="notice" class="space-y-3 p-6">
       <p class="text-sm text-muted">{{ notice.kind === 'urgent' ? '긴급 공지' : '일반 공지' }}</p>
       <h1 class="text-xl font-semibold">{{ notice.title }}</h1>

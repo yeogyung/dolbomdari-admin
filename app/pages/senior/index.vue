@@ -68,6 +68,9 @@ async function loadToday() {
   }
 }
 
+/** 규모 카드 조회 중. 끝난 뒤의 「—」는 실패를 뜻한다 — 조회 중과 구분해 「…」을 보인다 */
+const scaleLoading = ref(true)
+
 async function loadScale() {
   const [seniors, managers, ws, pg, rooms] = await Promise.allSettled([
     api.listDirectory({ size: 1, status: 'active', role: 'senior' }),
@@ -82,9 +85,10 @@ async function loadScale() {
   if (ws.status === 'fulfilled') scale.value.worksites = ws.value.total
   if (pg.status === 'fulfilled') scale.value.programs = pg.value.items.filter((p) => p.status === 'active').length
   if (rooms.status === 'fulfilled') scale.value.rooms = rooms.value.total
+  scaleLoading.value = false
 }
 
-const show = (v: number | null) => (v === null ? '—' : v.toLocaleString())
+const show = (v: number | null) => (scaleLoading.value ? '…' : v === null ? '—' : v.toLocaleString())
 
 onMounted(() => {
   loadToday()

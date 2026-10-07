@@ -99,7 +99,7 @@ onMounted(loadRooms)
     <AppCard padding="none">
       <template #header>
         <h2 class="text-[18px] font-semibold text-ink">채팅방</h2>
-        <span class="text-sm text-muted tabular-nums">{{ total.toLocaleString() }}개</span>
+        <span class="text-sm text-muted tabular-nums">{{ loadingRooms ? '…' : total.toLocaleString() }}개</span>
       </template>
 
       <div class="p-4">
@@ -180,7 +180,8 @@ onMounted(loadRooms)
       </template>
 
       <div class="min-h-[420px] px-8 py-6">
-        <AppSpinner v-if="loadingMessages" label="대화를 불러오는 중…" />
+        <!-- 방 목록을 받는 중이면 곧 첫 방이 열린다 — 「방을 선택해 주세요」를 먼저 띄우지 않는다 -->
+        <AppSpinner v-if="loadingMessages || (!selected && loadingRooms)" label="대화를 불러오는 중…" />
         <EmptyState
           v-else-if="!selected"
           icon="i-lucide-message-square"

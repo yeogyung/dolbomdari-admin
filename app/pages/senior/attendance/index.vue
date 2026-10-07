@@ -266,10 +266,11 @@ onMounted(() => {
 
     <!-- 조회 결과 집계 -->
     <div class="grid grid-cols-2 gap-6 md:grid-cols-4">
-      <StatCard label="조회된 근무" :value="total.toLocaleString()" />
-      <StatCard label="퇴근 완료" :value="summary.done" tone="up" />
-      <StatCard label="근무 중" :value="summary.working" tone="primary" />
-      <StatCard label="미기록·결근" :value="summary.missing" tone="down" />
+      <!-- 조회 중에는 0 대신 「…」 — 0 은 「기록이 없다」로 읽힌다 -->
+      <StatCard label="조회된 근무" :value="loading ? '…' : total.toLocaleString()" />
+      <StatCard label="퇴근 완료" :value="loading ? '…' : summary.done" tone="up" />
+      <StatCard label="근무 중" :value="loading ? '…' : summary.working" tone="primary" />
+      <StatCard label="미기록·결근" :value="loading ? '…' : summary.missing" tone="down" />
     </div>
 
     <DataTable

@@ -30,8 +30,9 @@ const worksiteName = (wid: string) => worksites.value.find((w) => w.id === wid)?
 const programName = (pid: string | null) =>
   pid ? (programs.value.find((p) => p.id === pid)?.name ?? pid) : '—'
 
+// 전체 스피너는 처음 들어올 때만이다(loading 은 true 로 시작). 저장 뒤 다시 받을 때 화면을
+// 통째로 스피너로 바꾸면 입력하던 카드가 사라졌다 나타난다.
 async function loadEntry() {
-  loading.value = true
   try {
     const res = await api.getDirectory(id.value)
     entry.value = res
@@ -49,12 +50,22 @@ async function loadEntry() {
   }
 }
 
+/*
+ * 첫 조회가 끝났는가(성공·실패 모두). 배정 표의 근무지·사업 이름은 근무지·사업 목록에서
+ * 찾으므로, 둘 중 하나만 먼저 오면 이름 대신 id 가 보였다가 바뀐다. 둘 다 올 때까지
+ * 스피너를 띄운다. 저장 뒤 다시 받을 때는 기존 표를 그대로 둔다.
+ */
+const assignmentsLoaded = ref(false)
+const refsSettled = ref(false)
+
 async function loadAssignments() {
   try {
     const res = await api.listAssignments({ directoryId: id.value, size: 100 })
     assignments.value = res.items
   } catch (e: any) {
     toast.add({ title: '배정 조회 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    assignmentsLoaded.value = true
   }
 }
 
@@ -72,6 +83,8 @@ async function loadRefs() {
   } catch {
     // 근무지·사업 목록은 선택 편의용이다. 실패해도 상세는 보여준다.
     refsFailed.value = true
+  } finally {
+    refsSettled.value = true
   }
 }
 
@@ -243,6 +256,9 @@ async function submitAssign() {
   }
 }
 
+/** 배정 삭제 중복 클릭 방지 — 일반 버튼이라 AppButton 의 잠금이 없다 */
+const removeGuard = createClickGuard()
+
 async function removeAssign(row: Assignment) {
   if (!confirm('이 배정을 삭제하시겠습니까? 이미 생성된 출퇴근 기록은 남습니다.')) return
   try {
@@ -256,9 +272,6 @@ async function removeAssign(row: Assignment) {
 
 onMounted(async () => {
   loadRefs()
-/** 배정 삭제 중복 클릭 방지 — 일반 버튼이라 AppButton 의 잠금이 없다 */
-const removeGuard = createClickGuard()
-
   await loadEntry()
   // 반복 배정은 시니어에게 근무지를 잇는 것이다. 담당자에게는 없다.
   if (entry.value?.role === 'senior') loadAssignments()
@@ -361,7 +374,8 @@ const removeGuard = createClickGuard()
         <p v-if="refsFailed" class="mb-4 text-sm text-down">
           수요처 목록을 모두 불러오지 못해 변경할 수 없습니다. 새로고침해 주세요.
         </p>
-        <EmptyState v-if="!managedWorksites.length" description="지정된 담당 수요처가 없습니다." />
+        <AppSpinner v-if="!refsSettled" label="담당 수요처 불러오는 중…" />
+        <EmptyState v-else-if="!managedWorksites.length" description="지정된 담당 수요처가 없습니다." />
         <ul v-else class="divide-y divide-hairline">
           <li v-for="w in managedWorksites" :key="w.id" class="flex items-center gap-3 py-3">
             <span class="text-[15px] font-semibold text-ink">{{ w.name }}</span>
@@ -384,7 +398,8 @@ const removeGuard = createClickGuard()
         </template>
 
         <div class="px-8 pt-2 pb-6">
-          <EmptyState v-if="!assignments.length" description="등록된 배정이 없습니다." />
+          <AppSpinner v-if="!assignmentsLoaded || !refsSettled" label="배정 불러오는 중…" />
+          <EmptyState v-else-if="!assignments.length" description="등록된 배정이 없습니다." />
           <table v-else class="w-full border-collapse">
             <thead>
               <tr class="text-[13px] font-semibold text-muted">

@@ -52,6 +52,9 @@ async function load() {
   }
 }
 
+/** 사업·담당자 이름 목록이 왔는가(실패 포함). 오기 전에는 표가 이름 대신 id 를 보여 행을 미룬다 */
+const refsSettled = ref(false)
+
 async function loadRefs() {
   try {
     const [pg, dir] = await Promise.all([
@@ -63,6 +66,8 @@ async function loadRefs() {
     managers.value = dir.items
   } catch {
     // 사업·담당자 목록은 선택 편의용이다.
+  } finally {
+    refsSettled.value = true
   }
 }
 
@@ -209,8 +214,8 @@ onMounted(() => {
 
     <DataTable
       :columns="columns"
-      :rows="rows"
-      :loading="loading"
+      :rows="refsSettled ? rows : []"
+      :loading="loading || !refsSettled"
       :sort-key="sortKey"
       sort-dir="asc"
       :page="page"
