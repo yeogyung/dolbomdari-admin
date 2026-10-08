@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { Program, Worksite } from '~/types/dbo'
+import { addAll, removeAll } from '~/utils/worksiteSelection'
 
 const props = defineProps<{
   worksites: Worksite[]
@@ -40,6 +41,17 @@ function toggle(id: string) {
     ? selected.value.filter((x) => x !== id)
     : [...selected.value, id]
   model.value = next
+}
+/** 지금 보이는 근무지(검색·사업으로 좁힌 결과)가 모두 골라져 있는가 */
+const allVisibleSelected = computed(
+  () => filtered.value.length > 0 && filtered.value.every((w) => selected.value.includes(w.id)),
+)
+/** 보이는 근무지만 한꺼번에 고르거나 푼다 — 다른 사업에서 고른 근무지는 그대로 둔다 */
+function toggleVisible() {
+  const ids = filtered.value.map((w) => w.id)
+  model.value = allVisibleSelected.value
+    ? removeAll(selected.value, ids)
+    : addAll(selected.value, ids)
 }
 // 사업을 바꿔 목록에서 안 보여도 고른 것은 남는다 — 무엇이 골라져 있는지 따로 보여 준다
 const selectedWorksites = computed(() =>
@@ -93,7 +105,17 @@ const single = computed({
     />
 
     <template v-else>
-      <p class="text-xs text-muted">{{ filtered.length }}곳 표시 중</p>
+      <div class="flex items-center justify-between">
+        <p class="text-xs text-muted">{{ filtered.length }}곳 표시 중</p>
+        <button
+          v-if="filtered.length"
+          type="button"
+          class="text-xs font-medium text-brand-500 hover:underline"
+          @click="toggleVisible"
+        >
+          {{ allVisibleSelected ? `표시된 ${filtered.length}곳 선택 해제` : `표시된 ${filtered.length}곳 모두 선택` }}
+        </button>
+      </div>
       <div class="max-h-[45vh] overflow-y-auto rounded-lg border border-hairline p-3">
         <p v-if="!filtered.length" class="text-sm text-muted">조건에 맞는 근무지가 없습니다.</p>
         <div v-for="w in filtered" :key="w.id" class="flex items-center gap-2 py-1">
