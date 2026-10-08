@@ -94,7 +94,8 @@ onMounted(loadRooms)
 </script>
 
 <template>
-  <div class="grid gap-6 lg:grid-cols-[340px_1fr]">
+  <!-- items-start: 두 카드가 서로의 높이를 따라 늘어나지 않게 한다 — 긴 대화가 방 목록 카드까지 키우던 문제 -->
+  <div class="grid items-start gap-6 lg:grid-cols-[340px_1fr]">
     <!-- 방 목록 -->
     <AppCard padding="none">
       <template #header>
@@ -179,7 +180,8 @@ onMounted(loadRooms)
         </AppButton>
       </template>
 
-      <div class="min-h-[420px] px-8 py-6">
+      <!-- 대화는 길어질 수 있어 높이를 묶고 안에서 스크롤한다 -->
+      <div class="max-h-[65vh] min-h-[420px] overflow-y-auto px-8 py-6">
         <!-- 방 목록을 받는 중이면 곧 첫 방이 열린다 — 「방을 선택해 주세요」를 먼저 띄우지 않는다 -->
         <AppSpinner v-if="loadingMessages || (!selected && loadingRooms)" label="대화를 불러오는 중…" />
         <EmptyState
