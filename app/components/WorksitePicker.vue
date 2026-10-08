@@ -116,21 +116,44 @@ const single = computed({
           {{ allVisibleSelected ? `표시된 ${filtered.length}곳 선택 해제` : `표시된 ${filtered.length}곳 모두 선택` }}
         </button>
       </div>
-      <div class="max-h-[45vh] overflow-y-auto rounded-lg border border-hairline p-3">
-        <p v-if="!filtered.length" class="text-sm text-muted">조건에 맞는 근무지가 없습니다.</p>
-        <div v-for="w in filtered" :key="w.id" class="flex items-center gap-2 py-1">
-          <Checkbox
-            :model-value="selected.includes(w.id)"
-            :label="label(w)"
-            @update:model-value="toggle(w.id)"
-          />
-          <span v-if="!programId && programName(w.program_id)" class="text-xs text-muted">
-            {{ programName(w.program_id) }}
-          </span>
-          <span v-if="isTaken?.(w)" class="text-xs text-muted">· 다른 담당자 지정됨</span>
-        </div>
+      <!-- 높이는 화면에 맞춰 줄어든다 — 모달 안에서 다른 입력칸과 함께 보이도록. 머리글은 스크롤해도 남는다 -->
+      <div class="max-h-[min(40vh,28rem)] overflow-y-auto rounded-lg border border-hairline">
+        <table class="w-full border-collapse text-sm">
+          <thead class="sticky top-0 z-10 bg-surface-soft text-left text-xs font-semibold text-muted">
+            <tr>
+              <th class="w-10 px-3 py-2"><span class="sr-only">선택</span></th>
+              <th class="px-3 py-2">근무지</th>
+              <th class="px-3 py-2">사업</th>
+              <th class="px-3 py-2">비고</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!filtered.length">
+              <td colspan="4" class="px-3 py-6 text-center text-muted">조건에 맞는 근무지가 없습니다.</td>
+            </tr>
+            <!-- 행 어디를 눌러도 고른다. 체크박스는 표시만 한다(pointer-events-none) — 체크박스와 행이
+                 함께 받으면 한 번 눌러 두 번 토글된다 -->
+            <tr
+              v-for="w in filtered"
+              :key="w.id"
+              class="cursor-pointer border-t border-hairline-soft transition-colors"
+              :class="selected.includes(w.id) ? 'bg-brand-soft' : 'hover:bg-surface-soft'"
+              @click="toggle(w.id)"
+            >
+              <td class="px-3 py-2">
+                <Checkbox :model-value="selected.includes(w.id)" class="pointer-events-none" />
+              </td>
+              <td class="px-3 py-2 font-medium text-ink">{{ label(w) }}</td>
+              <td class="px-3 py-2 text-muted">{{ programName(w.program_id) || '—' }}</td>
+              <td class="px-3 py-2 text-xs text-muted">{{ isTaken?.(w) ? '다른 담당자 지정됨' : '' }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <div v-if="selectedWorksites.length" class="flex flex-wrap items-center gap-1.5">
+      <div
+        v-if="selectedWorksites.length"
+        class="flex max-h-24 flex-wrap items-center gap-1.5 overflow-y-auto"
+      >
         <span class="text-sm text-muted">선택 {{ selectedWorksites.length }}곳</span>
         <Tag v-for="w in selectedWorksites" :key="w.id">{{ w.name }}</Tag>
       </div>
