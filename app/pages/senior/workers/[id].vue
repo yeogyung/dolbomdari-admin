@@ -1,4 +1,4 @@
-<!-- 명부 상세 — 인적사항 수정·계약 종료 + 시니어는 반복 배정, 담당자는 담당 수요처 (/dbo-admin/directory, /dbo-admin/assignments) -->
+<!-- 명부 상세 — 인적사항 수정·계약 종료 + 시니어는 반복 배정, 담당자는 담당 수요처(여러 곳), 수요처 담당자는 담당 수요처(1곳) (/dbo-admin/directory, /dbo-admin/assignments) -->
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Assignment, DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
@@ -134,6 +134,49 @@ async function saveManaged() {
   }
 }
 
+/*
+ * 담당 수요처 — 수요처 담당자(role=worksite)만. 1곳을 맡는다. 서버가 권한 칸(명부 worksite_id)과
+ * 근무지의 「수요처 담당자」 표시(manager_directory_id)를 함께 맞춘다. 근무지 담당자(사회복지사)와 다르다.
+ */
+const contactWorksite = computed(
+  () => worksites.value.find((w) => w.id === entry.value?.worksite_id) ?? null,
+)
+const contactOpen = ref(false)
+const contactDraft = ref<string | null>(null)
+const contactSaving = ref(false)
+
+function openContact() {
+  contactDraft.value = entry.value?.worksite_id ?? null
+  contactOpen.value = true
+}
+
+async function saveContact() {
+  if (!contactDraft.value) {
+    toast.add({ title: '담당 수요처를 선택해 주세요.', color: 'warning' })
+    return
+  }
+  // 근무지의 수요처 담당자 표시는 한 사람이다 — 다른 사람이 표시돼 있으면 바뀐다고 알린다
+  const target = worksites.value.find((w) => w.id === contactDraft.value)
+  if (
+    target?.manager_directory_id &&
+    target.manager_directory_id !== id.value &&
+    !confirm(`${target.name} 의 수요처 담당자 표시가 이 사람으로 바뀝니다. 계속하시겠습니까?`)
+  )
+    return
+  contactSaving.value = true
+  try {
+    await api.setContactWorksite(id.value, contactDraft.value)
+    toast.add({ title: '담당 수요처가 저장되었습니다.', color: 'success' })
+    contactOpen.value = false
+    loadEntry()
+    loadRefs()
+  } catch (e: any) {
+    toast.add({ title: '담당 수요처 저장 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    contactSaving.value = false
+  }
+}
+
 async function save() {
   if (!entry.value) return
   if (
@@ -145,7 +188,9 @@ async function save() {
   try {
     await api.updateDirectory(id.value, {
       name: form.value.name.trim(),
-      phone: form.value.phone.trim(),
+      // 바꿨을 때만 보낸다 — 이메일로 발급한 수요처 계정은 번호가 비어 있어, 빈 값을 보내면
+      // 서버가 형식 오류(bad_phone)로 저장 전체를 거절한다
+      ...(phoneChanged.value ? { phone: form.value.phone.trim() } : {}),
       memo: form.value.memo.trim() || null,
       status: form.value.status,
     })
@@ -416,6 +461,32 @@ onMounted(async () => {
         </ul>
       </AppCard>
 
+      <!-- 담당 수요처 — 수요처 담당자 -->
+      <AppCard v-if="entry.role === 'worksite'" padding="lg">
+        <template #header>
+          <div>
+            <h2 class="text-[18px] font-semibold text-ink">담당 수요처</h2>
+            <p class="mt-0.5 text-sm text-muted">
+              이 수요처 담당자가 어드민·앱에서 출석 명단을 보는 근무지입니다. 1곳만 맡습니다.
+            </p>
+          </div>
+          <AppButton size="sm" icon="i-lucide-pencil" :disabled="!worksitesComplete" @click="openContact">
+            담당 수요처 변경
+          </AppButton>
+        </template>
+
+        <p v-if="refsFailed" class="mb-4 text-sm text-down">
+          수요처 목록을 모두 불러오지 못해 변경할 수 없습니다. 새로고침해 주세요.
+        </p>
+        <AppSpinner v-if="!refsSettled" label="담당 수요처 불러오는 중…" />
+        <EmptyState v-else-if="!entry.worksite_id" description="지정된 담당 수요처가 없습니다." />
+        <div v-else class="flex items-center gap-3">
+          <span class="text-[15px] font-semibold text-ink">{{ contactWorksite?.name ?? entry.worksite_id }}</span>
+          <span class="text-sm text-muted">{{ programName(contactWorksite?.program_id ?? null) }}</span>
+          <Tag v-if="contactWorksite?.status === 'ended'">종료</Tag>
+        </div>
+      </AppCard>
+
       <!-- 반복 배정 — 시니어에게 근무지를 잇는다 -->
       <AppCard v-if="entry.role === 'senior'" padding="none">
         <template #header>
@@ -486,6 +557,17 @@ onMounted(async () => {
         </div>
       </AppCard>
     </template>
+
+    <!-- 담당 수요처 모달 — 수요처 담당자(1곳) -->
+    <AppModal v-model:open="contactOpen" title="담당 수요처 지정" width="max-w-2xl">
+      <WorksitePicker v-model="contactDraft" :worksites="worksites" :programs="programs" />
+      <template #footer>
+        <AppButton variant="outline" color="neutral" size="sm" @click="contactOpen = false">
+          취소
+        </AppButton>
+        <AppButton size="sm" :loading="contactSaving" @click="saveContact">저장</AppButton>
+      </template>
+    </AppModal>
 
     <!-- 담당 수요처 모달 — 담당자 -->
     <AppModal v-model:open="managedOpen" title="담당 수요처 배정" width="max-w-2xl">

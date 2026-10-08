@@ -168,6 +168,9 @@ export function useDboAdmin() {
     /** 담당자가 맡을 수요처 전체 — 보낸 목록이 곧 결과다 */
     setManagerWorksites: (id: string, worksiteIds: string[]) =>
       req<{ ok: true }>(`/directory/${id}/worksites`, { method: 'PUT', body: { worksiteIds } }),
+    /** 수요처 담당자(role=worksite)의 담당 수요처 1곳 — 권한 칸과 근무지의 수요처 담당자 표시를 함께 맞춘다 */
+    setContactWorksite: (id: string, worksiteId: string | null) =>
+      req<{ ok: true }>(`/directory/${id}/worksite`, { method: 'PUT', body: { worksiteId } }),
 
     /* 반복 배정 — 읽기는 worksite 범위 제한, 쓰기는 master 전용 */
     listAssignments: (q: { page?: number; size?: number; directoryId?: string } = {}) =>

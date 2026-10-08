@@ -214,15 +214,7 @@ onMounted(load)
       <template #cell-created_at="{ row }">{{ fmtStamp(row.created_at) }}</template>
 
       <template #actions="{ row }">
-        <!-- 수요처 계정의 발급·수정은 계정·권한 화면 몫이다. 명부 상세는 시니어·담당자만 다룬다 -->
-        <NuxtLink
-          v-if="row.role === 'worksite'"
-          to="/senior/accounts"
-          class="text-sm font-medium text-brand-500 hover:underline"
-        >
-          계정·권한
-        </NuxtLink>
-        <NuxtLink v-else :to="`/senior/workers/${row.id}`" class="text-sm font-medium text-brand-500 hover:underline">
+        <NuxtLink :to="`/senior/workers/${row.id}`" class="text-sm font-medium text-brand-500 hover:underline">
           상세
         </NuxtLink>
       </template>
