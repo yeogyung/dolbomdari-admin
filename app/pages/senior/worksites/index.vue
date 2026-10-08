@@ -133,6 +133,24 @@ function openForm(row?: Worksite) {
   formOpen.value = true
 }
 
+/** 이름·사업을 바꾸는데 배정이 있으면 확인 창을 띄운다. 그만두면 `false`. */
+async function confirmWorksiteEdit(row: Worksite, name: string, programId: string | null) {
+  const programName = (id: string | null) =>
+    id ? (programs.value.find((p) => p.id === id)?.name ?? id) : null
+  const before = { name: row.name, programName: programName(row.program_id) }
+  const after = { name, programName: programName(programId) }
+  // 바뀐 것이 없으면 배정 수를 묻지도 않는다.
+  if (!worksiteEditWarning({ before, after, assignments: 1 })) return true
+  let assignments: number | null = null
+  try {
+    assignments = (await api.listAssignments({ worksiteId: row.id, size: 1 })).total
+  } catch (e) {
+    console.error('[worksites] 배정 수 조회 실패', e)
+  }
+  const message = worksiteEditWarning({ before, after, assignments })
+  return message === null || confirm(message)
+}
+
 async function submitForm() {
   if (!form.value.name.trim()) {
     toast.add({ title: '근무지 이름을 입력해 주세요.', color: 'warning' })
@@ -149,6 +167,9 @@ async function submitForm() {
       careManagerDirectoryId: form.value.careManagerDirectoryId,
     }
     if (editing.value) {
+      // 배정 있는 근무지의 이름·사업을 바꾸면 그 어르신들이 통째로 따라간다. 저장 전에 묻는다
+      // (`utils/worksiteEditGuard.ts` — 2026-10-08 「1호점」이 「테스트」가 된 일).
+      if (!(await confirmWorksiteEdit(editing.value, body.name, body.programId))) return
       await api.updateWorksite(editing.value.id, { ...body, status: form.value.status })
       toast.add({ title: '수정되었습니다.', color: 'success' })
     } else {

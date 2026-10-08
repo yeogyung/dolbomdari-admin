@@ -173,7 +173,9 @@ export function useDboAdmin() {
       req<{ ok: true }>(`/directory/${id}/worksite`, { method: 'PUT', body: { worksiteId } }),
 
     /* 반복 배정 — 읽기는 worksite 범위 제한, 쓰기는 master 전용 */
-    listAssignments: (q: { page?: number; size?: number; directoryId?: string } = {}) =>
+    listAssignments: (
+      q: { page?: number; size?: number; directoryId?: string; worksiteId?: string } = {},
+    ) =>
       req<Paged<Assignment>>('/assignments', { query: clean(q) }),
     createAssignment: (body: {
       directoryId: string
