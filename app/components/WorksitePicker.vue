@@ -118,7 +118,15 @@ const single = computed({
       </div>
       <!-- 높이는 화면에 맞춰 줄어든다 — 모달 안에서 다른 입력칸과 함께 보이도록. 머리글은 스크롤해도 남는다 -->
       <div class="max-h-[min(40vh,28rem)] overflow-y-auto rounded-lg border border-hairline">
-        <table class="w-full border-collapse text-sm">
+        <!-- table-fixed: 열 폭을 아래 colgroup 으로 고정한다. 긴 이름이 줄바꿈되거나 표를 넓히지 않고
+             「…」로 잘린다(truncate). 잘린 전체는 title 로 본다 -->
+        <table class="w-full table-fixed border-collapse text-sm">
+          <colgroup>
+            <col class="w-10" />
+            <col class="w-[45%]" />
+            <col />
+            <col class="w-36" />
+          </colgroup>
           <thead class="sticky top-0 z-10 bg-surface-soft text-left text-xs font-semibold text-muted">
             <tr>
               <th class="w-10 px-3 py-2"><span class="sr-only">선택</span></th>
@@ -143,9 +151,13 @@ const single = computed({
               <td class="px-3 py-2">
                 <Checkbox :model-value="selected.includes(w.id)" class="pointer-events-none" />
               </td>
-              <td class="px-3 py-2 font-medium text-ink">{{ label(w) }}</td>
-              <td class="px-3 py-2 text-muted">{{ programName(w.program_id) || '—' }}</td>
-              <td class="px-3 py-2 text-xs text-muted">{{ isTaken?.(w) ? '다른 담당자 지정됨' : '' }}</td>
+              <td class="truncate px-3 py-2 font-medium text-ink" :title="label(w)">{{ label(w) }}</td>
+              <td class="truncate px-3 py-2 text-muted" :title="programName(w.program_id)">
+                {{ programName(w.program_id) || '—' }}
+              </td>
+              <td class="truncate px-3 py-2 text-xs text-muted" :title="isTaken?.(w) ? '다른 담당자 지정됨' : undefined">
+                {{ isTaken?.(w) ? '다른 담당자 지정됨' : '' }}
+              </td>
             </tr>
           </tbody>
         </table>
