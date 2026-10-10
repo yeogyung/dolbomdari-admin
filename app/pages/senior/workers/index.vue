@@ -3,6 +3,7 @@
 import { ref, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
+import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -59,6 +60,52 @@ function toggleSort(key: string) {
   sortKey.value = key
   page.value = 1
   load()
+}
+
+/* 엑셀 — 조회 조건 전체를 받아 내보낸다 */
+const exporting = ref(false)
+const EXCEL_COLUMNS: ExcelColumn[] = [
+  { key: 'name', label: '이름' },
+  { key: 'phone', label: '전화번호' },
+  { key: 'role', label: '역할' },
+  { key: 'status', label: '상태' },
+  { key: 'memo', label: '메모' },
+  { key: 'created_at', label: '등록일' },
+]
+
+async function exportExcel() {
+  exporting.value = true
+  try {
+    const all = await fetchAllPages(
+      (p, size) =>
+        api.listDirectory({
+          page: p,
+          size,
+          q: q.value,
+          sort: sortKey.value,
+          status: statusFilter.value || undefined,
+          role: roleFilter.value || undefined,
+        }),
+      (r) => r.id,
+    )
+    if (!all.length) {
+      toast.add({ title: '내보낼 명부가 없습니다.', color: 'warning' })
+      return
+    }
+    const data = all.map((r) => ({
+      name: r.name,
+      phone: r.phone ? fmtPhone(r.phone) : (r.email ?? ''),
+      role: ROLE_LABELS[r.role] ?? r.role,
+      status: lifeStatusLabel(r.status),
+      memo: r.memo ?? '',
+      created_at: excelStamp(r.created_at),
+    }))
+    downloadExcel(`명부_${todaySeoul()}`, data, EXCEL_COLUMNS)
+  } catch (e: any) {
+    toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    exporting.value = false
+  }
 }
 
 /* 신규 등록 */
@@ -157,6 +204,9 @@ onMounted(load)
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
+      <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" @click="exportExcel">
+        엑셀 다운로드
+      </AppButton>
       <AppButton icon="i-lucide-user-plus" @click="openCreate">명부 등록</AppButton>
     </Teleport>
 

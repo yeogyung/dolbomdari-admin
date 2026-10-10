@@ -3,6 +3,7 @@
 import { ref, computed, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { AdminAccount, AdminRole, LifeStatus, Worksite } from '~/types/dbo'
+import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -51,6 +52,32 @@ async function loadWorksites() {
   } finally {
     worksitesSettled.value = true
   }
+}
+
+/* 엑셀 — 목록을 전량 받으므로 화면의 행을 그대로 내보낸다 */
+const EXCEL_COLUMNS: ExcelColumn[] = [
+  { key: 'name', label: '이름' },
+  { key: 'email', label: '이메일' },
+  { key: 'role', label: '권한' },
+  { key: 'worksite', label: '담당 근무지' },
+  { key: 'status', label: '상태' },
+  { key: 'created_at', label: '발급일' },
+]
+
+function exportExcel() {
+  if (!rows.value.length) {
+    toast.add({ title: '내보낼 계정이 없습니다.', color: 'warning' })
+    return
+  }
+  const data = rows.value.map((r) => ({
+    name: r.name,
+    email: r.email ?? '',
+    role: ROLE_LABELS[r.role] ?? r.role,
+    worksite: r.worksite_id ? worksiteName(r.worksite_id) : '',
+    status: lifeStatusLabel(r.status),
+    created_at: excelStamp(r.created_at),
+  }))
+  downloadExcel(`계정_${todaySeoul()}`, data, EXCEL_COLUMNS)
 }
 
 /* 신규 발급 */
@@ -154,6 +181,15 @@ onMounted(() => {
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
+      <AppButton
+        variant="outline"
+        color="neutral"
+        icon="i-lucide-download"
+        :disabled="loading || !worksitesSettled"
+        @click="exportExcel"
+      >
+        엑셀 다운로드
+      </AppButton>
       <AppButton icon="i-lucide-user-plus" @click="openCreate">계정 발급</AppButton>
     </Teleport>
 

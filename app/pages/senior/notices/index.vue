@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { NoticeSummary } from '~/types/dbo'
 import type { Column } from '~/types/table'
+import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
 useAdminHeader().setHeader('공지·미열람 관리')
@@ -35,11 +36,47 @@ async function load() {
 }
 function search() { if (page.value !== 1) page.value = 1; else load() }
 watch(page, load)
+
+/* 엑셀 — 검색 조건 전체를 받아 내보낸다 */
+const toast = useToast()
+const exporting = ref(false)
+const EXCEL_COLUMNS: ExcelColumn[] = [
+  { key: 'title', label: '공지 제목' },
+  { key: 'kind', label: '구분' },
+  { key: 'status', label: '상태' },
+  { key: 'published_at', label: '발행일' },
+]
+async function exportExcel() {
+  exporting.value = true
+  try {
+    const all = await fetchAllPages((p, size) => api.listNotices({ page: p, size, q: q.value }), (n) => n.id)
+    if (!all.length) {
+      toast.add({ title: '내보낼 공지가 없습니다.', color: 'warning' })
+      return
+    }
+    const data = all.map((n) => ({
+      title: n.title,
+      kind: n.kind === 'urgent' ? '긴급' : '일반',
+      status: { draft: '임시저장', sent: '발행됨', revoked: '회수됨' }[n.status],
+      published_at: n.published_at ? excelStamp(n.published_at) : '미발행',
+    }))
+    downloadExcel(`공지_${todaySeoul()}`, data, EXCEL_COLUMNS)
+  } catch (e) {
+    toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    exporting.value = false
+  }
+}
 onMounted(load)
 </script>
 
 <template>
   <div class="space-y-5">
+    <Teleport to="#admin-topbar-actions">
+      <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" @click="exportExcel">
+        엑셀 다운로드
+      </AppButton>
+    </Teleport>
     <p class="text-sm text-muted">공지를 선택하면 문자와 푸시 발송 내역 및 열람 여부를 확인할 수 있습니다</p>
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
     <DataTable :columns="columns" :rows="rows" :loading="loading" :total="total" :page="page"

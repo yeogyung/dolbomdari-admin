@@ -3,6 +3,7 @@
 import { ref, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { LifeStatus, Program } from '~/types/dbo'
+import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -29,6 +30,28 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+/* 엑셀 — 목록을 전량 받으므로 화면의 행을 그대로 내보낸다 */
+const EXCEL_COLUMNS: ExcelColumn[] = [
+  { key: 'name', label: '사업명' },
+  { key: 'color', label: '색' },
+  { key: 'status', label: '상태' },
+  { key: 'created_at', label: '등록일' },
+]
+
+function exportExcel() {
+  if (!rows.value.length) {
+    toast.add({ title: '내보낼 사업이 없습니다.', color: 'warning' })
+    return
+  }
+  const data = rows.value.map((r) => ({
+    name: r.name,
+    color: r.color ?? '',
+    status: lifeStatusLabel(r.status),
+    created_at: excelStamp(r.created_at),
+  }))
+  downloadExcel(`사업_${todaySeoul()}`, data, EXCEL_COLUMNS)
 }
 
 const formOpen = ref(false)
@@ -76,6 +99,9 @@ onMounted(load)
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
+      <AppButton variant="outline" color="neutral" icon="i-lucide-download" :disabled="loading" @click="exportExcel">
+        엑셀 다운로드
+      </AppButton>
       <AppButton icon="i-lucide-plus" @click="openForm()">사업 등록</AppButton>
     </Teleport>
 

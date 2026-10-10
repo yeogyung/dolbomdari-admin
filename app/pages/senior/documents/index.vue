@@ -3,6 +3,7 @@
 import { ref, computed, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { DocumentListItem, Worksite } from '~/types/dbo'
+import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -72,6 +73,52 @@ function toggleSort(key: string) {
   load()
 }
 
+/* 엑셀 — 검색 조건 전체를 받아 내보낸다. 적용 범위는 「외 N곳」으로 줄이지 않고 다 쓴다 */
+const exporting = ref(false)
+const EXCEL_COLUMNS: ExcelColumn[] = [
+  { key: 'filename', label: '파일명' },
+  { key: 'kind', label: '형식' },
+  { key: 'version', label: '버전' },
+  { key: 'state', label: '상태' },
+  { key: 'effective_date', label: '발효일' },
+  { key: 'expiry_date', label: '종료일' },
+  { key: 'scope', label: '적용 범위' },
+  { key: 'byte_size', label: '크기' },
+  { key: 'updated_at', label: '수정일' },
+]
+
+async function exportExcel() {
+  exporting.value = true
+  try {
+    const all = await fetchAllPages(
+      (p, size) => api.listDocuments({ page: p, size, q: q.value, sort: sortKey.value }),
+      (d) => d.id,
+    )
+    if (!all.length) {
+      toast.add({ title: '내보낼 문서가 없습니다.', color: 'warning' })
+      return
+    }
+    const data = all.map((d) => ({
+      filename: d.filename,
+      kind: d.kind,
+      version: d.version ?? '',
+      state: d.state,
+      effective_date: d.effective_date ?? '',
+      expiry_date: d.expiry_date ?? '무기한',
+      scope: d.dbo_document_worksites.length
+        ? d.dbo_document_worksites.map((w) => worksiteName(w.worksite_id)).join(', ')
+        : '기관 전체',
+      byte_size: fmtBytes(d.byte_size),
+      updated_at: excelStamp(d.updated_at),
+    }))
+    downloadExcel(`AI문서_${todaySeoul()}`, data, EXCEL_COLUMNS)
+  } catch (e: any) {
+    toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    exporting.value = false
+  }
+}
+
 onMounted(() => {
   load()
   loadWorksites()
@@ -81,6 +128,16 @@ onMounted(() => {
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
+      <AppButton
+        variant="outline"
+        color="neutral"
+        icon="i-lucide-download"
+        :loading="exporting"
+        :disabled="!worksitesSettled"
+        @click="exportExcel"
+      >
+        엑셀 다운로드
+      </AppButton>
       <AppButton icon="i-lucide-file-plus" @click="navigateTo('/senior/documents/new')">문서 등록</AppButton>
     </Teleport>
 

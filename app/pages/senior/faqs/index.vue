@@ -3,6 +3,7 @@
 import { ref, computed, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { Faq, FaqStatus } from '~/types/dbo'
+import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const faqs = useFaqs()
 const toast = useToast()
@@ -39,11 +40,50 @@ async function load() {
   }
 }
 
+/* 엑셀 — 전량을 받아 두므로 지금 걸린 필터 결과(rows)를 그대로 내보낸다. 답변·적용 근무지는 줄이지 않는다 */
+const EXCEL_COLUMNS: ExcelColumn[] = [
+  { key: 'sort', label: '순서' },
+  { key: 'question', label: '질문' },
+  { key: 'answer', label: '답변' },
+  { key: 'category', label: '분류' },
+  { key: 'scope', label: '적용 범위' },
+  { key: 'status', label: '승인 상태' },
+  { key: 'enabled', label: 'AI 사용' },
+  { key: 'created_at', label: '등록일' },
+]
+
+function exportExcel() {
+  if (!rows.value.length) {
+    toast.add({ title: '내보낼 FAQ가 없습니다.', color: 'warning' })
+    return
+  }
+  const data = rows.value.map((f) => {
+    const scope = faqScopeNames(f)
+    return {
+      sort: f.sort,
+      question: f.question,
+      answer: f.answer,
+      category: f.category ?? '',
+      scope: scope.length ? scope.join(', ') : '기관 전체',
+      status: faqStatusLabel(f.status),
+      enabled: f.enabled ? '사용' : '미사용',
+      created_at: excelStamp(f.created_at),
+    }
+  })
+  downloadExcel(`FAQ_${todaySeoul()}`, data, EXCEL_COLUMNS)
+}
+
 onMounted(load)
 </script>
 
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
+    <Teleport to="#admin-topbar-actions">
+      <AppButton variant="outline" color="neutral" icon="i-lucide-download" :disabled="loading" @click="exportExcel">
+        엑셀 다운로드
+      </AppButton>
+    </Teleport>
+
     <DataTable
       :columns="columns"
       :rows="rows"

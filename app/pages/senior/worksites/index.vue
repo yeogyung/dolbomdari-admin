@@ -3,6 +3,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
+import { downloadExcel, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -93,6 +94,54 @@ function toggleSort(key: string) {
   sortKey.value = key
   page.value = 1
   load()
+}
+
+/* 엑셀 — 조회 조건 전체를 받아 내보낸다. QR 은 토큰 원문 대신 발급 여부만 */
+const exporting = ref(false)
+const EXCEL_COLUMNS: ExcelColumn[] = [
+  { key: 'name', label: '근무지' },
+  { key: 'program', label: '사업' },
+  { key: 'address', label: '주소' },
+  { key: 'care_manager', label: '근무지 담당자' },
+  { key: 'contact', label: '수요처 담당자' },
+  { key: 'status', label: '상태' },
+  { key: 'qr', label: 'QR' },
+]
+
+async function exportExcel() {
+  exporting.value = true
+  try {
+    const all = await fetchAllPages(
+      (p, size) =>
+        api.listWorksites({
+          page: p,
+          size,
+          q: q.value,
+          sort: sortKey.value,
+          programId: programFilter.value || undefined,
+        }),
+      (w) => w.id,
+    )
+    if (!all.length) {
+      toast.add({ title: '내보낼 근무지가 없습니다.', color: 'warning' })
+      return
+    }
+    const data = all.map((w) => ({
+      name: w.name,
+      // 화면용 이름 함수는 빈 값을 '—'로 낸다 — 엑셀은 다른 화면처럼 빈 칸으로 둔다
+      program: w.program_id ? programName(w.program_id) : '',
+      address: w.address ?? '',
+      care_manager: w.care_manager_directory_id ? personName(managers.value, w.care_manager_directory_id) : '',
+      contact: w.manager_directory_id ? personName(contacts.value, w.manager_directory_id) : '',
+      status: lifeStatusLabel(w.status),
+      qr: w.qr_token ? '발급됨' : '없음',
+    }))
+    downloadExcel(`근무지_${todaySeoul()}`, data, EXCEL_COLUMNS)
+  } catch (e: any) {
+    toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    exporting.value = false
+  }
 }
 
 /* 등록·수정 모달 */
@@ -247,6 +296,16 @@ onMounted(() => {
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
+      <AppButton
+        variant="outline"
+        color="neutral"
+        icon="i-lucide-download"
+        :loading="exporting"
+        :disabled="!refsSettled"
+        @click="exportExcel"
+      >
+        엑셀 다운로드
+      </AppButton>
       <AppButton icon="i-lucide-plus" @click="openForm()">근무지 등록</AppButton>
     </Teleport>
 

@@ -2,6 +2,7 @@
 import type { NoticeDetail, NoticeRecipient } from '~/types/dbo'
 import type { Column } from '~/types/table'
 import { deliveryLabel, noticeReadLabel } from '~/utils/notices'
+import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
 const route = useRoute()
@@ -50,10 +51,64 @@ function search() { if (page.value !== 1) page.value = 1; else load() }
 watch([channel, read, () => route.params.id], search)
 watch(page, load)
 onMounted(load)
+
+/* 엑셀 — 지금 걸린 채널·열람·검색 조건의 수신자 전체를 받아 내보낸다 */
+const toast = useToast()
+const exporting = ref(false)
+const EXCEL_COLUMNS: ExcelColumn[] = [
+  { key: 'name', label: '참여자' },
+  { key: 'phone', label: '연락처' },
+  { key: 'sms_status', label: '문자' },
+  { key: 'push_status', label: '푸시' },
+  { key: 'read_state', label: '열람 상태' },
+  { key: 'read_at', label: '열람 시각' },
+]
+async function exportExcel() {
+  if (!notice.value) return
+  exporting.value = true
+  try {
+    const id = notice.value.id
+    const all = await fetchAllPages(
+      (p, size) => api.listNoticeRecipients(id, { channel: channel.value, read: read.value, page: p, size, q: q.value }),
+      (r) => r.directory_id,
+    )
+    if (!all.length) {
+      toast.add({ title: '내보낼 수신자가 없습니다.', color: 'warning' })
+      return
+    }
+    const data = all.map((r) => ({
+      name: r.name,
+      phone: r.phone ? fmtPhone(r.phone) : '',
+      sms_status: deliveryLabel(r.sms_status),
+      push_status: deliveryLabel(r.push_status),
+      read_state: noticeReadLabel(r),
+      read_at: excelStamp(r.read_at),
+    }))
+    // 파일명에 쓸 수 없는 문자는 바꾼다
+    const title = notice.value.title.replace(/[\\/:*?"<>|]/g, '_')
+    downloadExcel(`공지수신자_${title}_${todaySeoul()}`, data, EXCEL_COLUMNS)
+  } catch (e) {
+    toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
   <div class="space-y-5">
+    <Teleport to="#admin-topbar-actions">
+      <AppButton
+        variant="outline"
+        color="neutral"
+        icon="i-lucide-download"
+        :loading="exporting"
+        :disabled="!notice"
+        @click="exportExcel"
+      >
+        엑셀 다운로드
+      </AppButton>
+    </Teleport>
     <NuxtLink to="/senior/notices" class="text-sm text-brand-500 hover:underline">공지 목록으로</NuxtLink>
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
     <AppSpinner v-if="!notice && loading" label="공지 불러오는 중…" />
