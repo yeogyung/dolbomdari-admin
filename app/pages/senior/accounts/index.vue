@@ -64,20 +64,27 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'created_at', label: '발급일' },
 ]
 
-function exportExcel() {
+const { exporting, startExport, finishExport } = useExcelExport()
+
+async function exportExcel() {
   if (!rows.value.length) {
     toast.add({ title: '내보낼 계정이 없습니다.', color: 'warning' })
     return
   }
-  const data = rows.value.map((r) => ({
-    name: r.name,
-    email: r.email ?? '',
-    role: ROLE_LABELS[r.role] ?? r.role,
-    worksite: r.worksite_id ? worksiteName(r.worksite_id) : '',
-    status: lifeStatusLabel(r.status),
-    created_at: excelStamp(r.created_at),
-  }))
-  downloadExcel(`계정_${todaySeoul()}`, data, EXCEL_COLUMNS)
+  await startExport()
+  try {
+    const data = rows.value.map((r) => ({
+      name: r.name,
+      email: r.email ?? '',
+      role: ROLE_LABELS[r.role] ?? r.role,
+      worksite: r.worksite_id ? worksiteName(r.worksite_id) : '',
+      status: lifeStatusLabel(r.status),
+      created_at: excelStamp(r.created_at),
+    }))
+    downloadExcel(`계정_${todaySeoul()}`, data, EXCEL_COLUMNS)
+  } finally {
+    finishExport()
+  }
 }
 
 /* 신규 발급 */
@@ -185,6 +192,7 @@ onMounted(() => {
         variant="outline"
         color="neutral"
         icon="i-lucide-download"
+        :loading="exporting"
         :disabled="loading || !worksitesSettled"
         @click="exportExcel"
       >

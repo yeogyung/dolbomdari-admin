@@ -21,7 +21,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const q = ref('')
 const loading = ref(false)
-const exporting = ref(false)
+const { exporting, startExport, finishExport } = useExcelExport()
 
 const sortCol = ref('')
 const sortDir = ref<'asc' | 'desc'>('asc')
@@ -130,7 +130,7 @@ function goDetail(row: Record<string, any>) {
 
 async function exportExcel() {
   if (!def.value) return
-  exporting.value = true
+  await startExport()
   try {
     const res = await api.list(tableName.value, { all: true, q: q.value, ...sourceFilter() })
     const keys = res.rows[0] ? Object.keys(res.rows[0]) : (def.value.listColumns ?? [])
@@ -139,7 +139,7 @@ async function exportExcel() {
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
   } finally {
-    exporting.value = false
+    finishExport()
   }
 }
 

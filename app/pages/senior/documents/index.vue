@@ -74,7 +74,7 @@ function toggleSort(key: string) {
 }
 
 /* 엑셀 — 검색 조건 전체를 받아 내보낸다. 적용 범위는 「외 N곳」으로 줄이지 않고 다 쓴다 */
-const exporting = ref(false)
+const { exporting, startExport, finishExport } = useExcelExport()
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'filename', label: '파일명' },
   { key: 'kind', label: '형식' },
@@ -88,7 +88,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 ]
 
 async function exportExcel() {
-  exporting.value = true
+  await startExport()
   try {
     const all = await fetchAllPages(
       (p, size) => api.listDocuments({ page: p, size, q: q.value, sort: sortKey.value }),
@@ -115,7 +115,7 @@ async function exportExcel() {
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    exporting.value = false
+    finishExport()
   }
 }
 

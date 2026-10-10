@@ -63,7 +63,7 @@ function toggleSort(key: string) {
 }
 
 /* 엑셀 — 조회 조건 전체를 받아 내보낸다 */
-const exporting = ref(false)
+const { exporting, startExport, finishExport } = useExcelExport()
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'name', label: '이름' },
   { key: 'phone', label: '전화번호' },
@@ -74,7 +74,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 ]
 
 async function exportExcel() {
-  exporting.value = true
+  await startExport()
   try {
     const all = await fetchAllPages(
       (p, size) =>
@@ -104,7 +104,7 @@ async function exportExcel() {
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    exporting.value = false
+    finishExport()
   }
 }
 

@@ -39,7 +39,7 @@ watch(page, load)
 
 /* 엑셀 — 검색 조건 전체를 받아 내보낸다 */
 const toast = useToast()
-const exporting = ref(false)
+const { exporting, startExport, finishExport } = useExcelExport()
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'title', label: '공지 제목' },
   { key: 'kind', label: '구분' },
@@ -47,7 +47,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'published_at', label: '발행일' },
 ]
 async function exportExcel() {
-  exporting.value = true
+  await startExport()
   try {
     const all = await fetchAllPages((p, size) => api.listNotices({ page: p, size, q: q.value }), (n) => n.id)
     if (!all.length) {
@@ -64,7 +64,7 @@ async function exportExcel() {
   } catch (e) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    exporting.value = false
+    finishExport()
   }
 }
 onMounted(load)

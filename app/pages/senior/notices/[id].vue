@@ -54,7 +54,7 @@ onMounted(load)
 
 /* 엑셀 — 지금 걸린 채널·열람·검색 조건의 수신자 전체를 받아 내보낸다 */
 const toast = useToast()
-const exporting = ref(false)
+const { exporting, startExport, finishExport } = useExcelExport()
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'name', label: '참여자' },
   { key: 'phone', label: '연락처' },
@@ -65,7 +65,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 ]
 async function exportExcel() {
   if (!notice.value) return
-  exporting.value = true
+  await startExport()
   try {
     const id = notice.value.id
     const all = await fetchAllPages(
@@ -90,7 +90,7 @@ async function exportExcel() {
   } catch (e) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    exporting.value = false
+    finishExport()
   }
 }
 </script>

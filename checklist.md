@@ -267,3 +267,4 @@ HWP 는 지원하지 않는다(사용자 결정). 서버는 텍스트만 받으�
 - [x] 공지 목록 (`/senior/notices`)
 - [x] 공지 수신자 (`/senior/notices/[id]`)
 - [x] 테스트·타입검사(신규 오류 0) → 리뷰(지적 없음, 근무지 빈 값 표기만 맞춤)
+- [x] 내보내기 중 화면 전체 스피너 오버레이(`useExcelExport` + `ExcelExportOverlay`) — 내보내기 있는 10개 화면 공통

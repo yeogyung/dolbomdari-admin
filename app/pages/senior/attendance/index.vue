@@ -20,7 +20,7 @@ const to = ref(todaySeoul())
 const worksiteId = ref<string | null>(null)
 const sortKey = ref('work_date')
 const loading = ref(false)
-const exporting = ref(false)
+const { exporting, startExport, finishExport } = useExcelExport()
 
 const worksites = ref<Worksite[]>([])
 
@@ -195,7 +195,7 @@ function toExcelRow(row: AttendanceShift) {
 }
 
 async function exportExcel() {
-  exporting.value = true
+  await startExport()
   try {
     const all: AttendanceShift[] = []
     let p = 1
@@ -222,7 +222,7 @@ async function exportExcel() {
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    exporting.value = false
+    finishExport()
   }
 }
 

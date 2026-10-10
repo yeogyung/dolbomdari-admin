@@ -97,7 +97,7 @@ function toggleSort(key: string) {
 }
 
 /* 엑셀 — 조회 조건 전체를 받아 내보낸다. QR 은 토큰 원문 대신 발급 여부만 */
-const exporting = ref(false)
+const { exporting, startExport, finishExport } = useExcelExport()
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'name', label: '근무지' },
   { key: 'program', label: '사업' },
@@ -109,7 +109,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 ]
 
 async function exportExcel() {
-  exporting.value = true
+  await startExport()
   try {
     const all = await fetchAllPages(
       (p, size) =>
@@ -140,7 +140,7 @@ async function exportExcel() {
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    exporting.value = false
+    finishExport()
   }
 }
 

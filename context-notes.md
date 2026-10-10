@@ -237,3 +237,6 @@
   (고유 키로 세서 빠진 행이 있으면 던짐)를 쓴다 — 반쯤 받은 파일을 전체인 것처럼 내려주지 않게.
 - **날짜**: 화면용 `fmtStamp` 는 연도가 없어(MM.DD HH:MM) 엑셀용 `excelStamp`(YYYY-MM-DD HH:MM, Asia/Seoul)를 따로 뒀다.
 - **파일명**: `화면이름_YYYY-MM-DD`(서울 기준 오늘).
+- **진행 표시(사용자 선택: 화면 전체 오버레이)**: `useState('excel-exporting')` 하나를 `AdminShell` 안의 `ExcelExportOverlay` 가 보고 뜬다.
+  `startExport` 는 nextTick + rAF·setTimeout 으로 한 프레임을 넘긴 뒤 돌아온다 — `XLSX.writeFile` 이 동기라 바로 부르면
+  오버레이가 그려지기 전에 메인 스레드가 막힌다. 레이아웃 루트를 하나로 두려고 오버레이는 layout 이 아니라 AdminShell 에 넣었다.

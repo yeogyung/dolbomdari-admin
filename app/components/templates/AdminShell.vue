@@ -31,6 +31,8 @@ watch(() => route.fullPath, () => (sidebarOpen.value = false))
         <slot />
       </main>
     </div>
+
+    <ExcelExportOverlay />
   </div>
 </template>
 

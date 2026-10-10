@@ -52,25 +52,32 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'created_at', label: '등록일' },
 ]
 
-function exportExcel() {
+const { exporting, startExport, finishExport } = useExcelExport()
+
+async function exportExcel() {
   if (!rows.value.length) {
     toast.add({ title: '내보낼 FAQ가 없습니다.', color: 'warning' })
     return
   }
-  const data = rows.value.map((f) => {
-    const scope = faqScopeNames(f)
-    return {
-      sort: f.sort,
-      question: f.question,
-      answer: f.answer,
-      category: f.category ?? '',
-      scope: scope.length ? scope.join(', ') : '기관 전체',
-      status: faqStatusLabel(f.status),
-      enabled: f.enabled ? '사용' : '미사용',
-      created_at: excelStamp(f.created_at),
-    }
-  })
-  downloadExcel(`FAQ_${todaySeoul()}`, data, EXCEL_COLUMNS)
+  await startExport()
+  try {
+    const data = rows.value.map((f) => {
+      const scope = faqScopeNames(f)
+      return {
+        sort: f.sort,
+        question: f.question,
+        answer: f.answer,
+        category: f.category ?? '',
+        scope: scope.length ? scope.join(', ') : '기관 전체',
+        status: faqStatusLabel(f.status),
+        enabled: f.enabled ? '사용' : '미사용',
+        created_at: excelStamp(f.created_at),
+      }
+    })
+    downloadExcel(`FAQ_${todaySeoul()}`, data, EXCEL_COLUMNS)
+  } finally {
+    finishExport()
+  }
 }
 
 onMounted(load)
@@ -79,7 +86,7 @@ onMounted(load)
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
-      <AppButton variant="outline" color="neutral" icon="i-lucide-download" :disabled="loading" @click="exportExcel">
+      <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" :disabled="loading" @click="exportExcel">
         엑셀 다운로드
       </AppButton>
     </Teleport>
