@@ -8,9 +8,11 @@ useAdminHeader().setHeader('공지·미열람 관리')
 const rows = ref<NoticeSummary[]>([])
 const loading = ref(false)
 const error = ref('')
-const page = ref(1)
+// 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
+const lq = useListQuery({ page: 1, q: '' })
+const page = lq.page
 const total = ref(0)
-const q = ref('')
+const q = lq.q
 let sequence = 0
 const columns: Column[] = [
   { key: 'title', label: '공지 제목', strong: true },

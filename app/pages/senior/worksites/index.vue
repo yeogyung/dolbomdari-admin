@@ -12,12 +12,14 @@ setHeader('근무지·수요처')
 
 const rows = ref<Worksite[]>([])
 const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
-const q = ref('')
+// 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
+const lq = useListQuery({ page: 1, size: 20, q: '', program: '', sort: 'name' })
+const page = lq.page
+const pageSize = lq.size
+const q = lq.q
 /** 사업 필터. 근무지가 300곳 가까이라 서버에서 거른다 */
-const programFilter = ref('')
-const sortKey = ref('name')
+const programFilter = lq.program
+const sortKey = lq.sort
 const loading = ref(false)
 
 const programs = ref<Program[]>([])

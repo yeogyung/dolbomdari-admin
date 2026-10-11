@@ -1,6 +1,6 @@
 <!-- FAQ 관리 — 목록·승인 상태 필터·검색 (조회는 supabase dbo_faqs 직접, 페이지 없이 sort 순 전량) -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, type Ref } from 'vue'
 import type { Column } from '~/types/table'
 import type { Faq, FaqStatus } from '~/types/dbo'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
@@ -12,8 +12,10 @@ setHeader('FAQ 관리')
 
 const all = ref<Faq[]>([])
 const loading = ref(false)
-const q = ref('')
-const statusFilter = ref<'' | FaqStatus>('')
+// 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
+const lq = useListQuery({ q: '', status: '' })
+const q = lq.q
+const statusFilter = lq.status as Ref<'' | FaqStatus>
 
 // 서버가 페이지를 나누지 않는다 — 프롬프트에 실리는 순서(sort) 그대로 전부 보여 준다
 const rows = computed(() => filterFaqs(all.value, { q: q.value, status: statusFilter.value }))

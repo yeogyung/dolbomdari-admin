@@ -12,10 +12,12 @@ setHeader('AI 문서 관리')
 
 const rows = ref<DocumentListItem[]>([])
 const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
-const q = ref('')
-const sortKey = ref('effective_date')
+// 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
+const lq = useListQuery({ page: 1, size: 20, q: '', sort: 'effective_date' })
+const page = lq.page
+const pageSize = lq.size
+const q = lq.q
+const sortKey = lq.sort
 const loading = ref(false)
 const worksites = ref<Worksite[]>([])
 

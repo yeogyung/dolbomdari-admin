@@ -8,6 +8,8 @@ const faqs = useFaqs()
 const api = useDboAdmin()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
+/** 「목록」 — 목록에서 왔으면 뒤로 가서 필터를 지킨다 */
+const backToList = useBackToList('/senior/faqs')
 setHeader('FAQ 상세', [{ label: 'FAQ 관리', to: '/senior/faqs' }])
 
 const id = computed(() => String(route.params.id))
@@ -60,7 +62,7 @@ onMounted(loadFaq)
 <template>
   <div class="space-y-6">
     <Teleport to="#admin-topbar-actions">
-      <AppButton variant="outline" color="neutral" icon="i-lucide-arrow-left" @click="navigateTo('/senior/faqs')">
+      <AppButton variant="outline" color="neutral" icon="i-lucide-arrow-left" @click="backToList">
         목록
       </AppButton>
       <template v-if="faq">

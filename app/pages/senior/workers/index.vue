@@ -1,6 +1,6 @@
 <!-- 명부 관리 — 시니어·담당자·수요처 목록/검색/역할·상태 필터 + 신규 등록 (GET·POST /dbo-admin/directory) -->
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, type Ref } from 'vue'
 import type { Column } from '~/types/table'
 import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
@@ -13,14 +13,24 @@ setHeader('명부 관리')
 
 const rows = ref<DirectoryEntry[]>([])
 const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
-const q = ref('')
-const statusFilter = ref<'' | LifeStatus>('')
-const roleFilter = ref<'' | 'senior' | 'manager' | 'worksite'>('')
-const sortKey = ref('created_at')
+// 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
+const lq = useListQuery({
+  page: 1,
+  size: 20,
+  q: '',
+  status: '',
+  role: '',
+  sort: 'created_at',
+  dir: 'asc',
+})
+const page = lq.page
+const pageSize = lq.size
+const q = lq.q
+const statusFilter = lq.status as Ref<'' | LifeStatus>
+const roleFilter = lq.role as Ref<'' | 'senior' | 'manager' | 'worksite'>
+const sortKey = lq.sort
 /** 같은 머리글을 다시 누르면 뒤집힌다 — 이름 가나다순·역순(QA 2026-10-11) */
-const sortDir = ref<SortDir>('asc')
+const sortDir = lq.dir as Ref<SortDir>
 const loading = ref(false)
 
 const columns: Column[] = [
