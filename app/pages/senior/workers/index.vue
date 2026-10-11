@@ -1,6 +1,6 @@
 <!-- 명부 관리 — 시니어·담당자·수요처 목록/검색/역할·상태 필터 + 신규 등록 (GET·POST /dbo-admin/directory) -->
 <script setup lang="ts">
-import { ref, watch, onMounted, type Ref } from 'vue'
+import { ref, computed, watch, onMounted, type Ref } from 'vue'
 import type { Column } from '~/types/table'
 import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
@@ -20,6 +20,7 @@ const lq = useListQuery({
   q: '',
   status: '',
   role: '',
+  worksite: '',
   sort: 'created_at',
   dir: 'asc',
 })
@@ -28,6 +29,8 @@ const pageSize = lq.size
 const q = lq.q
 const statusFilter = lq.status as Ref<'' | LifeStatus>
 const roleFilter = lq.role as Ref<'' | 'senior' | 'manager' | 'worksite'>
+/** 근무지 필터 — 배정된 시니어 · 근무지 담당자 · 수요처 계정(서버 `worksiteId`) */
+const worksiteFilter = lq.worksite
 const sortKey = lq.sort
 /** 같은 머리글을 다시 누르면 뒤집힌다 — 이름 가나다순·역순(QA 2026-10-11) */
 const sortDir = lq.dir as Ref<SortDir>
@@ -53,6 +56,7 @@ async function load() {
       dir: sortDir.value,
       status: statusFilter.value || undefined,
       role: roleFilter.value || undefined,
+      worksiteId: worksiteFilter.value || undefined,
     })
     rows.value = res.items
     total.value = res.total
@@ -68,7 +72,7 @@ function search() {
   load()
 }
 
-watch([statusFilter, roleFilter], search)
+watch([statusFilter, roleFilter, worksiteFilter], search)
 
 function toggleSort(key: string) {
   const next = nextSort({ key: sortKey.value, dir: sortDir.value }, key)
@@ -102,6 +106,7 @@ async function exportExcel() {
           dir: sortDir.value,
           status: statusFilter.value || undefined,
           role: roleFilter.value || undefined,
+          worksiteId: worksiteFilter.value || undefined,
         }),
       (r) => r.id,
     )
@@ -162,6 +167,14 @@ async function loadRefs() {
   }
 }
 
+/** 근무지 필터 선택지. 이름순 — 300곳 가까이라 select 에서 글자로 찾는다 */
+const worksiteFilterOptions = computed(() => [
+  { label: '근무지 전체', value: '' },
+  ...[...worksites.value]
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+    .map((w) => ({ label: w.name, value: w.id })),
+])
+
 /** 새 담당자에게 다른 담당자가 있던 근무지는 넘어온다 */
 const takenByOther = (w: Worksite) => !!w.care_manager_directory_id
 
@@ -215,7 +228,11 @@ async function submitCreate() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  // 근무지 필터의 선택지. 등록 창도 같은 목록을 쓴다
+  void loadRefs()
+})
 </script>
 
 <template>
@@ -261,6 +278,7 @@ onMounted(load)
             { label: '종료', value: 'ended' },
           ]"
         />
+        <PillSelect v-model="worksiteFilter" :options="worksiteFilterOptions" />
       </template>
 
       <template #toolbar-end>

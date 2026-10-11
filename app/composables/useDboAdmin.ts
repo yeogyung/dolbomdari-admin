@@ -151,6 +151,8 @@ export function useDboAdmin() {
         role?: 'senior' | 'manager' | 'worksite'
         /** 정렬 방향. 서버 기본 asc. 명부 목록만 받는다 */
         dir?: 'asc' | 'desc'
+        /** 그 근무지에 이어진 사람만 — 배정된 시니어 · 근무지 담당자 · 수요처 계정 */
+        worksiteId?: string
       } = {},
     ) =>
       req<Paged<DirectoryEntry>>('/directory', { query: clean(q) }),
