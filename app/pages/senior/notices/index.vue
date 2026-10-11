@@ -9,7 +9,7 @@ const rows = ref<NoticeSummary[]>([])
 const loading = ref(false)
 const error = ref('')
 // 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
-const lq = useListQuery({ page: 1, q: '' })
+const lq = useListQuery({ page: 1, q: '' }, { committed: ['q'] })
 const page = lq.page
 const total = ref(0)
 const q = lq.q
@@ -36,7 +36,7 @@ async function load() {
     if (current === sequence) loading.value = false
   }
 }
-function search() { if (page.value !== 1) page.value = 1; else load() }
+function search() { lq.commit(); if (page.value !== 1) page.value = 1; else load() }
 watch(page, load)
 
 /* 엑셀 — 검색 조건 전체를 받아 내보낸다 */

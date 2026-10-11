@@ -14,7 +14,10 @@ setHeader('근무지·수요처')
 const rows = ref<Worksite[]>([])
 const total = ref(0)
 // 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
-const lq = useListQuery({ page: 1, size: 20, q: '', program: '', sort: 'name' })
+const lq = useListQuery(
+  { page: 1, size: 20, q: '', program: '', sort: 'name' },
+  { committed: ['q'] },
+)
 const page = lq.page
 const pageSize = lq.size
 const q = lq.q
@@ -88,6 +91,7 @@ async function loadRefs() {
 
 function search() {
   page.value = 1
+  lq.commit()
   load()
 }
 

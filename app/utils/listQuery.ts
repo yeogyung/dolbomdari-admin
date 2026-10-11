@@ -48,3 +48,11 @@ export function cameFromList(back: unknown, listPath: string): boolean {
   const path = back.split('?')[0]
   return path === listPath
 }
+
+/**
+ * 「검색」을 눌러야 정해지는 칸(검색어)은 입력 중인 값 대신 **마지막으로 정한 값**을 싣는다.
+ * 치다 만 검색어가 주소에 남으면 상세에 다녀온 뒤 그 글자로 거른 목록이 나온다.
+ */
+export function withCommitted<T extends ListQueryDefaults>(values: T, committed: Partial<T>): T {
+  return { ...values, ...committed }
+}

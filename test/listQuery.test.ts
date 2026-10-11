@@ -1,6 +1,6 @@
 // 목록 화면의 검색·필터·페이지를 주소에 담는다 — 상세에서 뒤로 오면 그대로 복원된다(QA 2026-10-11)
 import { describe, expect, it } from 'vitest'
-import { cameFromList, readListQuery, toListQuery } from '../app/utils/listQuery'
+import { cameFromList, readListQuery, toListQuery, withCommitted } from '../app/utils/listQuery'
 
 const defaults = { page: 1, size: 20, q: '', status: '', sort: 'created_at' }
 
@@ -48,5 +48,15 @@ describe('cameFromList', () => {
     expect(cameFromList('/senior/workers/abc', '/senior/workers')).toBe(false)
     expect(cameFromList('/senior/worksites', '/senior/workers')).toBe(false)
     expect(cameFromList(null, '/senior/workers')).toBe(false)
+  })
+})
+
+describe('withCommitted', () => {
+  it('검색어처럼 「검색」을 눌러야 정해지는 칸은 마지막으로 정한 값으로 바꿔 싣는다', () => {
+    const typing = { ...defaults, q: '김순', page: 2 }
+    expect(withCommitted(typing, { q: '김' })).toEqual({ ...defaults, q: '김', page: 2 })
+  })
+  it('정한 값이 없는 칸은 그대로', () => {
+    expect(withCommitted({ ...defaults, q: '김' }, {})).toEqual({ ...defaults, q: '김' })
   })
 })

@@ -23,7 +23,7 @@ const lq = useListQuery({
   worksite: '',
   sort: 'created_at',
   dir: 'asc',
-})
+}, { committed: ['q'] })
 const page = lq.page
 const pageSize = lq.size
 const q = lq.q
@@ -69,6 +69,7 @@ async function load() {
 
 function search() {
   page.value = 1
+  lq.commit()
   load()
 }
 
