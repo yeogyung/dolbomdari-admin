@@ -4,6 +4,7 @@ import { ref, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
+import { nextSort, type SortDir } from '~/utils/sortToggle'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -18,6 +19,8 @@ const q = ref('')
 const statusFilter = ref<'' | LifeStatus>('')
 const roleFilter = ref<'' | 'senior' | 'manager' | 'worksite'>('')
 const sortKey = ref('created_at')
+/** 같은 머리글을 다시 누르면 뒤집힌다 — 이름 가나다순·역순(QA 2026-10-11) */
+const sortDir = ref<SortDir>('asc')
 const loading = ref(false)
 
 const columns: Column[] = [
@@ -37,6 +40,7 @@ async function load() {
       size: pageSize.value,
       q: q.value,
       sort: sortKey.value,
+      dir: sortDir.value,
       status: statusFilter.value || undefined,
       role: roleFilter.value || undefined,
     })
@@ -57,7 +61,9 @@ function search() {
 watch([statusFilter, roleFilter], search)
 
 function toggleSort(key: string) {
-  sortKey.value = key
+  const next = nextSort({ key: sortKey.value, dir: sortDir.value }, key)
+  sortKey.value = next.key
+  sortDir.value = next.dir
   page.value = 1
   load()
 }
@@ -83,6 +89,7 @@ async function exportExcel() {
           size,
           q: q.value,
           sort: sortKey.value,
+          dir: sortDir.value,
           status: statusFilter.value || undefined,
           role: roleFilter.value || undefined,
         }),
@@ -215,7 +222,7 @@ onMounted(load)
       :rows="rows"
       :loading="loading"
       :sort-key="sortKey"
-      sort-dir="asc"
+      :sort-dir="sortDir"
       :page="page"
       :page-size="pageSize"
       :total="total"

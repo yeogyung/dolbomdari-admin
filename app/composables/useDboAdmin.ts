@@ -146,7 +146,12 @@ export function useDboAdmin() {
 
     /* 명부(시니어·담당자) — master 전용 */
     listDirectory: (
-      q: ListQuery & { status?: LifeStatus; role?: 'senior' | 'manager' | 'worksite' } = {},
+      q: ListQuery & {
+        status?: LifeStatus
+        role?: 'senior' | 'manager' | 'worksite'
+        /** 정렬 방향. 서버 기본 asc. 명부 목록만 받는다 */
+        dir?: 'asc' | 'desc'
+      } = {},
     ) =>
       req<Paged<DirectoryEntry>>('/directory', { query: clean(q) }),
     getDirectory: (id: string) => req<DirectoryEntry>(`/directory/${id}`),
