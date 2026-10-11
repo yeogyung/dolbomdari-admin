@@ -8,6 +8,7 @@ import { downloadExcel, type ExcelColumn } from '~/utils/excel'
 const api = useDboAdmin()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
+const { me } = useAdminRole()
 setHeader('근무지·수요처')
 
 const rows = ref<Worksite[]>([])
@@ -371,6 +372,14 @@ onMounted(() => {
 
       <template #actions="{ row }">
         <div class="flex justify-end gap-3">
+          <!-- 근무지 상세 — 근무자·근무 시각(QA 2026-10-11). 명부가 master 전용이라 master 만 -->
+          <NuxtLink
+            v-if="me?.role === 'master'"
+            :to="`/senior/worksites/${row.id}`"
+            class="text-sm font-medium text-brand-500 hover:underline"
+          >
+            상세
+          </NuxtLink>
           <button
             type="button"
             class="text-sm font-medium text-brand-500 hover:underline"
