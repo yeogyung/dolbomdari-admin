@@ -18,6 +18,9 @@ const APPS: { key: AppKey; label: string }[] = [
   { key: 'senior', label: '시니어 출퇴근' },
   { key: 'jobs', label: '구인구직' },
 ]
+/** 인증번호 자릿수 — 시니어(dbo-public)는 4자리, 구인구직(send-otp)은 6자리를 보낸다 */
+const CODE_LENGTH: Record<AppKey, number> = { senior: 4, jobs: 6 }
+const codeLength = computed(() => CODE_LENGTH[appKey.value])
 
 const fnBase = `${config.public.supabaseUrl}/functions/v1`
 const anonHeaders = { apikey: config.public.supabaseAnonKey }
@@ -221,14 +224,14 @@ function backToPhone() {
               type="text"
               inputmode="numeric"
               autocomplete="one-time-code"
-              maxlength="6"
-              placeholder="6자리"
+              :maxlength="codeLength"
+              :placeholder="`${codeLength}자리`"
               class="w-full"
             />
           </UFormField>
           <p v-if="noticeMsg" class="text-sm text-gray-500">{{ noticeMsg }}</p>
           <p v-if="errorMsg" class="text-sm text-red-600">{{ errorMsg }}</p>
-          <UButton type="submit" block color="primary" :loading="loading" :disabled="code.length !== 6">
+          <UButton type="submit" block color="primary" :loading="loading" :disabled="code.length !== codeLength">
             로그인
           </UButton>
           <UButton block variant="ghost" color="neutral" :disabled="loading" @click="backToPhone">
