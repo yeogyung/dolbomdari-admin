@@ -99,6 +99,10 @@ export interface DirectoryEntry {
   status: LifeStatus
   memo: string | null
   created_at: string
+  /** 지금 번호로 앱에 로그인한 적이 있는가. 수요처는 null. 서버 조회가 실패하면 없다 */
+  app_connected?: boolean | null
+  /** 가장 최근 앱 로그인 시각 */
+  last_sign_in_at?: string | null
 }
 
 /** 반복 배정 — shift 생성 크론이 날짜별로 펼친다 */

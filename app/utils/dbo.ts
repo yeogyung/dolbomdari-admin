@@ -136,6 +136,18 @@ export function attendanceEditErrors(form: {
   return errors
 }
 
+/**
+ * 명부 「앱 연결」 배지(QA 2026-10-14 8번). 판정은 서버가 실제 로그인 기록으로 한다 —
+ * 프로필이 있어도 미리 만든 계정이면 미연결이다. 값이 없으면(수요처·조회 실패) 그리지 않는다.
+ */
+export function appConnectionBadge(entry: {
+  app_connected?: boolean | null
+}): { label: string; tone: 'green' | 'gray' } | null {
+  if (entry.app_connected === true) return { label: '연결됨', tone: 'green' }
+  if (entry.app_connected === false) return { label: '미연결', tone: 'gray' }
+  return null
+}
+
 /** 반복 배정 기간 검사(QA 2026-10-14 5번). 한쪽이 비면 무기한이라 통과한다. */
 export function assignmentPeriodError(start: string | null, end: string | null): string | null {
   if (start && end && end < start) return '종료일은 시작일보다 빠를 수 없습니다.'

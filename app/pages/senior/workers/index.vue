@@ -41,6 +41,7 @@ const columns: Column[] = [
   { key: 'phone', label: '전화번호' },
   { key: 'role', label: '역할' },
   { key: 'status', label: '상태', sortable: true },
+  { key: 'app', label: '앱 연결' },
   { key: 'memo', label: '메모' },
   { key: 'created_at', label: '등록일', sortable: true },
 ]
@@ -322,6 +323,12 @@ onMounted(() => {
       </template>
       <template #cell-status="{ row }">
         <StatusBadge :tone="lifeStatusTone(row.status)">{{ lifeStatusLabel(row.status) }}</StatusBadge>
+      </template>
+      <template #cell-app="{ row }">
+        <StatusBadge v-if="appConnectionBadge(row)" :tone="appConnectionBadge(row)!.tone">
+          {{ appConnectionBadge(row)!.label }}
+        </StatusBadge>
+        <span v-else class="text-muted">—</span>
       </template>
       <template #cell-memo="{ row }">
         <span class="text-muted">{{ row.memo || '—' }}</span>

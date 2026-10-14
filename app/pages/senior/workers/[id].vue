@@ -393,8 +393,14 @@ onMounted(async () => {
             <StatusBadge :tone="lifeStatusTone(entry.status)">
               {{ lifeStatusLabel(entry.status) }}
             </StatusBadge>
+            <StatusBadge v-if="appConnectionBadge(entry)" :tone="appConnectionBadge(entry)!.tone">
+              앱 {{ appConnectionBadge(entry)!.label }}
+            </StatusBadge>
           </div>
-          <span class="text-sm text-muted">등록 {{ fmtStamp(entry.created_at) }}</span>
+          <span class="text-sm text-muted">
+            <template v-if="entry.last_sign_in_at">최근 로그인 {{ fmtStamp(entry.last_sign_in_at) }} · </template>
+            등록 {{ fmtStamp(entry.created_at) }}
+          </span>
         </template>
 
         <div class="grid gap-5 md:grid-cols-2">
