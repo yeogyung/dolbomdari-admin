@@ -40,6 +40,24 @@ const digits = computed(() => phone.value.replace(/[^0-9]/g, '').slice(0, 11))
 const e164 = computed(() => `+82${digits.value.replace(/^0/, '')}`)
 const phoneValid = computed(() => /^01[0-9]{8,9}$/.test(digits.value))
 
+/** 인증번호 칸 — 숫자만 받고, 지금 칠 칸(마지막 칸에서 멈춤)을 강조한다 */
+const codeFocused = ref(false)
+const codeInput = useTemplateRef<HTMLInputElement>('codeInput')
+// autofocus 속성은 v-if 로 나중에 붙는 요소에선 듣지 않는다 — 단계가 바뀐 뒤 직접 포커스를 준다
+watch(step, async (s) => {
+  if (s !== 'code') return
+  await nextTick()
+  codeInput.value?.focus()
+})
+const activeIndex = computed(() => Math.min(code.value.length, codeLength.value - 1))
+function onCodeInput(e: Event) {
+  const el = e.target as HTMLInputElement
+  code.value = el.value.replace(/[^0-9]/g, '').slice(0, codeLength.value)
+  // 숫자가 아닌 글자를 걸러 낸 결과를 입력창에도 되돌린다(v-model 이 아니라 값이 같으면 다시 그리지 않는다)
+  el.value = code.value
+  errorMsg.value = ''
+}
+
 function switchApp(k: AppKey) {
   if (appKey.value === k) return
   appKey.value = k
@@ -218,17 +236,43 @@ function backToPhone() {
         </form>
 
         <form v-else class="space-y-4" @submit.prevent="verifyOtp">
-          <UFormField label="인증번호" name="code">
-            <UInput
-              v-model="code"
-              type="text"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              :maxlength="codeLength"
-              :placeholder="`${codeLength}자리`"
-              class="w-full"
-            />
-          </UFormField>
+          <!-- 앱(A3)과 같은 칸 모양. 칸은 그림이고 실제 입력은 위에 덮은 투명한 단일 input 이다 —
+               칸마다 input 을 두면 붙여넣기·백스페이스·문자 자동채움이 깨진다. -->
+          <div>
+            <label for="otp-code" class="mb-2 block text-sm font-medium text-ink">인증번호 {{ codeLength }}자리</label>
+            <div class="relative">
+              <div class="flex gap-2" aria-hidden="true">
+                <div
+                  v-for="i in codeLength"
+                  :key="i"
+                  class="flex h-16 flex-1 items-center justify-center rounded-xl text-2xl font-semibold tabular-nums"
+                  :class="
+                    errorMsg
+                      ? 'border-2 border-down bg-down-soft text-ink'
+                      : codeFocused && i - 1 === activeIndex
+                        ? 'border-2 border-brand-500 bg-canvas text-brand-500'
+                        : 'border border-hairline bg-brand-soft text-ink'
+                  "
+                >
+                  {{ code[i - 1] ?? '' }}
+                </div>
+              </div>
+              <input
+                id="otp-code"
+                :value="code"
+                type="text"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                :maxlength="codeLength"
+                ref="codeInput"
+                class="absolute inset-0 h-full w-full cursor-pointer text-2xl opacity-0"
+                style="caret-color: transparent"
+                @input="onCodeInput"
+                @focus="codeFocused = true"
+                @blur="codeFocused = false"
+              />
+            </div>
+          </div>
           <p v-if="noticeMsg" class="text-sm text-gray-500">{{ noticeMsg }}</p>
           <p v-if="errorMsg" class="text-sm text-red-600">{{ errorMsg }}</p>
           <UButton type="submit" block color="primary" :loading="loading" :disabled="code.length !== codeLength">
