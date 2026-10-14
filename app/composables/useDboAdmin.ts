@@ -20,6 +20,7 @@ import type {
   DocumentDetail,
   DocumentPatch,
   DocumentState,
+  MonthlyReport,
 } from '~/types/dbo'
 import type { DocumentCreateBody } from '~/utils/documentImport'
 import { fetchAllPages } from '~/utils/paging'
@@ -227,5 +228,7 @@ export function useDboAdmin() {
     updateRoom: (id: string, body: { status: 'active' | 'closed' }) =>
       req<{ ok: true }>(`/rooms/${id}`, { method: 'PATCH', body }),
     listRoomMessages: (id: string) => req<{ items: ChatMessage[] }>(`/rooms/${id}/messages`),
+    /* 월간 리포트 — master 전용, 기관 전체 */
+    getMonthlyReport: (month: string) => req<MonthlyReport>('/reports/monthly', { query: { month } }),
   }
 }
