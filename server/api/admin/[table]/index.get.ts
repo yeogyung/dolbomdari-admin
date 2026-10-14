@@ -7,6 +7,7 @@ import {
   serviceClient,
 } from '~~/server/utils/admin'
 import { resolveRefs } from '~~/server/utils/refs'
+import { attachCounts } from '~~/server/utils/counts'
 
 const EXPORT_CAP = 10000
 const COL = /^[a-z_][a-z0-9_]*$/ // 안전한 컬럼명 패턴
@@ -48,7 +49,9 @@ export default defineEventHandler(async (event) => {
 
   // 정렬 (sort=컬럼, dir=asc|desc) — 없으면 레지스트리 기본 정렬
   const sortCol = q.sort ? String(q.sort) : ''
-  if (sortCol && COL.test(sortCol)) {
+  // 집계 가상 컬럼은 DB 에 없어 정렬하면 PostgREST 오류가 난다 — 기본 정렬로 떨어뜨린다
+  const isCountKey = def.counts?.some((c) => c.key === sortCol) ?? false
+  if (sortCol && COL.test(sortCol) && !isCountKey) {
     query = query.order(sortCol, { ascending: String(q.dir) === 'asc', nullsFirst: false })
   } else if (def.defaultSort) {
     query = query.order(def.defaultSort.column, {
@@ -74,6 +77,8 @@ export default defineEventHandler(async (event) => {
 
   // 외래키(난수 UUID) → 참조 테이블 이름으로 해석하여 `${column}__ref` 컬럼 추가
   await resolveRefs(serviceClient(), rows, def.refs)
+  // 집계 컬럼 — 행은 이미 applyRoleScope 로 걸렀으므로 그 행들의 숫자만 붙는다
+  await attachCounts(serviceClient(), rows, def.counts)
 
   return { rows, total: count ?? 0 }
 })

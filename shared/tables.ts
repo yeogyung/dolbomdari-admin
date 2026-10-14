@@ -34,7 +34,17 @@ export interface TableDef {
   refs?: RefDef[]
   // 상세 화면 표시 설정(`RecordDetail`). 없으면 카드 한 장에 전체 컬럼을 원문 그대로 보인다
   detail?: DetailDef
+  // 목록 집계 가상 컬럼 — 서버가 현재 페이지 행마다 연관 테이블 행 수를 붙인다. DB 컬럼이 아니라 정렬은 안 된다
+  counts?: CountDef[]
   fields: FormField[]
+}
+
+export interface CountDef {
+  key: string // 응답·listColumns 에 쓰는 가상 컬럼명
+  table: string // 셀 대상 테이블
+  fk: string // 대상 테이블에서 이 행의 id 를 가리키는 컬럼
+  label: string // 목록 헤더 라벨
+  distinct?: string // 주면 이 컬럼의 서로 다른 값 수 (예: 서로 다른 종사자 수)
 }
 
 export interface DetailDef {
@@ -143,10 +153,16 @@ export const TABLES: Record<string, TableDef> = {
     mode: 'crud',
     pk: ['id'],
     canCreate: true, // id default gen_random_uuid()
-    listColumns: ['id', 'name', 'created_at'],
+    listColumns: ['id', 'name', 'jobs_count', 'bookmark_workers_count', 'contact_workers_count', 'created_at'],
     searchColumns: ['name'],
     defaultSort: { column: 'created_at', ascending: false },
     detail: { titleField: 'name', hidden: ['id', 'name'] },
+    // 공고 수는 삭제 공고 포함 — 공고 목록·기관 상세의 등록 공고 카드도 삭제분을 거르지 않아 숫자를 맞춘다
+    counts: [
+      { key: 'jobs_count', table: 'jobs', fk: 'organization_id', label: '등록 공고 수' },
+      { key: 'bookmark_workers_count', table: 'worker_bookmarks', fk: 'organization_id', distinct: 'worker_id', label: '관심 종사자 수' },
+      { key: 'contact_workers_count', table: 'worker_contact_views', fk: 'organization_id', distinct: 'worker_id', label: '연락한 종사자 수' },
+    ],
     fields: [
       { name: 'id', label: 'ID', type: 'text', readonly: true },
       { name: 'name', label: '기관명', type: 'text' },

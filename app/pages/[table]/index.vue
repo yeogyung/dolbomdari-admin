@@ -35,6 +35,8 @@ const detailRow = ref<Record<string, any> | null>(null)
 function labelFor(col: string): string {
   const ref = def.value?.refs?.find((r) => `${r.column}__ref` === col)
   if (ref) return ref.label
+  const count = def.value?.counts?.find((c) => c.key === col)
+  if (count) return count.label
   return def.value?.fields.find((f) => f.name === col)?.label || col
 }
 
@@ -45,7 +47,8 @@ const tableColumns = computed<Column[]>(() => {
     .map((key, idx) => ({
       key,
       label: labelFor(key),
-      sortable: !key.endsWith('__ref'), // 해석 컬럼은 서버 정렬 불가
+      // 해석(__ref)·집계 컬럼은 DB 컬럼이 아니라 서버 정렬 불가
+      sortable: !key.endsWith('__ref') && !def.value?.counts?.some((c) => c.key === key),
       strong: idx === 0,
     }))
 })
