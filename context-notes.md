@@ -240,3 +240,13 @@
 - **진행 표시(사용자 선택: 화면 전체 오버레이)**: `useState('excel-exporting')` 하나를 `AdminShell` 안의 `ExcelExportOverlay` 가 보고 뜬다.
   `startExport` 는 nextTick + rAF·setTimeout 으로 한 프레임을 넘긴 뒤 돌아온다 — `XLSX.writeFile` 이 동기라 바로 부르면
   오버레이가 그려지기 전에 메인 스레드가 막힌다. 레이아웃 루트를 하나로 두려고 오버레이는 layout 이 아니라 AdminShell 에 넣었다.
+
+### 월간 리포트 (2026-10-12 설계, 2026-10-14 구현)
+- **집계 위치**: dbo-admin 서버(`_domain/adminReport.ts` 순수 함수 + `handlers/reports.ts` 조회). 화면에서 목록 API 를 여러 번
+  불러 합치면 페이지 상한·권한 범위 때문에 숫자가 틀어진다. master 확인이 유일한 경계(service_role 조회).
+- **월 단위·12개월**: 앱 월간 리포트의 `parseMonth` 를 그대로 써서 기간 경계를 맞춘다. 이번 달은 오늘(서울)까지만 센다 —
+  크론이 미리 만든 앞날 근무를 미기록으로 세지 않게.
+- **앱 셈법 재사용**: 공지 열람은 `summarizeNotices`·`countedReads` 로 앱 리포트와 같은 숫자를 낸다. 출근 기록률은 `started_at` 축.
+- **현재 시점 지표**: 활성 인원·앱 가입은 명부에 종료 일시가 없어 그달로 되돌릴 수 없다 — 화면에 「지금 시점 값」이라 적는다.
+- **비율 표기**: 분모 0 은 「—」(0% 로 쓰면 나빴던 것처럼 읽힌다). 차트는 의존성 없이 CSS, 상태 색은 `attendanceTone` 과 뜻을 맞추고
+  미기록은 흰 배경 대비 때문에 slate-300.

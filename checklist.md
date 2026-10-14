@@ -268,3 +268,14 @@ HWP 는 지원하지 않는다(사용자 결정). 서버는 텍스트만 받으�
 - [x] 공지 수신자 (`/senior/notices/[id]`)
 - [x] 테스트·타입검사(신규 오류 0) → 리뷰(지적 없음, 근무지 빈 값 표기만 맞춤)
 - [x] 내보내기 중 화면 전체 스피너 오버레이(`useExcelExport` + `ExcelExportOverlay`) — 내보내기 있는 10개 화면 공통
+
+## Phase 15 — 시니어 월간 리포트 (2026-10-14)
+
+계획: master 전용 `/senior/reports` — dbo-admin `GET /dbo-admin/reports/monthly`(서버 브랜치 `feat/admin-monthly-report`)로
+출결·인력·공지를 월 단위로 본다. 서버는 원값만 주고 비율·표기는 어드민 `utils/reports.ts` 가 만든다.
+
+- [x] 타입(`MonthlyReport`)·API 클라이언트(`getMonthlyReport`)·표기 유틸(`recentMonths`·`pct`·`fmtMinutes`·`throughLabel`) + 테스트
+- [x] 메뉴 「리포트」(master 만) + 미들웨어로 master 외 홈 이동 + 테스트
+- [x] 리포트 페이지 — 요약·상태 분포·일별 추이·근무지/사업별·결석 상위·인력·공지
+- [x] 테스트·타입검사(신규 오류 0)
+- [ ] 서버 배포 후 실제 master 세션으로 화면 확인(메뉴·월 전환·빈 달 문구), worksite 계정 직접 입력 시 홈 이동
