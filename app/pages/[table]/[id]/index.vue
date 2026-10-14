@@ -25,9 +25,11 @@ function labelFor(col: string): string {
   return def.value?.fields.find((f) => f.name === col)?.label || col
 }
 
-/** 종사자 상세 — 이름·ID 머리, 사진 URL 숨김, 시각 yyyy.mm.dd hh:mm */
+/** 종사자 상세 — 이름·ID 는 머리에만, 사진 URL 숨김, 시각 yyyy.mm.dd hh:mm */
 const isWorker = computed(() => tableName.value === 'users')
-const HIDDEN_ON_WORKER = new Set(['photo_uri'])
+const HIDDEN_ON_WORKER = new Set(['photo_uri', 'id', 'name'])
+/** 종사자의 회원(계정) 정보 칸. 나머지는 인적사항 카드로 간다 */
+const WORKER_ACCOUNT = new Set(['phone', 'type', 'kakao_oauth_id', 'last_active_at', 'created_at', 'updated_at'])
 
 function displayFull(value: unknown, key?: string): string {
   if (isWorker.value && key && def.value?.fields.find((f) => f.name === key)?.type === 'datetime') {
@@ -50,6 +52,17 @@ const entries = computed<[string, unknown][]>(() => {
     ...Object.keys(row).filter((k) => !fieldOrder.includes(k)),
   ]
   return keys.filter((k) => !(isWorker.value && HIDDEN_ON_WORKER.has(k))).map((k) => [k, row[k]])
+})
+
+/** 화면에 그릴 카드들. 종사자는 회원 정보와 인적사항 두 장, 나머지 테이블은 한 장 */
+const cards = computed<{ title: string; count?: number; entries: [string, unknown][] }[]>(() => {
+  if (!isWorker.value) {
+    return [{ title: `${def.value?.label} 정보`, count: entries.value.length, entries: entries.value }]
+  }
+  return [
+    { title: '회원 정보', entries: entries.value.filter(([k]) => WORKER_ACCOUNT.has(k)) },
+    { title: '인적사항', entries: entries.value.filter(([k]) => !WORKER_ACCOUNT.has(k)) },
+  ]
 })
 
 // 2열 배치에서 긴 값은 두 칸을 합친다 — 반 칸에 넣으면 줄바꿈이 심해 읽기 어렵다
@@ -122,22 +135,21 @@ async function onDelete() {
     <AppSpinner v-if="loading" label="불러오는 중…" />
 
     <template v-else-if="record">
-      <AppCard padding="none">
+      <div v-if="isWorker" class="flex items-center gap-2">
+        <h2 class="text-[20px] font-bold text-ink">{{ record.name || '이름 없음' }}</h2>
+        <Tag class="font-mono tabular-nums">{{ id }}</Tag>
+      </div>
+
+      <AppCard v-for="card in cards" :key="card.title" padding="none">
         <template #header>
-          <template v-if="isWorker">
-            <h2 class="text-[18px] font-bold text-ink">{{ record.name || '이름 없음' }}</h2>
-            <Tag class="font-mono tabular-nums">{{ id }}</Tag>
-          </template>
-          <template v-else>
-            <h2 class="text-[18px] font-semibold text-ink">{{ def?.label }} 정보</h2>
-            <span class="text-sm text-muted tabular-nums">{{ entries.length }}개 항목</span>
-          </template>
+          <h2 class="text-[18px] font-semibold text-ink">{{ card.title }}</h2>
+          <span v-if="card.count !== undefined" class="text-sm text-muted tabular-nums">{{ card.count }}개 항목</span>
         </template>
         <!-- 2열에서는 divide-y 가 칸 단위로 안 그려져 칸마다 border-b 를 준다.
              마지막 줄은 2칸일 수 있어 last: 로 못 지운다 — pb 로 카드 테두리와 떼어 겹선을 막는다 -->
         <dl class="grid grid-cols-1 px-6 pb-4 md:grid-flow-row-dense md:grid-cols-2 md:gap-x-8">
           <div
-            v-for="[key, val] in entries"
+            v-for="[key, val] in card.entries"
             :key="key"
             class="grid grid-cols-[8rem_1fr] gap-4 border-b border-hairline-soft py-3.5 text-sm"
             :class="{ 'md:col-span-2': isWide(val, key) }"
