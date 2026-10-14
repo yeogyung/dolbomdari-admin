@@ -15,6 +15,8 @@ const props = withDefaults(
     total?: number
     pageSizeOptions?: number[]
     emptyText?: string
+    /** 행 앞에 체크박스를 둔다. 고른 행의 rowKey 는 v-model:selected 로 받는다 */
+    selectable?: boolean
   }>(),
   {
     rowKey: 'id',
@@ -31,6 +33,18 @@ const emit = defineEmits<{
   'update:page': [page: number]
   'update:pageSize': [size: number]
 }>()
+
+const selected = defineModel<string[]>('selected', { default: () => [] })
+const pageIds = computed(() => props.rows.map((r) => String(r[props.rowKey])))
+const pageAllSelected = computed(
+  () => pageIds.value.length > 0 && pageIds.value.every((id) => selected.value.includes(id)),
+)
+
+function toggleRow(id: string) {
+  selected.value = selected.value.includes(id)
+    ? selected.value.filter((x) => x !== id)
+    : [...selected.value, id]
+}
 
 const rangeStart = computed(() => (props.total === 0 ? 0 : (props.page - 1) * props.pageSize + 1))
 const rangeEnd = computed(() => Math.min(props.page * props.pageSize, props.total))
@@ -84,6 +98,13 @@ function fmt(v: unknown): string {
         <table class="w-full border-collapse">
           <thead>
             <tr>
+              <th v-if="selectable" class="w-8 pr-3 pb-3 text-left">
+                <Checkbox
+                  :model-value="pageAllSelected"
+                  :disabled="loading || !rows.length"
+                  @update:model-value="selected = togglePageSelection(selected, pageIds)"
+                />
+              </th>
               <th
                 v-for="col in columns"
                 :key="col.key"
@@ -120,6 +141,12 @@ function fmt(v: unknown): string {
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row[rowKey]" class="align-middle">
+              <td v-if="selectable" class="border-t border-hairline py-[15px] pr-3">
+                <Checkbox
+                  :model-value="selected.includes(String(row[rowKey]))"
+                  @update:model-value="toggleRow(String(row[rowKey]))"
+                />
+              </td>
               <td
                 v-for="col in columns"
                 :key="col.key"

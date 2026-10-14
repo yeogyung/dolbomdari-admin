@@ -94,7 +94,34 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'created_at', label: '등록일' },
 ]
 
+function toExcelRow(r: DirectoryEntry) {
+  return {
+    name: r.name,
+    phone: r.phone ? fmtPhone(r.phone) : (r.email ?? ''),
+    role: ROLE_LABELS[r.role] ?? r.role,
+    status: lifeStatusLabel(r.status),
+    memo: r.memo ?? '',
+    created_at: excelStamp(r.created_at),
+  }
+}
+
+/*
+ * 선택 다운로드(QA 2026-10-14 9번). 고른 사람이 있으면 그 사람만, 없으면 조회 조건 전체.
+ * 페이지를 넘겨도 선택은 남으므로 고른 행 자체를 따로 들고 있는다.
+ */
+const selectedIds = ref<string[]>([])
+const picked = new Map<string, DirectoryEntry>()
+watch(selectedIds, (ids) => {
+  for (const row of rows.value) if (ids.includes(row.id)) picked.set(row.id, row)
+  for (const id of [...picked.keys()]) if (!ids.includes(id)) picked.delete(id)
+})
+
 async function exportExcel() {
+  if (selectedIds.value.length > 0) {
+    const chosen = selectedIds.value.map((id) => picked.get(id)).filter((r) => !!r)
+    downloadExcel(`명부_선택_${todaySeoul()}`, chosen.map(toExcelRow), EXCEL_COLUMNS)
+    return
+  }
   await startExport()
   try {
     const all = await fetchAllPages(
@@ -115,15 +142,7 @@ async function exportExcel() {
       toast.add({ title: '내보낼 명부가 없습니다.', color: 'warning' })
       return
     }
-    const data = all.map((r) => ({
-      name: r.name,
-      phone: r.phone ? fmtPhone(r.phone) : (r.email ?? ''),
-      role: ROLE_LABELS[r.role] ?? r.role,
-      status: lifeStatusLabel(r.status),
-      memo: r.memo ?? '',
-      created_at: excelStamp(r.created_at),
-    }))
-    downloadExcel(`명부_${todaySeoul()}`, data, EXCEL_COLUMNS)
+    downloadExcel(`명부_${todaySeoul()}`, all.map(toExcelRow), EXCEL_COLUMNS)
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
@@ -240,7 +259,7 @@ onMounted(() => {
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
       <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" @click="exportExcel">
-        엑셀 다운로드
+        {{ selectedIds.length ? `선택 ${selectedIds.length}명 다운로드` : '엑셀 다운로드' }}
       </AppButton>
       <AppButton icon="i-lucide-user-plus" @click="openCreate">명부 등록</AppButton>
     </Teleport>
@@ -255,6 +274,8 @@ onMounted(() => {
       :page-size="pageSize"
       :total="total"
       :page-size-options="[20, 50, 100]"
+      selectable
+      v-model:selected="selectedIds"
       empty-text="등록된 시니어·담당자가 없습니다."
       @sort="toggleSort"
       @update:page="(p) => { page = p; load() }"
@@ -283,6 +304,14 @@ onMounted(() => {
       </template>
 
       <template #toolbar-end>
+        <button
+          v-if="selectedIds.length"
+          type="button"
+          class="text-sm font-medium text-brand-500 hover:underline"
+          @click="selectedIds = []"
+        >
+          선택 해제
+        </button>
         <span class="text-sm text-muted tabular-nums">전체 {{ total.toLocaleString() }}명</span>
       </template>
 
