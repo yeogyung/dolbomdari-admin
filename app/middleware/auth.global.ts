@@ -23,6 +23,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
   } = await supabase.auth.getSession()
 
   if (!session) {
+    // 다른 탭 로그아웃·토큰 만료로 세션이 사라진 경우도 앞 계정의 롤·화면 캐시를 남기지 않는다
+    useAdminRole().clear()
     return to.path === '/login' ? undefined : navigateTo('/login')
   }
 

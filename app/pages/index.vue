@@ -26,10 +26,18 @@ const kpiCards: { key: string; label: string; tone?: 'ink' | 'up' | 'down' }[] =
 
 const tables = TABLE_LIST.filter((t) => !t.hideInNav)
 
-onMounted(async () => {
-  api
-    .statsSummary()
-    .then((res) => (kpi.value = res))
+/** 핵심 지표를 받은 시각. 5분 캐시라 화면에 「HH:MM 기준」으로 적는다 */
+const fetchedAt = ref<number | null>(null)
+
+/** 호출마다 따로 캐시한다 — 실패한 테이블만 다음에 다시 부른다 */
+async function load(force = false) {
+  kpiFailed.value = false
+  screenCache
+    .get('jobs-dashboard:stats', () => api.statsSummary(), { force })
+    .then((res) => {
+      kpi.value = res.value
+      fetchedAt.value = res.at
+    })
     .catch(() => {
       kpi.value = null
       kpiFailed.value = true
@@ -37,22 +45,45 @@ onMounted(async () => {
   await Promise.all(
     tables.map(async (t) => {
       try {
-        const res = await api.list(t.name, { page: 1, pageSize: 1 })
-        counts.value[t.name] = res.total
+        const res = await screenCache.get(
+          `jobs-dashboard:count:${t.name}`,
+          () => api.list(t.name, { page: 1, pageSize: 1 }),
+          { force },
+        )
+        counts.value[t.name] = res.value.total
       } catch {
         counts.value[t.name] = null
       }
     }),
   )
   loading.value = false
-})
+}
+
+onMounted(() => load())
+
+/** 상단바 「새로고침」 — 캐시를 건너뛰고 다시 받는다 */
+const refreshing = ref(false)
+async function refresh() {
+  refreshing.value = true
+  await load(true)
+  refreshing.value = false
+}
 </script>
 
 <template>
   <div class="space-y-8">
+    <Teleport to="#admin-topbar-actions">
+      <AppButton variant="outline" color="neutral" icon="i-lucide-refresh-cw" :loading="refreshing || loading" @click="refresh">
+        새로고침
+      </AppButton>
+    </Teleport>
+
     <!-- 핵심 지표 -->
     <section>
-      <h2 class="mb-4 text-[18px] font-semibold text-ink">핵심 지표</h2>
+      <div class="mb-4 flex items-end gap-2">
+        <h2 class="text-[18px] font-semibold text-ink">핵심 지표</h2>
+        <span v-if="fetchedAt" class="pb-0.5 text-sm text-muted">{{ cachedAtLabel(fetchedAt) }}</span>
+      </div>
       <div class="grid grid-cols-2 gap-6 md:grid-cols-4">
         <StatCard
           v-for="c in kpiCards"

@@ -49,18 +49,29 @@ const attention = computed(() =>
     .slice(0, 10),
 )
 
-/** 오늘 근무는 100건 단위로 나눠 오므로 전량을 모은다 */
-async function loadToday() {
+/** 오늘 출결을 받은 시각. 5분 캐시라 화면에 「HH:MM 기준」으로 적는다 */
+const fetchedAt = ref<number | null>(null)
+
+/** 오늘 근무는 100건 단위로 나눠 오므로 전량을 모은다. 키에 날짜를 넣어 자정을 넘기면 새로 받는다 */
+async function loadToday(force = false) {
   try {
-    const all: AttendanceShift[] = []
-    let page = 1
-    for (;;) {
-      const res = await api.listAttendance({ from: today, to: today, page, size: 100 })
-      all.push(...res.items)
-      if (all.length >= res.total || !res.items.length) break
-      page++
-    }
-    shifts.value = all
+    const { value, at } = await screenCache.get(
+      `senior-dashboard:today:${today}`,
+      async () => {
+        const all: AttendanceShift[] = []
+        let page = 1
+        for (;;) {
+          const res = await api.listAttendance({ from: today, to: today, page, size: 100 })
+          all.push(...res.items)
+          if (all.length >= res.total || !res.items.length) break
+          page++
+        }
+        return all
+      },
+      { force },
+    )
+    shifts.value = value
+    fetchedAt.value = at
   } catch (e: any) {
     toast.add({ title: '오늘 출결 조회 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
@@ -71,13 +82,16 @@ async function loadToday() {
 /** 규모 카드 조회 중. 끝난 뒤의 「—」는 실패를 뜻한다 — 조회 중과 구분해 「…」을 보인다 */
 const scaleLoading = ref(true)
 
-async function loadScale() {
+async function loadScale(force = false) {
+  // 호출마다 따로 캐시한다 — 하나가 실패해도 나머지는 보관되고, 실패한 것만 다음에 다시 부른다
+  const cached = <T,>(key: string, fetcher: () => Promise<T>) =>
+    screenCache.get(`senior-dashboard:${key}`, fetcher, { force }).then((r) => r.value)
   const [seniors, managers, ws, pg, rooms] = await Promise.allSettled([
-    api.listDirectory({ size: 1, status: 'active', role: 'senior' }),
-    api.listDirectory({ size: 1, status: 'active', role: 'manager' }),
-    api.listWorksites({ size: 1 }),
-    api.listPrograms(),
-    api.listRooms({ size: 1 }),
+    cached('seniors', () => api.listDirectory({ size: 1, status: 'active', role: 'senior' })),
+    cached('managers', () => api.listDirectory({ size: 1, status: 'active', role: 'manager' })),
+    cached('worksites', () => api.listWorksites({ size: 1 })),
+    cached('programs', () => api.listPrograms()),
+    cached('rooms', () => api.listRooms({ size: 1 })),
   ])
   // 역할별로 서버에서 거른 total 을 쓴다. 명부에 수요처 계정도 섞여 첫 페이지로 세면 틀린다.
   if (seniors.status === 'fulfilled') scale.value.seniors = seniors.value.total
@@ -94,16 +108,32 @@ onMounted(() => {
   loadToday()
   loadScale()
 })
+
+/** 상단바 「새로고침」 — 캐시를 건너뛰고 다시 받는다 */
+const refreshing = ref(false)
+async function refresh() {
+  refreshing.value = true
+  await Promise.all([loadToday(true), loadScale(true)])
+  refreshing.value = false
+}
 </script>
 
 <template>
   <div class="space-y-8">
+    <Teleport to="#admin-topbar-actions">
+      <AppButton variant="outline" color="neutral" icon="i-lucide-refresh-cw" :loading="refreshing || loading || scaleLoading" @click="refresh">
+        새로고침
+      </AppButton>
+    </Teleport>
+
     <!-- 오늘 출결 -->
     <section>
       <div class="mb-4 flex items-end justify-between">
         <div>
           <h2 class="text-[18px] font-semibold text-ink">오늘 출결</h2>
-          <p class="mt-0.5 text-sm text-muted">{{ today }} (Asia/Seoul) 기준</p>
+          <p class="mt-0.5 text-sm text-muted">
+            {{ today }} (Asia/Seoul)<template v-if="fetchedAt"> · {{ cachedAtLabel(fetchedAt) }}</template>
+          </p>
         </div>
         <NuxtLink to="/senior/attendance" class="text-sm font-medium text-brand-500 hover:underline">
           출퇴근 기록 전체 보기

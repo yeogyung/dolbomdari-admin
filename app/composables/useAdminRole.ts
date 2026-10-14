@@ -46,8 +46,10 @@ export function useAdminRole() {
     }
   }
 
+  /** 로그아웃·권한 거부 때 부른다. 같은 탭에서 다음 계정이 앞 계정의 집계를 보지 않게 화면 캐시도 비운다 */
   function clear() {
     me.value = null
+    screenCache.clear()
   }
 
   return { me, loading, load, clear }

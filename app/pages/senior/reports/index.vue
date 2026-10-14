@@ -15,15 +15,20 @@ const month = ref(months[0]!.value)
 const report = ref<MonthlyReport | null>(null)
 const loading = ref(false)
 const error = ref('')
+/** 리포트를 받은 시각. 월별 5분 캐시라 화면에 「HH:MM 기준」으로 적는다 */
+const fetchedAt = ref<number | null>(null)
 let sequence = 0
 
-async function load() {
+async function load(force = false) {
   const current = ++sequence
   loading.value = true
   error.value = ''
   try {
-    const res = await api.getMonthlyReport(month.value)
-    if (current === sequence) report.value = res
+    const res = await screenCache.get(`report:${month.value}`, () => api.getMonthlyReport(month.value), { force })
+    if (current === sequence) {
+      report.value = res.value
+      fetchedAt.value = res.at
+    }
   } catch (e) {
     if (current === sequence) {
       report.value = null
@@ -33,8 +38,8 @@ async function load() {
     if (current === sequence) loading.value = false
   }
 }
-watch(month, load)
-onMounted(load)
+watch(month, () => load())
+onMounted(() => load())
 
 const att = computed(() => report.value?.attendance)
 const isCurrentMonth = computed(() => report.value?.month === months[0]!.value)
@@ -108,6 +113,9 @@ const avgRead = (sec: number | null) => (sec === null ? '—' : fmtMinutes(Math.
   <div class="flex flex-col gap-6">
     <Teleport to="#admin-topbar-actions">
       <PillSelect v-model="month" :options="months" />
+      <AppButton variant="outline" color="neutral" icon="i-lucide-refresh-cw" :loading="loading" @click="load(true)">
+        새로고침
+      </AppButton>
     </Teleport>
 
     <p v-if="error" role="alert" class="text-sm text-down">{{ error }}</p>
@@ -116,6 +124,7 @@ const avgRead = (sec: number | null) => (sec === null ? '—' : fmtMinutes(Math.
     <template v-if="report && att">
       <p class="text-sm text-muted">
         {{ report.firstDay }} ~ {{ report.through }} 집계<template v-if="isCurrentMonth"> · 이번 달은 {{ throughLabel(report.through) }}까지</template>
+        <template v-if="fetchedAt"> · {{ cachedAtLabel(fetchedAt) }}</template>
         <span v-if="loading"> · 새로 불러오는 중…</span>
       </p>
 

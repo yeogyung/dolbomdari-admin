@@ -162,6 +162,8 @@ async function verifyOtp() {
       return
     }
 
+    // 새 계정으로 들어왔다 — 앞 계정의 롤·화면 캐시가 남아 있으면 미들웨어가 그 롤로 판정한다
+    useAdminRole().clear()
     // 어드민 자격 확인과 첫 화면 결정은 전역 미들웨어(auth.global.ts)가 한다.
     // 자격이 없으면 거기서 세션을 지우고 다시 로그인 화면으로 돌려보낸다.
     await navigateTo('/')
