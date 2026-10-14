@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   attendanceDisplay,
   describeChange,
+  editDefaultStatus,
   groupChangesByShift,
   isHumanEdited,
 } from '../app/utils/attendanceState'
@@ -149,5 +150,22 @@ describe('describeChange', () => {
     expect(d.memo).toBeNull()
     expect(d.who).toBe('김시니어 (본인 QR)')
     expect(d.what).toBe('퇴근 13:00')
+  })
+})
+
+// 리뷰 지적: 퇴근만 채우려고 열었다가 그대로 저장하면 지각이 「출근」으로 덮여 사라지던 문제
+describe('editDefaultStatus', () => {
+  it('시각으로 지각인 QR 기록은 지각으로 연다', () => {
+    const row = shift('2026-10-13', { started_at: at('2026-10-13', '09:20:00') })
+    expect(editDefaultStatus(row)).toBe('late')
+  })
+
+  it('제시간 출근은 저장된 상태 그대로', () => {
+    const row = shift('2026-10-13', { started_at: at('2026-10-13', '08:50:00') })
+    expect(editDefaultStatus(row)).toBe('present')
+  })
+
+  it('기록이 없으면 출근', () => {
+    expect(editDefaultStatus(shift('2026-10-13', null))).toBe('present')
   })
 })

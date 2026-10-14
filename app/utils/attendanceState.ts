@@ -61,16 +61,33 @@ export function attendanceDisplay(
   if (rec?.started_at) {
     if (!rec.ended_at) return row.work_date < today ? 'missing_checkout' : 'working'
     if (rec.status === 'late') return 'late'
-    if (rec.method === 'manual') return 'normal'
-    const planned = plannedStartMs(row.work_date, row.planned_start)
-    const late = planned !== null && new Date(rec.started_at).getTime() - planned >= 60_000
-    return late ? 'late' : 'normal'
+    return isLateByTime(row) ? 'late' : 'normal'
   }
 
   if (row.work_date < today) return 'not_arrived'
   if (row.work_date > today) return 'scheduled'
   const planned = plannedStartMs(row.work_date, row.planned_start)
   return planned !== null && now.getTime() >= planned ? 'not_arrived' : 'scheduled'
+}
+
+/** 지각 판정에서 퇴근 유무는 상관없다. attendanceDisplay 의 지각 규칙만 떼어 본다 */
+function isLateByTime(row: Pick<AttendanceShift, 'work_date' | 'planned_start' | 'attendance'>): boolean {
+  const rec = row.attendance
+  if (!rec?.started_at || rec.method === 'manual') return false
+  const planned = plannedStartMs(row.work_date, row.planned_start)
+  return planned !== null && new Date(rec.started_at).getTime() - planned >= 60_000
+}
+
+/**
+ * 「기록 수정」 창의 상태 기본값. QR 출근은 늘 present 로 저장되고 지각은 시각으로만 보이므로,
+ * 그대로 열면 퇴근 시각만 채워 저장해도 지각이 「출근」으로 덮여 사라진다.
+ * 목록에 지각으로 보이는 기록은 지각으로 연다. 정상으로 바꾸려면 사람이 직접 고른다.
+ */
+export function editDefaultStatus(
+  row: Pick<AttendanceShift, 'work_date' | 'planned_start' | 'attendance'>,
+): string {
+  const status = row.attendance?.status ?? 'present'
+  return status === 'present' && isLateByTime(row) ? 'late' : status
 }
 
 /**

@@ -149,16 +149,15 @@ const form = ref({
 })
 
 const editErrors = ref<{ memo?: string; endedAt?: string }>({})
-const today = todaySeoul()
 
 function openEdit(row: AttendanceShift) {
-  if (!canEditAttendance(row.work_date, today)) return
+  if (!canEditAttendance(row.work_date, todaySeoul())) return
   const rec = attendanceOf(row)
   target.value = row
   // 사유는 빈칸으로 시작한다. 이전 메모를 채워 두면 그대로 저장해도 필수 검사를
   // 통과하고, 수정 이력에도 옛 사유가 이번 변경의 사유처럼 남는다(QA 2026-10-14 6번).
   form.value = {
-    status: rec?.status ?? 'present',
+    status: editDefaultStatus(row),
     startedAt: toLocalInput(rec?.started_at),
     endedAt: toLocalInput(rec?.ended_at),
     memo: '',
@@ -407,7 +406,7 @@ onMounted(() => {
 
       <template #actions="{ row }">
         <button
-          v-if="canEditAttendance(row.work_date, today)"
+          v-if="canEditAttendance(row.work_date, todaySeoul())"
           type="button"
           class="text-sm font-medium text-brand-500 hover:underline"
           @click="openEdit(row)"
