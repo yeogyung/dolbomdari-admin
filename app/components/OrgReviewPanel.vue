@@ -29,7 +29,7 @@ async function loadDocument() {
 }
 
 async function decide(decision: 'approved' | 'rejected') {
-  if (decision === 'approved' && !confirm('이 기관을 승인하시겠습니까? 승인하면 바로 기관 기능을 쓸 수 있고, 담당자에게 문자와 알림이 갑니다.')) return
+  if (decision === 'approved' && !confirm('이 기관을 승인하시겠습니까? 승인하면 바로 기관 기능을 쓸 수 있고, 담당자에게 문자와 알림을 보냅니다.')) return
   deciding.value = decision
   try {
     const res = await api.action('review-organization', {

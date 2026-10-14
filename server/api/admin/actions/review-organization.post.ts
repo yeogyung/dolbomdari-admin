@@ -31,10 +31,15 @@ export default defineEventHandler(async (event) => {
   if (error) throw createError({ statusCode: 500, statusMessage: '상태 변경 실패: ' + error.message })
   if (!data) throw createError({ statusCode: 409, statusMessage: '이미 처리되었거나 담당자를 찾을 수 없습니다.' })
 
-  // 상태는 이미 바뀌었다. 문자가 실패해도 되돌리지 않고 화면에 알린다
-  const sms = await sendSms({
-    to: data.phone as string,
-    text: orgReviewSmsText(data.org_name as string, decision, reason),
-  })
-  return sms.ok ? { ok: true, smsSent: true } : { ok: true, smsSent: false, reason: sms.reason }
+  // 상태는 이미 바뀌었다. 문자가 실패해도(예외 포함) 되돌리지 않고 화면에 알린다 —
+  // 여기서 500 을 내면 어드민은 실패로 알고 다시 눌러 409 를 맞는다
+  try {
+    const sms = await sendSms({
+      to: data.phone as string,
+      text: orgReviewSmsText(data.org_name as string, decision, reason),
+    })
+    return sms.ok ? { ok: true, smsSent: true } : { ok: true, smsSent: false, reason: sms.reason }
+  } catch (e) {
+    return { ok: true, smsSent: false, reason: e instanceof Error ? e.message : String(e) }
+  }
 })

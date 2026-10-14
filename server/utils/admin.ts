@@ -176,14 +176,24 @@ export async function requireAdmin(
   //    ⚠ 구인구직 OTP(mode:'login')는 종사자도 세션을 준다. 그래서 여기서
   //    organization_manager 존재를 반드시 확인해야 한다 — 빠뜨리면 종사자 누구나
   //    어드민에 들어온다. 시니어 경로에는 이 문제가 없다(명부에 없으면 문자도 안 나간다).
-  const { data: orgManager } = await db
+  const { data: orgManager, error: orgError } = await db
     .from("organization_manager")
     .select("organization_id, manager_name, approval_status")
     .eq("id", userId)
     .maybeSingle();
+  if (orgError) {
+    throw createError({ statusCode: 500, statusMessage: "기관 담당자 조회 실패" });
+  }
 
   // 가입 검토(승인대기·반려) 중인 기관은 어드민에도 못 들어온다 — 앱과 같은 기준
-  if (orgManager && orgManager.approval_status === "approved") {
+  if (orgManager && orgManager.approval_status !== "approved") {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "기관 가입 검토 중입니다. 승인 후 이용할 수 있습니다.",
+    });
+  }
+
+  if (orgManager) {
     return {
       userId,
       email,

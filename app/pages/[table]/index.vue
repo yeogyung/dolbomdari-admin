@@ -77,8 +77,19 @@ function sourceFilter() {
     : { f: 'source', op: 'neq' as const, v: 'manual' }
 }
 
+// 목록과 따로 실패를 알린다 — 목록은 그려졌는데 "목록 조회 실패"가 뜨지 않게
+async function loadPendingCount() {
+  try {
+    const res = await api.list('organization_manager', { pageSize: 1, f: 'approval_status', op: 'eq', v: 'pending' })
+    pendingCount.value = res.total
+  } catch (e: any) {
+    toast.add({ title: '승인대기 건수 조회 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
+  }
+}
+
 async function load() {
   if (!def.value) return
+  if (isOrgManager.value) loadPendingCount()
   loading.value = true
   try {
     const res = await api.list(tableName.value, {
@@ -91,10 +102,6 @@ async function load() {
     })
     rows.value = res.rows
     total.value = res.total
-    if (isOrgManager.value) {
-      const pending = await api.list(tableName.value, { pageSize: 1, f: 'approval_status', op: 'eq', v: 'pending' })
-      pendingCount.value = pending.total
-    }
   } catch (e: any) {
     toast.add({ title: '목록 조회 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
   } finally {
