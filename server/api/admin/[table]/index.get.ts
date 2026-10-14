@@ -6,6 +6,7 @@ import {
   applyRoleScope,
   serviceClient,
 } from '~~/server/utils/admin'
+import { resolveRefs } from '~~/server/utils/refs'
 
 const EXPORT_CAP = 10000
 const COL = /^[a-z_][a-z0-9_]*$/ // 안전한 컬럼명 패턴
@@ -72,21 +73,7 @@ export default defineEventHandler(async (event) => {
   const rows = data ?? []
 
   // 외래키(난수 UUID) → 참조 테이블 이름으로 해석하여 `${column}__ref` 컬럼 추가
-  if (def.refs?.length && rows.length) {
-    const db = serviceClient()
-    for (const rf of def.refs) {
-      const ids = [...new Set(rows.map((r) => r[rf.column]).filter(Boolean))]
-      if (!ids.length) continue
-      const map = new Map<string, unknown>()
-      for (let i = 0; i < ids.length; i += 200) {
-        const chunk = ids.slice(i, i + 200)
-        const { data: refRows } = await db.from(rf.table).select(`id,${rf.field}`).in('id', chunk)
-        for (const rr of refRows ?? []) map.set((rr as any).id, (rr as any)[rf.field])
-      }
-      const key = `${rf.column}__ref`
-      for (const r of rows) r[key] = map.get(r[rf.column]) ?? r[rf.column] ?? null
-    }
-  }
+  await resolveRefs(serviceClient(), rows, def.refs)
 
   return { rows, total: count ?? 0 }
 })

@@ -114,9 +114,16 @@ export const TABLES: Record<string, TableDef> = {
     listColumns: ['id', 'manager_name', 'org_name', 'position', 'biz_num', 'phone', 'updated_at'],
     searchColumns: ['manager_name', 'org_name', 'biz_num', 'phone'],
     defaultSort: { column: 'updated_at', ascending: false },
+    refs: [{ column: 'organization_id', table: 'organization', field: 'name', label: '소속 기관' }],
+    detail: {
+      titleField: 'manager_name',
+      hidden: ['id', 'manager_name', 'photo_uri'],
+      groups: [{ title: '회원 정보', fields: ['phone', 'created_at', 'updated_at'] }],
+      restTitle: '담당자·기관 정보',
+    },
     fields: [
       { name: 'id', label: 'ID', type: 'text', readonly: true },
-      { name: 'organization_id', label: '소속 기관 ID', type: 'text' },
+      { name: 'organization_id', label: '소속 기관', type: 'text' },
       { name: 'position', label: '직책', type: 'text' },
       { name: 'manager_name', label: '담당자명', type: 'text' },
       { name: 'org_name', label: '기관명', type: 'text' },
@@ -139,6 +146,7 @@ export const TABLES: Record<string, TableDef> = {
     listColumns: ['id', 'name', 'created_at'],
     searchColumns: ['name'],
     defaultSort: { column: 'created_at', ascending: false },
+    detail: { titleField: 'name', hidden: ['id', 'name'] },
     fields: [
       { name: 'id', label: 'ID', type: 'text', readonly: true },
       { name: 'name', label: '기관명', type: 'text' },

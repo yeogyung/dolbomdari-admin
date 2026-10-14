@@ -6,6 +6,7 @@ import {
   applyRoleScope,
   serviceClient,
 } from '~~/server/utils/admin'
+import { resolveRefs } from '~~/server/utils/refs'
 
 export default defineEventHandler(async (event) => {
   const actor = await requireAdmin(event)
@@ -27,5 +28,7 @@ export default defineEventHandler(async (event) => {
   if (error) {
     throw createError({ statusCode: 404, statusMessage: error.message })
   }
+  // 상세 화면이 소속 기관 등 참조 값을 이름으로 보이도록 목록과 같은 `__ref` 를 붙인다
+  await resolveRefs(serviceClient(), [data], def.refs)
   return data
 })
