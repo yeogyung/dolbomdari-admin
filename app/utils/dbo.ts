@@ -136,6 +136,12 @@ export function attendanceEditErrors(form: {
   return errors
 }
 
+/** 반복 배정 기간 검사(QA 2026-10-14 5번). 한쪽이 비면 무기한이라 통과한다. */
+export function assignmentPeriodError(start: string | null, end: string | null): string | null {
+  if (start && end && end < start) return '종료일은 시작일보다 빠를 수 없습니다.'
+  return null
+}
+
 /** 미래 근무일의 기록은 고칠 수 없다(QA 2026-10-14 14번, 사용자 결정: 전부 차단). */
 export function canEditAttendance(workDate: string, today: string): boolean {
   return workDate <= today

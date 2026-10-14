@@ -279,6 +279,10 @@ function openAssign(row?: Assignment) {
   assignOpen.value = true
 }
 
+const assignPeriodError = computed(() =>
+  assignmentPeriodError(assignForm.value.periodStart, assignForm.value.periodEnd),
+)
+
 function toggleWeekday(day: number) {
   const list = assignForm.value.weekdays
   const i = list.indexOf(day)
@@ -298,6 +302,10 @@ async function submitAssign() {
   }
   if (!f.weekdays.length) {
     toast.add({ title: '근무 요일을 하나 이상 선택해 주세요.', color: 'warning' })
+    return
+  }
+  if (assignPeriodError.value) {
+    toast.add({ title: assignPeriodError.value, color: 'warning' })
     return
   }
   assignSaving.value = true
@@ -658,7 +666,7 @@ onMounted(async () => {
           <FormField label="시작일">
             <DateField v-model="assignForm.periodStart" />
           </FormField>
-          <FormField label="종료일" hint="비우면 무기한">
+          <FormField label="종료일" hint="비우면 무기한" :error="assignPeriodError ?? undefined">
             <DateField v-model="assignForm.periodEnd" />
           </FormField>
         </div>
