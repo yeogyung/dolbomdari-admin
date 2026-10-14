@@ -9,3 +9,9 @@ export function noticeReadLabel(row: NoticeRecipient): string {
   if (!row.can_read) return '앱 미가입 · 확인 대상 아님'
   return '미열람'
 }
+
+/** 공지 종류 — DB 의 kind·is_special 두 칸을 화면 어휘 하나로. 목록 「구분」 칸과 종류 필터가 같이 쓴다 */
+export function noticeTypeLabel(n: { kind: 'normal' | 'urgent'; is_special?: boolean }): string {
+  if (n.kind === 'urgent') return '긴급'
+  return n.is_special ? '특별' : '일반'
+}

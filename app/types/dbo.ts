@@ -10,6 +10,14 @@ export interface NoticeSummary {
   status: 'draft' | 'sent' | 'revoked'
   published_at: string | null
   program_id: string | null
+  is_special?: boolean
+  author_profile_id?: string | null
+  author?: { name: string; role: string } | null
+}
+export interface NoticeAuthor {
+  id: string
+  name: string
+  role: string
 }
 export interface NoticeDetail extends NoticeSummary {
   body: string

@@ -12,6 +12,7 @@ import type {
   Paged,
   Program,
   Worksite,
+  NoticeAuthor,
   NoticeSummary,
   NoticeDetail,
   NoticeRecipient,
@@ -77,7 +78,9 @@ export function useDboAdmin() {
 
   return {
     /* 공지 발송 채널·열람 관리 — master 전용 */
-    listNotices: (q: ListQuery = {}) => req<Paged<NoticeSummary>>('/notices', { query: clean(q) }),
+    listNotices: (q: ListQuery & { type?: string; authorId?: string } = {}) =>
+      req<Paged<NoticeSummary>>('/notices', { query: clean(q) }),
+    listNoticeAuthors: () => req<NoticeAuthor[]>('/notices/authors'),
     getNotice: (id: string) => req<NoticeDetail>(`/notices/${id}`),
     listNoticeRecipients: (id: string, q: ListQuery & { channel?: string; read?: string } = {}) =>
       req<Paged<NoticeRecipient>>(`/notices/${id}/recipients`, { query: clean(q) }),
