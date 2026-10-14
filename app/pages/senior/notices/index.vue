@@ -100,6 +100,7 @@ onMounted(() => {
       <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" @click="exportExcel">
         엑셀 다운로드
       </AppButton>
+      <AppButton icon="i-lucide-pencil" @click="navigateTo('/senior/notices/new')">공지 작성</AppButton>
     </Teleport>
     <p class="text-sm text-muted">공지를 선택하면 문자와 푸시 발송 내역 및 열람 여부를 확인할 수 있습니다</p>
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
