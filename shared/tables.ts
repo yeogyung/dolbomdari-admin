@@ -128,7 +128,7 @@ export const TABLES: Record<string, TableDef> = {
     detail: {
       titleField: 'manager_name',
       hidden: ['id', 'manager_name', 'photo_uri'],
-      groups: [{ title: '회원 정보', fields: ['phone', 'created_at', 'updated_at'] }],
+      groups: [{ title: '회원 정보', fields: ['phone', 'manager_email', 'created_at', 'updated_at'] }],
       restTitle: '담당자·기관 정보',
     },
     fields: [
@@ -140,6 +140,7 @@ export const TABLES: Record<string, TableDef> = {
       { name: 'biz_num', label: '사업자번호', type: 'text' },
       { name: 'rep_name', label: '대표자명', type: 'text' },
       { name: 'phone', label: '담당자 전화', type: 'text' },
+      { name: 'manager_email', label: '담당자 이메일', type: 'text' },
       { name: 'org_phone', label: '기관 전화', type: 'text' },
       { name: 'address', label: '주소', type: 'text' },
       { name: 'photo_uri', label: '사진 URL', type: 'text' },
