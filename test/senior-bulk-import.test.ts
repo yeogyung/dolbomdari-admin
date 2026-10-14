@@ -61,6 +61,13 @@ describe('parseImportRows', () => {
     ])
   })
 
+  it('글자 코드가 깨진 이름(�)은 등록하지 않는다', () => {
+    expect(parseImportRows([['��', '01011112222']])[0]).toMatchObject({
+      status: 'invalid',
+      reason: '이름 글자가 깨졌습니다. 파일을 UTF-8 이나 xlsx 로 저장해 주세요',
+    })
+  })
+
   it('파일 안에서 같은 번호는 서식이 달라도 두 번째부터 중복', () => {
     const rows = parseImportRows([
       ['홍길동', '010-1111-2222'],

@@ -68,6 +68,10 @@ export function parseImportRows(table: string[][]): ImportRow[] {
       const row: ImportRow = { line, name: cell(cols.name), phone: rawPhone, memo: cell(cols.memo), status: 'ok' }
       const phone = normalizePhone(rawPhone)
       if (!row.name) return { ...row, status: 'invalid', reason: '이름이 없습니다' }
+      // 글자 코드를 잘못 풀면 깨진 이름 그대로 등록된다. 「�」가 섞이면 막는다
+      if (row.name.includes('�')) {
+        return { ...row, status: 'invalid', reason: '이름 글자가 깨졌습니다. 파일을 UTF-8 이나 xlsx 로 저장해 주세요' }
+      }
       if (!phone) return { ...row, status: 'invalid', reason: '전화번호 형식이 틀렸습니다' }
       row.phone = phone
       const first = firstLineOf.get(phone)
