@@ -365,13 +365,17 @@ onMounted(() => {
       <template #cell-manager_directory_id="{ row }">
         {{ personName(contacts, row.manager_directory_id) }}
       </template>
+      <!-- 명부는 운영관리자 전용이라 링크도 그때만. 서버가 세다 실패하면 칸이 없어 「—」 -->
       <template #cell-senior_count="{ row }">
+        <span v-if="row.senior_count == null" class="text-muted">—</span>
         <NuxtLink
+          v-else-if="me?.role === 'master'"
           :to="`/senior/workers?worksite=${row.id}&role=senior&status=active`"
           class="tabular-nums text-brand-500 hover:underline"
         >
-          {{ (row.senior_count ?? 0).toLocaleString() }}명
+          {{ row.senior_count.toLocaleString() }}명
         </NuxtLink>
+        <span v-else class="tabular-nums">{{ row.senior_count.toLocaleString() }}명</span>
       </template>
       <template #cell-status="{ row }">
         <StatusBadge :tone="lifeStatusTone(row.status)">
