@@ -45,6 +45,8 @@ const columns: Column[] = [
   { key: 'care_manager_directory_id', label: '근무지 담당자' },
   // 수요처 담당자(role=worksite) — 근무지 쪽 출석 담당. 지정·표시용이고 권한은 명부의 worksite_id 다.
   { key: 'manager_directory_id', label: '수요처 담당자' },
+  // 누르면 같은 기준(활동 중 시니어·지금 유효한 배정)으로 거른 명부로 간다
+  { key: 'senior_count', label: '배정 인원', align: 'right' },
   { key: 'status', label: '상태' },
   { key: 'qr_token', label: 'QR' },
 ]
@@ -362,6 +364,14 @@ onMounted(() => {
       </template>
       <template #cell-manager_directory_id="{ row }">
         {{ personName(contacts, row.manager_directory_id) }}
+      </template>
+      <template #cell-senior_count="{ row }">
+        <NuxtLink
+          :to="`/senior/workers?worksite=${row.id}&role=senior&status=active`"
+          class="tabular-nums text-brand-500 hover:underline"
+        >
+          {{ (row.senior_count ?? 0).toLocaleString() }}명
+        </NuxtLink>
       </template>
       <template #cell-status="{ row }">
         <StatusBadge :tone="lifeStatusTone(row.status)">
