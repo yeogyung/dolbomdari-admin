@@ -32,7 +32,16 @@ export interface TableDef {
   defaultSort?: { column: string; ascending: boolean }
   // 외래키(난수 UUID)를 참조 테이블의 이름 컬럼으로 해석 → `${column}__ref` 가상 컬럼 생성
   refs?: RefDef[]
+  // 상세 화면 표시 설정(`RecordDetail`). 없으면 카드 한 장에 전체 컬럼을 원문 그대로 보인다
+  detail?: DetailDef
   fields: FormField[]
+}
+
+export interface DetailDef {
+  titleField: string // 머리의 볼드 제목. 값이 없으면 「이름 없음」
+  hidden?: string[] // 행으로 그리지 않을 필드 (머리에 올린 id·제목, 사진 URL 등)
+  groups?: { title: string; fields: string[] }[] // 앞쪽 카드들
+  restTitle?: string // groups 에 없는 나머지 필드 카드의 제목. 없으면 「{label} 정보」
 }
 
 export interface RefDef {
@@ -57,6 +66,14 @@ export const TABLES: Record<string, TableDef> = {
     listColumns: ['id', 'name', 'phone', 'gender', 'job_type', 'is_job_seeking', 'personal_history', 'updated_at'],
     searchColumns: ['name', 'phone', 'job_type'],
     defaultSort: { column: 'updated_at', ascending: false },
+    detail: {
+      titleField: 'name',
+      hidden: ['id', 'name', 'photo_uri'],
+      groups: [
+        { title: '회원 정보', fields: ['phone', 'type', 'kakao_oauth_id', 'last_active_at', 'created_at', 'updated_at'] },
+      ],
+      restTitle: '인적사항',
+    },
     fields: [
       { name: 'id', label: 'ID', type: 'text', readonly: true },
       { name: 'phone', label: '전화번호', type: 'text' },
