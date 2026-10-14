@@ -105,7 +105,8 @@ describe('buildDetailView — 참조(__ref)', () => {
     detail: { titleField: 'manager_name', hidden: ['id', 'manager_name'] },
     fields: [
       { name: 'id', label: 'ID', type: 'text' },
-      { name: 'organization_id', label: '소속 기관', type: 'text' },
+      // 필드 라벨은 수정 폼·엑셀의 id 칸용이고, 상세는 이름을 보이므로 ref 라벨을 쓴다
+      { name: 'organization_id', label: '소속 기관 ID', type: 'text' },
       { name: 'manager_name', label: '담당자명', type: 'text' },
     ],
   }

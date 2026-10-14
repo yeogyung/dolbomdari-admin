@@ -67,7 +67,9 @@ export function buildDetailView(
     } else {
       text = textOf(raw)
     }
-    const entry: DetailEntry = { key, label: field?.label || key, text, wide: text.includes('\n') || text.length > 60 }
+    // 참조 칸은 id 가 아니라 이름을 보이므로 ref 라벨(예: 「소속 기관」)을 쓴다 — 필드 라벨은 수정 폼·엑셀의 id 칸용
+    const label = ref?.label || field?.label || key
+    const entry: DetailEntry = { key, label, text, wide: text.includes('\n') || text.length > 60 }
     if (to) entry.to = to
     return entry
   }

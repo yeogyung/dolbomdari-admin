@@ -133,7 +133,7 @@ export const TABLES: Record<string, TableDef> = {
     },
     fields: [
       { name: 'id', label: 'ID', type: 'text', readonly: true },
-      { name: 'organization_id', label: '소속 기관', type: 'text' },
+      { name: 'organization_id', label: '소속 기관 ID', type: 'text' },
       { name: 'position', label: '직책', type: 'text' },
       { name: 'manager_name', label: '담당자명', type: 'text' },
       { name: 'org_name', label: '기관명', type: 'text' },
