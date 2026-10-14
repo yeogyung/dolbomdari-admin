@@ -302,6 +302,7 @@ export const TABLES: Record<string, TableDef> = {
     pk: ['id'],
     canCreate: false,
     defaultSort: { column: 'created_at', ascending: false },
+    refs: [{ column: 'worker_id', table: 'users', field: 'name', label: '종사자' }], // 기관 상세에서 종사자 이름으로 보인다
     fields: [],
   },
   worker_contact_views: {
@@ -312,6 +313,7 @@ export const TABLES: Record<string, TableDef> = {
     pk: ['id'],
     canCreate: false,
     defaultSort: { column: 'viewed_at', ascending: false },
+    refs: [{ column: 'worker_id', table: 'users', field: 'name', label: '종사자' }], // 기관 상세에서 종사자 이름으로 보인다
     fields: [],
   },
 

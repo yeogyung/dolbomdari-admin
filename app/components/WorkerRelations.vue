@@ -1,5 +1,7 @@
 <!-- 종사자 상세 하단 — 이력서 + 북마크·열람·연락처확인·받은 추천 (user_id/worker_id 필터) -->
 <script setup lang="ts">
+import type { RelationColumn } from '~/components/RelationTable.vue'
+
 const props = defineProps<{ userId: string }>()
 const api = useAdminApi()
 
@@ -18,6 +20,12 @@ const sections: Section[] = [
 ]
 
 const data = ref<Record<string, { rows: Record<string, any>[]; total: number }>>({})
+
+/** 열은 모든 기록이 같다 — 공고(제목, 상세 링크)와 시각 */
+const columnsFor = (s: Section): RelationColumn[] => [
+  { label: '공고', text: (r) => r.job_id__ref ?? r.job_id, to: (r) => `/jobs/${encodeURIComponent(r.job_id)}` },
+  { label: '시각', text: (r) => fmtDateTime(r[s.timeCol]), nowrap: true },
+]
 const resume = ref<Record<string, any> | null>(null)
 const loading = ref(true)
 
@@ -75,36 +83,14 @@ onMounted(async () => {
       <p v-else class="py-6 text-center text-sm text-muted-soft">작성된 이력서가 없습니다.</p>
     </AppCard>
 
-    <AppCard v-for="s in sections" :key="s.table">
-      <template #header>
-        <h3 class="text-[15px] font-semibold text-ink">{{ s.title }}</h3>
-        <Tag>{{ loading ? '…' : (data[s.table]?.total ?? 0) }}건</Tag>
-      </template>
-
-      <AppSpinner v-if="loading" size="sm" label="불러오는 중…" />
-      <p v-else-if="!data[s.table]?.rows.length" class="py-6 text-center text-sm text-muted-soft">기록이 없습니다.</p>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse">
-          <thead>
-            <tr>
-              <th class="w-12 pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">No.</th>
-              <th class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">공고</th>
-              <th class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">시각</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, i) in data[s.table]!.rows" :key="i">
-              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm tabular-nums text-muted-soft">{{ i + 1 }}</td>
-              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm">
-                <NuxtLink :to="`/jobs/${encodeURIComponent(row.job_id)}`" class="font-medium text-brand-500 hover:underline">
-                  {{ row.job_id__ref ?? row.job_id }}
-                </NuxtLink>
-              </td>
-              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm whitespace-nowrap text-body">{{ fmtDateTime(row[s.timeCol]) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </AppCard>
+    <RelationTable
+      v-for="s in sections"
+      :key="s.table"
+      :title="s.title"
+      :loading="loading"
+      :total="data[s.table]?.total ?? 0"
+      :rows="data[s.table]?.rows ?? []"
+      :columns="columnsFor(s)"
+    />
   </div>
 </template>

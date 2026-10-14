@@ -301,5 +301,5 @@ HWP 는 지원하지 않는다(사용자 결정). 서버는 텍스트만 받으�
 - [x] `recordDetail.ts` 순수 함수 + `RecordDetail.vue` + 상세 페이지 교체(종사자 회귀 없음) + 테스트
 - [x] 서버 `resolveRefs` 추출·단건 조회 적용, 기관 담당자·기관 `detail`
 - [x] 기관 목록 집계 컬럼(`tallyCounts` 테스트, `attachCounts`, 정렬 가드)
-- [ ] `RelationTable` 공통화, 기관 하단 표 이름·서울 시각
+- [x] `RelationTable` 공통화, 기관 하단 표 이름·서울 시각
 - [ ] 테스트·타입검사(신규 0) → 리뷰 → 화면 확인 요청
