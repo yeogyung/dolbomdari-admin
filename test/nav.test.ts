@@ -17,4 +17,11 @@ describe('getApps', () => {
     expect(getApps('worksite')[0]!.home).toBe('/senior/worksites')
     expect(paths('worksite')).toEqual(['/senior/worksites', '/senior/attendance'])
   })
+
+  it('리포트는 master 메뉴에만 있다', () => {
+    expect(paths('master')).toContain('/senior/reports')
+    for (const role of ['manager', 'worksite', 'org'] as const) {
+      expect(paths(role)).not.toContain('/senior/reports')
+    }
+  })
 })

@@ -45,11 +45,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo({ path: '/login', query: { denied: String(Date.now()) } })
   }
 
-  // 대시보드는 전체 집계 화면이라 master 만 본다. 범위가 제한된 롤에게는
+  // 대시보드·리포트는 전체 집계 화면이라 master 만 본다. 범위가 제한된 롤에게는
   // 목록에서 막아 둔 규모를 숫자로 되돌려 주는 셈이 된다.
   const home = ROLE_HOME[me.value?.role ?? 'master'] ?? '/'
-  const isDashboard = to.path === '/' || to.path === '/senior'
-  if (isDashboard && me.value?.role !== 'master') {
+  const isMasterOnly =
+    to.path === '/' || to.path === '/senior' || to.path.startsWith('/senior/reports')
+  if (isMasterOnly && me.value?.role !== 'master') {
     return navigateTo(home)
   }
 
