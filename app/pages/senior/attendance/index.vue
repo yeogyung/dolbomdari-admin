@@ -117,15 +117,22 @@ const form = ref({
   memo: '',
 })
 
+const editErrors = ref<{ memo?: string; endedAt?: string }>({})
+const today = todaySeoul()
+
 function openEdit(row: AttendanceShift) {
+  if (!canEditAttendance(row.work_date, today)) return
   const rec = attendanceOf(row)
   target.value = row
+  // 사유는 빈칸으로 시작한다. 이전 메모를 채워 두면 그대로 저장해도 필수 검사를
+  // 통과하고, 수정 이력에도 옛 사유가 이번 변경의 사유처럼 남는다(QA 2026-10-14 6번).
   form.value = {
     status: rec?.status ?? 'present',
     startedAt: toLocalInput(rec?.started_at),
     endedAt: toLocalInput(rec?.ended_at),
-    memo: rec?.memo ?? '',
+    memo: '',
   }
+  editErrors.value = {}
   editOpen.value = true
 }
 
@@ -139,6 +146,8 @@ const statusOptions = computed(() => {
 
 async function submitEdit() {
   if (!target.value) return
+  editErrors.value = attendanceEditErrors(form.value)
+  if (Object.keys(editErrors.value).length > 0) return
   saving.value = true
   try {
     await api.patchAttendance(target.value.id, {
@@ -146,7 +155,7 @@ async function submitEdit() {
       startedAt: fromLocalInput(form.value.startedAt),
       endedAt: fromLocalInput(form.value.endedAt),
       method: 'manual',
-      memo: form.value.memo.trim() || null,
+      memo: form.value.memo.trim(),
     })
     toast.add({ title: '출결 기록을 저장했습니다.', color: 'success' })
     editOpen.value = false
@@ -349,12 +358,14 @@ onMounted(() => {
 
       <template #actions="{ row }">
         <button
+          v-if="canEditAttendance(row.work_date, today)"
           type="button"
           class="text-sm font-medium text-brand-500 hover:underline"
           @click="openEdit(row)"
         >
           기록 수정
         </button>
+        <span v-else class="text-sm text-muted">예정</span>
       </template>
     </DataTable>
 
@@ -377,11 +388,16 @@ onMounted(() => {
           <FormField label="출근 시각">
             <DateField v-model="form.startedAt" type="datetime-local" />
           </FormField>
-          <FormField label="퇴근 시각">
+          <FormField label="퇴근 시각" :error="editErrors.endedAt">
             <DateField v-model="form.endedAt" type="datetime-local" />
           </FormField>
         </div>
-        <FormField label="메모" hint="대리 기록 사유를 남겨 주세요.">
+        <FormField
+          label="수정 사유"
+          required
+          :hint="attendanceOf(target)?.memo ? `이전 메모: ${attendanceOf(target)?.memo}` : undefined"
+          :error="editErrors.memo"
+        >
           <AppTextarea v-model="form.memo" :rows="3" />
         </FormField>
         <p class="text-xs text-muted">

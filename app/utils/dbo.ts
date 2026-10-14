@@ -118,6 +118,29 @@ export function workedDuration(
   return `${h}시간 ${String(m).padStart(2, '0')}분`
 }
 
+/**
+ * 「기록 수정」 저장 전 검사(QA 2026-10-14 6·7번). 칸 이름 → 안내 문구.
+ * 시각은 <input type="datetime-local"> 값이라 같은 형식끼리 문자열로 비교된다.
+ * 날짜까지 들어 있어 자정을 넘긴 퇴근은 그대로 통과한다.
+ */
+export function attendanceEditErrors(form: {
+  memo: string
+  startedAt: string | null
+  endedAt: string | null
+}): { memo?: string; endedAt?: string } {
+  const errors: { memo?: string; endedAt?: string } = {}
+  if (!form.memo.trim()) errors.memo = '수정 사유를 입력해 주세요.'
+  if (form.startedAt && form.endedAt && form.endedAt <= form.startedAt) {
+    errors.endedAt = '퇴근 시각은 출근 시각보다 늦어야 합니다.'
+  }
+  return errors
+}
+
+/** 미래 근무일의 기록은 고칠 수 없다(QA 2026-10-14 14번, 사용자 결정: 전부 차단). */
+export function canEditAttendance(workDate: string, today: string): boolean {
+  return workDate <= today
+}
+
 /** 운영 일자는 항상 Asia/Seoul 기준 */
 export function todaySeoul(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date())
