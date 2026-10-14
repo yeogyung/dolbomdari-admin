@@ -121,13 +121,14 @@ export const TABLES: Record<string, TableDef> = {
     mode: 'crud',
     pk: ['id'],
     canCreate: false, // id가 auth.users FK
-    listColumns: ['id', 'manager_name', 'org_name', 'position', 'biz_num', 'phone', 'updated_at'],
+    listColumns: ['id', 'manager_name', 'org_name', 'approval_status', 'position', 'biz_num', 'phone', 'updated_at'],
     searchColumns: ['manager_name', 'org_name', 'biz_num', 'phone'],
     defaultSort: { column: 'updated_at', ascending: false },
     refs: [{ column: 'organization_id', table: 'organization', field: 'name', label: '소속 기관' }],
     detail: {
       titleField: 'manager_name',
-      hidden: ['id', 'manager_name', 'photo_uri'],
+      // 검토 컬럼은 상단 가입 검토 카드(OrgReviewPanel)가 보여 준다
+      hidden: ['id', 'manager_name', 'photo_uri', 'approval_status', 'reviewed_at', 'rejection_reason', 'document_path'],
       groups: [{ title: '회원 정보', fields: ['phone', 'manager_email', 'created_at', 'updated_at'] }],
       restTitle: '담당자·기관 정보',
     },
@@ -144,6 +145,11 @@ export const TABLES: Record<string, TableDef> = {
       { name: 'org_phone', label: '기관 전화', type: 'text' },
       { name: 'address', label: '주소', type: 'text' },
       { name: 'photo_uri', label: '사진 URL', type: 'text' },
+      // 검토 컬럼은 review-organization 액션으로만 바꾼다 — 일반 수정 폼에서는 막는다
+      { name: 'approval_status', label: '가입 검토', type: 'text', readonly: true },
+      { name: 'reviewed_at', label: '검토 시각', type: 'datetime', readonly: true },
+      { name: 'rejection_reason', label: '반려 사유', type: 'textarea', readonly: true },
+      { name: 'document_path', label: '서류 경로', type: 'text', readonly: true },
       ...TS_READONLY,
     ],
   },

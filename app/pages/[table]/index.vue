@@ -4,6 +4,7 @@ import { ref, computed, watch, watchEffect, onMounted } from 'vue'
 import { getTable } from '#shared/tables'
 import { downloadExcel, type ExcelColumn } from '~/utils/excel'
 import type { Column } from '~/types/table'
+import { ORG_APPROVAL_STATUSES, orgApprovalLabel, orgApprovalTone, type OrgApprovalStatus } from '#shared/orgApproval'
 
 const route = useRoute()
 const api = useAdminApi()
@@ -28,6 +29,11 @@ const sortDir = ref<'asc' | 'desc'>('asc')
 
 const sourceTab = ref<'all' | 'user' | 'auto'>('all')
 const isJobs = computed(() => tableName.value === 'jobs')
+
+// 기관 담당자: 가입 검토 상태 필터 + 승인대기 건수
+const approvalTab = ref<'all' | OrgApprovalStatus>('all')
+const isOrgManager = computed(() => tableName.value === 'organization_manager')
+const pendingCount = ref(0)
 
 const detailOpen = ref(false)
 const detailRow = ref<Record<string, any> | null>(null)
@@ -62,6 +68,9 @@ function displayFull(value: unknown): string {
 }
 
 function sourceFilter() {
+  if (isOrgManager.value && approvalTab.value !== 'all') {
+    return { f: 'approval_status', op: 'eq' as const, v: approvalTab.value }
+  }
   if (!isJobs.value || sourceTab.value === 'all') return {}
   return sourceTab.value === 'user'
     ? { f: 'source', op: 'eq' as const, v: 'manual' }
@@ -82,6 +91,10 @@ async function load() {
     })
     rows.value = res.rows
     total.value = res.total
+    if (isOrgManager.value) {
+      const pending = await api.list(tableName.value, { pageSize: 1, f: 'approval_status', op: 'eq', v: 'pending' })
+      pendingCount.value = pending.total
+    }
   } catch (e: any) {
     toast.add({ title: '목록 조회 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
   } finally {
@@ -118,6 +131,12 @@ function toggleSort(col: string) {
 
 function setTab(tab: 'all' | 'user' | 'auto') {
   sourceTab.value = tab
+  page.value = 1
+  load()
+}
+
+function setApprovalTab(tab: 'all' | OrgApprovalStatus) {
+  approvalTab.value = tab
   page.value = 1
   load()
 }
@@ -182,6 +201,7 @@ watch(() => route.params.table, () => {
   q.value = ''
   sortCol.value = ''
   sourceTab.value = 'all'
+  approvalTab.value = 'all'
   rows.value = []
   load()
 })
@@ -236,6 +256,23 @@ onMounted(load)
             {{ t.l }}
           </button>
         </div>
+        <!-- 기관 담당자 가입 검토 상태 필터 -->
+        <div v-if="isOrgManager" class="flex items-center gap-1 rounded-full border border-hairline bg-white p-1">
+          <button
+            v-for="t in [{ value: 'all', label: '전체' }, ...ORG_APPROVAL_STATUSES]"
+            :key="t.value"
+            type="button"
+            class="rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors"
+            :class="approvalTab === t.value ? 'bg-brand-500 text-white' : 'text-body hover:text-ink'"
+            @click="setApprovalTab(t.value as any)"
+          >
+            {{ t.label }}<span v-if="t.value === 'pending' && pendingCount" class="ml-1 tabular-nums">{{ pendingCount }}</span>
+          </button>
+        </div>
+      </template>
+
+      <template #cell-approval_status="{ value }">
+        <StatusBadge :tone="orgApprovalTone(String(value))">{{ orgApprovalLabel(String(value)) }}</StatusBadge>
       </template>
 
       <template #toolbar-end>

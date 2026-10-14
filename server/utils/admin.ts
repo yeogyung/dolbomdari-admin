@@ -178,11 +178,12 @@ export async function requireAdmin(
   //    어드민에 들어온다. 시니어 경로에는 이 문제가 없다(명부에 없으면 문자도 안 나간다).
   const { data: orgManager } = await db
     .from("organization_manager")
-    .select("organization_id, manager_name")
+    .select("organization_id, manager_name, approval_status")
     .eq("id", userId)
     .maybeSingle();
 
-  if (orgManager) {
+  // 가입 검토(승인대기·반려) 중인 기관은 어드민에도 못 들어온다 — 앱과 같은 기준
+  if (orgManager && orgManager.approval_status === "approved") {
     return {
       userId,
       email,

@@ -25,7 +25,7 @@ watchEffect(() => {
   if (def.value) setHeader('상세', [{ label: def.value.label, to: `/${tableName.value}` }])
 })
 
-onMounted(async () => {
+async function loadRecord() {
   if (def.value && def.value.pk.length !== 1) {
     loading.value = false
     return
@@ -37,7 +37,9 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadRecord)
 
 async function onDelete() {
   if (!def.value) return
@@ -85,6 +87,14 @@ async function onDelete() {
     <AppSpinner v-if="loading" label="불러오는 중…" />
 
     <template v-else-if="record">
+      <!-- 기관 담당자: 가입 검토(승인·반려·서류) -->
+      <OrgReviewPanel
+        v-if="tableName === 'organization_manager'"
+        :manager-id="id"
+        :record="record"
+        @changed="loadRecord"
+      />
+
       <RecordDetail v-if="def" :def="def" :record="record" :id="id" />
 
       <!-- 이력서: 서류 양식 뷰 -->

@@ -93,6 +93,15 @@ export function useAdminApi() {
     })
   }
 
+  /** 기관 가입 서류 임시 열람 URL (없으면 null) */
+  async function orgDocumentUrl(managerId: string): Promise<string | null> {
+    const res = await $fetch<{ url: string | null }>(
+      `/api/admin/org-documents/${encodeURIComponent(managerId)}`,
+      { headers: await authHeader() },
+    )
+    return res.url
+  }
+
 
 
 
@@ -104,5 +113,6 @@ export function useAdminApi() {
     remove,
     statsSummary,
     action,
+    orgDocumentUrl,
   }
 }
