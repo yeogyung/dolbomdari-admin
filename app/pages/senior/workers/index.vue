@@ -151,6 +151,9 @@ async function exportExcel() {
   }
 }
 
+/* 일괄 등록(QA 2026-10-14 10번) — 창을 닫을 때 목록을 다시 읽는다 */
+const bulkOpen = ref(false)
+
 /* 신규 등록 */
 const createOpen = ref(false)
 const saving = ref(false)
@@ -262,8 +265,10 @@ onMounted(() => {
       <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" @click="exportExcel">
         {{ selectedIds.length ? `선택 ${selectedIds.length}명 다운로드` : '엑셀 다운로드' }}
       </AppButton>
+      <AppButton variant="outline" color="neutral" icon="i-lucide-users" @click="bulkOpen = true">일괄 등록</AppButton>
       <AppButton icon="i-lucide-user-plus" @click="openCreate">명부 등록</AppButton>
     </Teleport>
+    <SeniorBulkImportModal v-model:open="bulkOpen" @done="load" />
 
     <DataTable
       :columns="columns"

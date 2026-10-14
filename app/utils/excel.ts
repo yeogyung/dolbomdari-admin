@@ -49,3 +49,17 @@ export function downloadExcel(
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1')
   XLSX.writeFile(workbook, `${filename}.xlsx`)
 }
+
+/**
+ * 올린 xlsx·csv 의 첫 시트를 줄마다 칸(문자열)으로 읽는다(참여자 일괄 등록).
+ * `raw: false` 로 화면에 보이는 글자 그대로 읽는다 — 숫자로 읽으면 전화번호 앞 0 이 사라진다.
+ */
+export async function readSheetRows(file: File): Promise<string[][]> {
+  // csv 는 글자로 읽어 넘긴다. 바이트로 넘기면 BOM 없는 UTF-8 한글이 깨진다
+  const wb = /\.csv$/i.test(file.name)
+    ? XLSX.read(await file.text(), { type: 'string' })
+    : XLSX.read(await file.arrayBuffer(), { type: 'array' })
+  const sheet = wb.Sheets[wb.SheetNames[0]!]
+  if (!sheet) return []
+  return XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' })
+}
