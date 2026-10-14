@@ -3,9 +3,10 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { downloadExcel, type ExcelColumn } from '~/utils/excel'
 import type { Column } from '~/types/table'
-import type { AttendanceShift, Worksite } from '~/types/dbo'
+import type { AttendanceChange, AttendanceShift, Worksite } from '~/types/dbo'
 
 const api = useDboAdmin()
+const { listChangesByShifts } = useAttendanceChanges()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
 setHeader('출퇴근 기록')
@@ -34,7 +35,7 @@ const columns: Column[] = [
   { key: 'ended_at', label: '퇴근' },
   { key: 'worked', label: '근무시간' },
   { key: 'method', label: '기록 방법' },
-  // 대리 수정 흔적. updated_by 는 어드민 PATCH 만 채운다(QR 기록은 recorded_by 만).
+  // 사람이 고친 흔적. 변경 이력(dbo_attendance_changes)으로 판정한다 — updated_by 는 QR 도 채운다.
   { key: 'edited', label: '수정 이력' },
   { key: 'memo', label: '메모' },
 ]
@@ -53,11 +54,43 @@ async function load() {
     })
     rows.value = res.items
     total.value = res.total
+    changesByShift.value = await loadChanges(res.items)
   } catch (e: any) {
     toast.add({ title: '출결 조회 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
     loading.value = false
   }
+}
+
+/* 변경 이력 — 페이지마다 한 번에 읽어 「수정됨」 판정과 이력 창에 쓴다 */
+const changesByShift = ref(new Map<string, AttendanceChange[]>())
+
+/** 실패해도 목록은 보여 준다. 그때 「수정됨」은 method 로만 판정된다(QR 을 수정됨으로 잘못 보이진 않는다) */
+async function loadChanges(items: AttendanceShift[]) {
+  try {
+    return groupChangesByShift(await listChangesByShifts(items.map((r) => r.id)))
+  } catch (e: any) {
+    toast.add({ title: '변경 이력 조회 실패', description: dboErrorMessage(e), color: 'warning' })
+    return new Map<string, AttendanceChange[]>()
+  }
+}
+
+function editedOf(row: AttendanceShift) {
+  const changes = changesByShift.value.get(row.id)
+  const kind = isHumanEdited(changes, attendanceOf(row))
+  const last = changes?.find((c) => c.changed_by_role !== 'senior')
+  return { kind, last }
+}
+
+const historyOpen = ref(false)
+const historyTarget = ref<AttendanceShift | null>(null)
+const historyLines = computed(() =>
+  (historyTarget.value ? (changesByShift.value.get(historyTarget.value.id) ?? []) : []).map(describeChange),
+)
+
+function openHistory(row: AttendanceShift) {
+  historyTarget.value = row
+  historyOpen.value = true
 }
 
 async function loadWorksites() {
@@ -89,19 +122,17 @@ function toggleSort(key: string) {
 
 watch(worksiteId, search)
 
-/* 집계 — 조회된 페이지 기준.
- *
- * **완료 여부는 status 가 아니라 ended_at 으로 판정한다.** 서버는 QR 출퇴근에
- * status='present' 를 쓰고 퇴근해도 그 값을 바꾸지 않는다 — 퇴근했는지는
- * ended_at 이 찼는지로만 알 수 있다(2026-09-06 실측: DB 에 checked_out 이 0건). */
+/* 집계 — 조회된 페이지 기준. 목록과 같은 표시 상태(attendanceDisplay)로 센다.
+ * 퇴근 완료 = 정상 + 지각, 미기록·결근 = 미출근 + 결석. 인정 결석·출근 전은 어디에도 세지 않는다.
+ * 예전에는 지난 날의 퇴근 누락까지 「근무 중」으로 셌다(QA 2026-10-14 11번). */
 const summary = computed(() => {
-  const stat = { total: rows.value.length, working: 0, done: 0, missing: 0 }
+  const stat = { working: 0, done: 0, missing: 0, noCheckout: 0 }
   for (const row of rows.value) {
-    const rec = attendanceOf(row)
-    if (!rec) stat.missing++
-    else if (rec.status === 'absent') stat.missing++
-    else if (rec.ended_at) stat.done++
-    else stat.working++
+    const d = attendanceDisplay(row)
+    if (d === 'normal' || d === 'late') stat.done++
+    else if (d === 'working') stat.working++
+    else if (d === 'missing_checkout') stat.noCheckout++
+    else if (d === 'not_arrived' || d === 'absent') stat.missing++
   }
   return stat
 })
@@ -186,6 +217,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 
 function toExcelRow(row: AttendanceShift) {
   const rec = attendanceOf(row)
+  const { kind, last } = editedOf(row)
   return {
     work_date: row.work_date,
     name: row.directory?.name ?? '',
@@ -193,12 +225,17 @@ function toExcelRow(row: AttendanceShift) {
     worksite: row.worksite?.name ?? '',
     planned_start: hhmm(row.planned_start),
     planned_end: hhmm(row.planned_end),
-    status: attendanceLabel(rec?.status),
+    status: attendanceDisplayLabel(attendanceDisplay(row)),
     started_at: fmtStamp(rec?.started_at),
     ended_at: fmtStamp(rec?.ended_at),
     worked: workedDuration(rec?.started_at, rec?.ended_at),
     method: rec?.method ?? '',
-    edited: rec?.updated_by ? `수정됨 ${fmtStamp(rec.updated_at)}` : '',
+    edited:
+      kind === 'edited' && last
+        ? `수정됨 ${describeChange(last).who} ${fmtStamp(last.created_at)}`
+        : kind === 'legacy'
+          ? '수정됨(이력 없음)'
+          : '',
     memo: rec?.memo ?? '',
   }
 }
@@ -220,6 +257,8 @@ async function exportExcel() {
         worksiteId: worksiteId.value || undefined,
       })
       all.push(...res.items)
+      // 「수정 이력」 칸도 목록과 같은 기준으로 채운다. 이 페이지 몫의 이력을 함께 읽는다
+      for (const [id, list] of await loadChanges(res.items)) changesByShift.value.set(id, list)
       if (all.length >= res.total || !res.items.length) break
       p++
     }
@@ -274,11 +313,12 @@ onMounted(() => {
     </AppCard>
 
     <!-- 조회 결과 집계 -->
-    <div class="grid grid-cols-2 gap-6 md:grid-cols-4">
+    <div class="grid grid-cols-2 gap-6 md:grid-cols-5">
       <!-- 조회 중에는 0 대신 「…」 — 0 은 「기록이 없다」로 읽힌다 -->
       <StatCard label="조회된 근무" :value="loading ? '…' : total.toLocaleString()" />
       <StatCard label="퇴근 완료" :value="loading ? '…' : summary.done" tone="up" />
       <StatCard label="근무 중" :value="loading ? '…' : summary.working" tone="primary" />
+      <StatCard label="퇴근 누락" :value="loading ? '…' : summary.noCheckout" tone="down" />
       <StatCard label="미기록·결근" :value="loading ? '…' : summary.missing" tone="down" />
     </div>
 
@@ -331,8 +371,8 @@ onMounted(() => {
         {{ hhmm(row.planned_start) }} – {{ hhmm(row.planned_end) }}
       </template>
       <template #cell-status="{ row }">
-        <StatusBadge :tone="attendanceTone(attendanceOf(row)?.status)">
-          {{ attendanceLabel(attendanceOf(row)?.status) }}
+        <StatusBadge :tone="attendanceDisplayTone(attendanceDisplay(row as AttendanceShift))">
+          {{ attendanceDisplayLabel(attendanceDisplay(row as AttendanceShift)) }}
         </StatusBadge>
       </template>
       <template #cell-started_at="{ row }">{{ fmtClock(attendanceOf(row)?.started_at) }}</template>
@@ -345,11 +385,20 @@ onMounted(() => {
       <template #cell-method="{ row }">
         <span class="text-muted">{{ attendanceOf(row)?.method ?? '—' }}</span>
       </template>
-      <!-- 고친 사람의 이름은 API 가 안 준다(updated_by 는 프로필 UUID 다). 시각만 적는다. -->
+      <!-- 누르면 변경 이력 창. 고친 사람·시각은 변경 이력에서 가져온다 -->
       <template #cell-edited="{ row }">
-        <span v-if="attendanceOf(row)?.updated_by" class="text-muted">
-          수정됨 · {{ fmtStamp(attendanceOf(row)!.updated_at) }}
-        </span>
+        <button
+          v-if="editedOf(row as AttendanceShift).kind"
+          type="button"
+          class="text-sm text-brand-500 hover:underline"
+          @click="openHistory(row as AttendanceShift)"
+        >
+          <template v-if="editedOf(row as AttendanceShift).last">
+            수정됨 · {{ editedOf(row as AttendanceShift).last!.changed_by_name ?? '알 수 없음' }} ·
+            {{ fmtStamp(editedOf(row as AttendanceShift).last!.created_at) }}
+          </template>
+          <template v-else>수정됨 (이력 없음)</template>
+        </button>
         <span v-else class="text-muted">—</span>
       </template>
       <template #cell-memo="{ row }">
@@ -410,6 +459,31 @@ onMounted(() => {
           취소
         </AppButton>
         <AppButton size="sm" :loading="saving" @click="submitEdit">저장</AppButton>
+      </template>
+    </AppModal>
+
+    <!-- 변경 이력(QA 2026-10-14 13번) -->
+    <AppModal v-model:open="historyOpen" title="출결 변경 이력" width="max-w-lg">
+      <div v-if="historyTarget" class="space-y-4">
+        <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">
+          <p class="font-semibold text-ink">
+            {{ historyTarget.directory?.name ?? '—' }} · {{ historyTarget.worksite?.name ?? '—' }}
+          </p>
+          <p class="mt-0.5 text-muted">{{ historyTarget.work_date }}</p>
+        </div>
+        <ul v-if="historyLines.length" class="space-y-3">
+          <li v-for="(line, i) in historyLines" :key="i" class="rounded-lg border border-hairline px-4 py-3 text-sm">
+            <p class="text-muted tabular-nums">{{ line.when }} · {{ line.who }}</p>
+            <p class="mt-1 font-medium text-ink">{{ line.what }}</p>
+            <p v-if="line.memo" class="mt-1 text-body">사유: {{ line.memo }}</p>
+          </li>
+        </ul>
+        <p v-else class="text-sm text-muted">
+          변경 이력 기능(10월 11일) 전에 수정된 기록이라 상세 내역이 없습니다.
+        </p>
+      </div>
+      <template #footer>
+        <AppButton variant="outline" color="neutral" size="sm" @click="historyOpen = false">닫기</AppButton>
       </template>
     </AppModal>
   </div>

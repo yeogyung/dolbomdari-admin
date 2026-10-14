@@ -134,6 +134,25 @@ export interface AttendanceShift {
   attendance: AttendanceRecord | null
 }
 
+/** 출결 변경 전·후. 서버 트리거(dbo_attendance_changes)가 떠 둔다. 키 이름은 DB 칸 그대로다 */
+export interface AttendanceSnapshot {
+  status: string | null
+  started_at: string | null
+  ended_at: string | null
+  memo: string | null
+}
+
+export interface AttendanceChange {
+  id: string
+  shift_id: string
+  created_at: string
+  changed_by_name: string | null
+  changed_by_role: string | null
+  /** 처음 기록이면 null */
+  before: AttendanceSnapshot | null
+  after: AttendanceSnapshot
+}
+
 export interface ChatRoom {
   id: string
   title: string
