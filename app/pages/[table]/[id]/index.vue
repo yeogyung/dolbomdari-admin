@@ -25,7 +25,14 @@ function labelFor(col: string): string {
   return def.value?.fields.find((f) => f.name === col)?.label || col
 }
 
-function displayFull(value: unknown): string {
+/** 종사자 상세 — 이름·ID 머리, 사진 URL 숨김, 시각 yyyy.mm.dd hh:mm */
+const isWorker = computed(() => tableName.value === 'users')
+const HIDDEN_ON_WORKER = new Set(['photo_uri'])
+
+function displayFull(value: unknown, key?: string): string {
+  if (isWorker.value && key && def.value?.fields.find((f) => f.name === key)?.type === 'datetime') {
+    return fmtDateTime(value as string | null)
+  }
   if (value === null || value === undefined || value === '') return '—'
   if (Array.isArray(value)) return value.join(', ')
   if (typeof value === 'boolean') return value ? '✓' : '✗'
@@ -42,12 +49,12 @@ const entries = computed<[string, unknown][]>(() => {
     ...fieldOrder.filter((k) => k in row),
     ...Object.keys(row).filter((k) => !fieldOrder.includes(k)),
   ]
-  return keys.map((k) => [k, row[k]])
+  return keys.filter((k) => !(isWorker.value && HIDDEN_ON_WORKER.has(k))).map((k) => [k, row[k]])
 })
 
 // 2열 배치에서 긴 값은 두 칸을 합친다 — 반 칸에 넣으면 줄바꿈이 심해 읽기 어렵다
-function isWide(value: unknown): boolean {
-  const text = displayFull(value)
+function isWide(value: unknown, key?: string): boolean {
+  const text = displayFull(value, key)
   return text.includes('\n') || text.length > 60
 }
 
@@ -117,8 +124,14 @@ async function onDelete() {
     <template v-else-if="record">
       <AppCard padding="none">
         <template #header>
-          <h2 class="text-[18px] font-semibold text-ink">{{ def?.label }} 정보</h2>
-          <span class="text-sm text-muted tabular-nums">{{ entries.length }}개 항목</span>
+          <template v-if="isWorker">
+            <h2 class="text-[18px] font-bold text-ink">{{ record.name || '이름 없음' }}</h2>
+            <Tag class="font-mono tabular-nums">{{ id }}</Tag>
+          </template>
+          <template v-else>
+            <h2 class="text-[18px] font-semibold text-ink">{{ def?.label }} 정보</h2>
+            <span class="text-sm text-muted tabular-nums">{{ entries.length }}개 항목</span>
+          </template>
         </template>
         <!-- 2열에서는 divide-y 가 칸 단위로 안 그려져 칸마다 border-b 를 준다.
              마지막 줄은 2칸일 수 있어 last: 로 못 지운다 — pb 로 카드 테두리와 떼어 겹선을 막는다 -->
@@ -127,11 +140,11 @@ async function onDelete() {
             v-for="[key, val] in entries"
             :key="key"
             class="grid grid-cols-[8rem_1fr] gap-4 border-b border-hairline-soft py-3.5 text-sm"
-            :class="{ 'md:col-span-2': isWide(val) }"
+            :class="{ 'md:col-span-2': isWide(val, key) }"
           >
             <dt class="font-medium text-muted">{{ labelFor(key) }}</dt>
             <dd class="min-w-0 break-words whitespace-pre-wrap text-body">
-              {{ displayFull(val) }}
+              {{ displayFull(val, key) }}
             </dd>
           </div>
         </dl>

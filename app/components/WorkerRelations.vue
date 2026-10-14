@@ -21,11 +21,6 @@ const data = ref<Record<string, { rows: Record<string, any>[]; total: number }>>
 const resume = ref<Record<string, any> | null>(null)
 const loading = ref(true)
 
-function fmtTime(v: unknown): string {
-  if (!v) return '—'
-  return String(v).replace('T', ' ').slice(0, 19)
-}
-
 onMounted(async () => {
   await Promise.all([
     ...sections.map(async (s) => {
@@ -71,7 +66,7 @@ onMounted(async () => {
       <AppSpinner v-if="loading" size="sm" label="불러오는 중…" />
       <div v-else-if="resume" class="flex flex-wrap items-center justify-between gap-3 text-sm">
         <span class="text-muted">
-          상태 {{ resume.status }} · 수정 {{ fmtTime(resume.updated_at) }}
+          상태 {{ resume.status }} · 수정 {{ fmtDateTime(resume.updated_at) }}
         </span>
         <NuxtLink :to="`/resumes/${encodeURIComponent(resume.id)}`" class="font-medium text-brand-500 hover:underline">
           이력서 보기 →
@@ -93,7 +88,7 @@ onMounted(async () => {
           <thead>
             <tr>
               <th class="w-12 pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">No.</th>
-              <th class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">공고 ID</th>
+              <th class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">공고</th>
               <th class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">시각</th>
             </tr>
           </thead>
@@ -102,10 +97,10 @@ onMounted(async () => {
               <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm tabular-nums text-muted-soft">{{ i + 1 }}</td>
               <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm">
                 <NuxtLink :to="`/jobs/${encodeURIComponent(row.job_id)}`" class="font-medium text-brand-500 hover:underline">
-                  {{ row.job_id }}
+                  {{ row.job_id__ref ?? row.job_id }}
                 </NuxtLink>
               </td>
-              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm whitespace-nowrap text-body">{{ fmtTime(row[s.timeCol]) }}</td>
+              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm whitespace-nowrap text-body">{{ fmtDateTime(row[s.timeCol]) }}</td>
             </tr>
           </tbody>
         </table>

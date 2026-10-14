@@ -228,6 +228,7 @@ export const TABLES: Record<string, TableDef> = {
     canCreate: false,
     hideInNav: true, // 종사자 상세로 이동
     defaultSort: { column: 'created_at', ascending: false },
+    refs: [{ column: 'job_id', table: 'jobs', field: 'title', label: '공고' }], // 종사자 상세에서 공고 제목으로 보인다
     fields: [],
   },
   job_views: {
@@ -238,6 +239,7 @@ export const TABLES: Record<string, TableDef> = {
     canCreate: false,
     hideInNav: true, // 종사자 상세로 이동
     defaultSort: { column: 'viewed_at', ascending: false },
+    refs: [{ column: 'job_id', table: 'jobs', field: 'title', label: '공고' }], // 종사자 상세에서 공고 제목으로 보인다
     fields: [],
   },
   job_contact_views: {
@@ -248,6 +250,7 @@ export const TABLES: Record<string, TableDef> = {
     canCreate: false,
     hideInNav: true, // 종사자 상세로 이동
     defaultSort: { column: 'viewed_at', ascending: false },
+    refs: [{ column: 'job_id', table: 'jobs', field: 'title', label: '공고' }], // 종사자 상세에서 공고 제목으로 보인다
     fields: [],
   },
   worker_bookmarks: {
