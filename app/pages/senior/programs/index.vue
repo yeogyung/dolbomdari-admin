@@ -117,7 +117,7 @@ onMounted(load)
       :rows="rows"
       :loading="loading"
       :total="rows.length"
-      :page-size="100"
+      :paginated="false"
       empty-text="등록된 사업이 없습니다."
     >
       <template #toolbar-end>

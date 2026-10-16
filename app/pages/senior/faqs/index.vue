@@ -98,7 +98,7 @@ onMounted(load)
       :rows="rows"
       :loading="loading"
       :total="rows.length"
-      :page-size="100"
+      :paginated="false"
       :empty-text="all.length ? '조건에 맞는 FAQ가 없습니다.' : '등록된 FAQ가 없습니다.'"
     >
       <template #toolbar>

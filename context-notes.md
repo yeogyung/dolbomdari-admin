@@ -299,3 +299,5 @@
 - **UTC 원문 시각**: 구인구직 목록(`Column.format`), 수정 폼의 읽기전용 칸, 이력서 공유 패널은 `fmtDateTime`(서울 yyyy.mm.dd hh:mm),
   구인구직 엑셀은 `excelStamp`(서울 YYYY-MM-DD HH:MM). 기준은 레지스트리 `type: 'datetime'` 필드다.
   수정 가능한 datetime 칸은 ISO 원문 입력 그대로 둔다 — 표기를 바꾸면 저장 때 형식 변환이 필요해 저장 경로가 위험해진다.
+- **전부 받는 목록의 페이지 영역**: 계정·사업·FAQ 는 서버 페이지 없이 전부 받아 한 번에 그린다. 눌러도 반응 없는 페이지 버튼 대신
+  `DataTable paginated=false` 로 건수만 보인다.

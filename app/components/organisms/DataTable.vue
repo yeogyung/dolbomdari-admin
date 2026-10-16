@@ -17,6 +17,8 @@ const props = withDefaults(
     emptyText?: string
     /** 행 앞에 체크박스를 둔다. 고른 행의 rowKey 는 v-model:selected 로 받는다 */
     selectable?: boolean
+    /** false 면 페이지 버튼·N개씩을 숨기고 건수만 보인다 — 서버 페이지 없이 전부 받는 목록용 */
+    paginated?: boolean
   }>(),
   {
     rowKey: 'id',
@@ -25,6 +27,7 @@ const props = withDefaults(
     total: 0,
     pageSizeOptions: () => [20, 50, 100, 200],
     emptyText: '데이터가 없습니다.',
+    paginated: true,
   },
 )
 
@@ -169,8 +172,13 @@ function fmt(v: unknown): string {
         <EmptyState v-else-if="!rows.length" :description="emptyText" />
       </div>
 
+      <!-- 전부 받은 목록 — 페이지가 없다 -->
+      <div v-if="!paginated && total > 0" class="mt-auto pt-5">
+        <span class="text-sm text-muted tabular-nums">{{ total.toLocaleString() }}건</span>
+      </div>
+
       <!-- 페이지네이션 -->
-      <div v-if="total > 0" class="mt-auto flex items-center justify-between pt-5">
+      <div v-else-if="total > 0" class="mt-auto flex items-center justify-between pt-5">
         <span class="text-sm text-muted tabular-nums">
           {{ total.toLocaleString() }}건 중 {{ rangeStart }}–{{ rangeEnd }}
         </span>
