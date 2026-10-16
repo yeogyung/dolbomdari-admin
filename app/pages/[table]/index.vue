@@ -87,9 +87,12 @@ async function loadPendingCount() {
   }
 }
 
+/** 조회 순번 — 조건을 빠르게 바꾸면 늦게 온 이전 응답이 새 결과를 덮지 않게 마지막 요청만 반영한다 */
+let sequence = 0
 async function load() {
   if (!def.value) return
   if (isOrgManager.value) loadPendingCount()
+  const current = ++sequence
   loading.value = true
   try {
     const res = await api.list(tableName.value, {
@@ -100,12 +103,14 @@ async function load() {
       dir: sortCol.value ? sortDir.value : undefined,
       ...sourceFilter(),
     })
+    if (current !== sequence) return
     rows.value = res.rows
     total.value = res.total
   } catch (e: any) {
+    if (current !== sequence) return
     toast.add({ title: '목록 조회 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
   } finally {
-    loading.value = false
+    if (current === sequence) loading.value = false
   }
 }
 

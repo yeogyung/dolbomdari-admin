@@ -40,7 +40,10 @@ const columns: Column[] = [
   { key: 'memo', label: '메모' },
 ]
 
+/** 조회 순번 — 조건을 빠르게 바꾸면 늦게 온 이전 응답이 새 결과를 덮지 않게 마지막 요청만 반영한다 */
+let sequence = 0
 async function load() {
+  const current = ++sequence
   loading.value = true
   try {
     const res = await api.listAttendance({
@@ -52,13 +55,17 @@ async function load() {
       to: to.value,
       worksiteId: worksiteId.value || undefined,
     })
+    if (current !== sequence) return
     rows.value = res.items
     total.value = res.total
-    changesByShift.value = await loadChanges(res.items)
+    const changes = await loadChanges(res.items)
+    if (current !== sequence) return
+    changesByShift.value = changes
   } catch (e: any) {
+    if (current !== sequence) return
     toast.add({ title: '출결 조회 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    loading.value = false
+    if (current === sequence) loading.value = false
   }
 }
 

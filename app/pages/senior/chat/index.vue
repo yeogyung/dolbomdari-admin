@@ -24,17 +24,22 @@ const updating = ref(false)
 
 const lastPage = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
+/** 조회 순번 — 조건을 빠르게 바꾸면 늦게 온 이전 응답이 새 결과를 덮지 않게 마지막 요청만 반영한다 */
+let sequence = 0
 async function loadRooms() {
+  const current = ++sequence
   loadingRooms.value = true
   try {
     const res = await api.listRooms({ page: page.value, size: pageSize, q: q.value })
+    if (current !== sequence) return
     rooms.value = res.items
     total.value = res.total
     if (!selected.value && res.items.length) openRoom(res.items[0]!)
   } catch (e: any) {
+    if (current !== sequence) return
     toast.add({ title: '채팅방 조회 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    loadingRooms.value = false
+    if (current === sequence) loadingRooms.value = false
   }
 }
 
@@ -44,11 +49,14 @@ async function openRoom(room: ChatRoom) {
   messages.value = []
   try {
     const res = await api.listRoomMessages(room.id)
+    // 다른 방을 그새 눌렀으면 이 응답은 버린다 — 앞 방의 대화가 뒤 방 제목 아래 보이지 않게
+    if (selected.value?.id !== room.id) return
     messages.value = res.items
   } catch (e: any) {
+    if (selected.value?.id !== room.id) return
     toast.add({ title: '대화 조회 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    loadingMessages.value = false
+    if (selected.value?.id === room.id) loadingMessages.value = false
   }
 }
 

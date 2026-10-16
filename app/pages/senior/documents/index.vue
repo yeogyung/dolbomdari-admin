@@ -40,16 +40,21 @@ const columns: Column[] = [
   { key: 'updated_at', label: '수정일', sortable: true },
 ]
 
+/** 조회 순번 — 조건을 빠르게 바꾸면 늦게 온 이전 응답이 새 결과를 덮지 않게 마지막 요청만 반영한다 */
+let sequence = 0
 async function load() {
+  const current = ++sequence
   loading.value = true
   try {
     const res = await api.listDocuments({ page: page.value, size: pageSize.value, q: q.value, sort: sortKey.value })
+    if (current !== sequence) return
     rows.value = res.items
     total.value = res.total
   } catch (e: any) {
+    if (current !== sequence) return
     toast.add({ title: '문서 조회 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    loading.value = false
+    if (current === sequence) loading.value = false
   }
 }
 
