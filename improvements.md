@@ -33,7 +33,7 @@
 
 - [x] `Checkbox` 키보드 선택
 - [x] `DataTable` 페이지·정렬 버튼 스크린리더 라벨
-- [ ] `AppModal` dialog 역할·포커스 관리
+- [x] `AppModal` dialog 역할·포커스 관리
 - [ ] `FormField` 라벨과 입력칸 연결
 
 ## 코드 밖 — 사용자 확인 필요
