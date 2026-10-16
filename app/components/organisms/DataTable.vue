@@ -105,6 +105,7 @@ function fmt(v: unknown): string {
                 <Checkbox
                   :model-value="pageAllSelected"
                   :disabled="loading || !rows.length"
+                  aria-label="이 페이지 전체 선택"
                   @update:model-value="selected = togglePageSelection(selected, pageIds)"
                 />
               </th>
@@ -147,6 +148,7 @@ function fmt(v: unknown): string {
               <td v-if="selectable" class="border-t border-hairline py-[15px] pr-3">
                 <Checkbox
                   :model-value="selected.includes(String(row[rowKey]))"
+                  aria-label="행 선택"
                   @update:model-value="toggleRow(String(row[rowKey]))"
                 />
               </td>

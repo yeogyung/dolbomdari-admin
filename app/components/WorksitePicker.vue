@@ -149,7 +149,7 @@ const single = computed({
               @click="toggle(w.id)"
             >
               <td class="px-3 py-2">
-                <Checkbox :model-value="selected.includes(w.id)" class="pointer-events-none" />
+                <Checkbox :model-value="selected.includes(w.id)" class="pointer-events-none" tabindex="-1" />
               </td>
               <td class="truncate px-3 py-2 font-medium text-ink" :title="label(w)">{{ label(w) }}</td>
               <td class="truncate px-3 py-2 text-muted" :title="programName(w.program_id)">
