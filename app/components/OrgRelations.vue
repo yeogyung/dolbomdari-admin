@@ -19,7 +19,7 @@ const sections: Section[] = [
   { table: 'worker_contact_views', title: '연락한 종사자', timeCol: 'viewed_at' },
 ]
 
-const data = ref<Record<string, { rows: Record<string, any>[]; total: number }>>({})
+const data = ref<Record<string, { rows: Record<string, any>[]; total: number; failed?: boolean }>>({})
 const loading = ref(true)
 
 const jobCol: RelationColumn = {
@@ -72,7 +72,7 @@ onMounted(async () => {
         })
         data.value[s.table] = { rows: res.rows, total: res.total }
       } catch {
-        data.value[s.table] = { rows: [], total: 0 }
+        data.value[s.table] = { rows: [], total: 0, failed: true }
       }
     }),
   )
@@ -110,6 +110,7 @@ onMounted(async () => {
       :total="data[s.table]?.total ?? 0"
       :rows="data[s.table]?.rows ?? []"
       :columns="columnsFor(s)"
+      :failed="data[s.table]?.failed"
     />
   </div>
 </template>

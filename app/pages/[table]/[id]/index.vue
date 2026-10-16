@@ -106,10 +106,12 @@ async function onDelete() {
         :user-id="String((record as any).user_id)"
       />
 
-      <!-- 종사자: 북마크·공고 열람·연락처 확인 기록 -->
-      <WorkerRelations v-if="tableName === 'users'" :user-id="id" />
-      <JobRelations v-if="tableName === 'jobs'" :job-id="id" />
-      <OrgRelations v-if="tableName === 'organization'" :organization-id="id" />
+      <!-- 종사자: 북마크·공고 열람·연락처 확인 기록. 기록 테이블은 master 만 조회할 수 있다(기관 계정은 매번 실패해 「불러오지 못함」만 보인다) -->
+      <template v-if="canWrite">
+        <WorkerRelations v-if="tableName === 'users'" :user-id="id" />
+        <JobRelations v-if="tableName === 'jobs'" :job-id="id" />
+        <OrgRelations v-if="tableName === 'organization'" :organization-id="id" />
+      </template>
     </template>
 
     <EmptyState v-else icon="i-lucide-search-x" title="데이터를 찾을 수 없습니다." />

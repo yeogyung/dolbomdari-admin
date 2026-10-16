@@ -19,7 +19,7 @@ const sections: Section[] = [
   { table: 'job_recommendations', title: '받은 공고 추천', timeCol: 'created_at', filterCol: 'worker_id' },
 ]
 
-const data = ref<Record<string, { rows: Record<string, any>[]; total: number }>>({})
+const data = ref<Record<string, { rows: Record<string, any>[]; total: number; failed?: boolean }>>({})
 
 /** 열은 모든 기록이 같다 — 공고(제목, 상세 링크)와 시각 */
 const columnsFor = (s: Section): RelationColumn[] => [
@@ -27,6 +27,7 @@ const columnsFor = (s: Section): RelationColumn[] => [
   { label: '시각', text: (r) => fmtDateTime(r[s.timeCol]), nowrap: true },
 ]
 const resume = ref<Record<string, any> | null>(null)
+const resumeFailed = ref(false)
 const loading = ref(true)
 
 onMounted(async () => {
@@ -43,7 +44,7 @@ onMounted(async () => {
         })
         data.value[s.table] = { rows: res.rows, total: res.total }
       } catch {
-        data.value[s.table] = { rows: [], total: 0 }
+        data.value[s.table] = { rows: [], total: 0, failed: true }
       }
     }),
     (async () => {
@@ -57,6 +58,7 @@ onMounted(async () => {
         resume.value = res.rows[0] ?? null
       } catch {
         resume.value = null
+        resumeFailed.value = true
       }
     })(),
   ])
@@ -80,6 +82,7 @@ onMounted(async () => {
           이력서 보기 →
         </NuxtLink>
       </div>
+      <p v-else-if="resumeFailed" class="py-6 text-center text-sm text-down">이력서를 불러오지 못했습니다.</p>
       <p v-else class="py-6 text-center text-sm text-muted-soft">작성된 이력서가 없습니다.</p>
     </AppCard>
 
@@ -91,6 +94,7 @@ onMounted(async () => {
       :total="data[s.table]?.total ?? 0"
       :rows="data[s.table]?.rows ?? []"
       :columns="columnsFor(s)"
+      :failed="data[s.table]?.failed"
     />
   </div>
 </template>

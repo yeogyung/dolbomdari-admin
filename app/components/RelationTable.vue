@@ -14,6 +14,8 @@ defineProps<{
   total: number
   rows: Record<string, any>[]
   columns: RelationColumn[]
+  /** 조회 실패 — 「0건 / 기록 없음」과 구분해 보인다 */
+  failed?: boolean
 }>()
 </script>
 
@@ -21,10 +23,11 @@ defineProps<{
   <AppCard>
     <template #header>
       <h3 class="text-[15px] font-semibold text-ink">{{ title }}</h3>
-      <Tag>{{ loading ? '…' : total }}건</Tag>
+      <Tag>{{ loading ? '…' : failed ? '—' : total }}건</Tag>
     </template>
 
     <AppSpinner v-if="loading" size="sm" label="불러오는 중…" />
+    <p v-else-if="failed" class="py-6 text-center text-sm text-down">기록을 불러오지 못했습니다.</p>
     <p v-else-if="!rows.length" class="py-6 text-center text-sm text-muted-soft">기록이 없습니다.</p>
     <div v-else class="overflow-x-auto">
       <table class="w-full border-collapse">
@@ -57,6 +60,10 @@ defineProps<{
           </tr>
         </tbody>
       </table>
+      <!-- 표는 최근 몇 건만 받는다 — 건수 태그(전체)와 표 행 수가 다른 이유를 적는다 -->
+      <p v-if="total > rows.length" class="pt-3 text-xs text-muted">
+        최근 {{ rows.length.toLocaleString() }}건만 표시합니다.
+      </p>
     </div>
   </AppCard>
 </template>
