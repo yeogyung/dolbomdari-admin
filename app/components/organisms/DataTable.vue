@@ -156,7 +156,7 @@ function fmt(v: unknown): string {
                   col.strong ? 'font-semibold text-ink' : 'text-body',
                 ]"
               >
-                <slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]">{{ fmt(row[col.key]) }}</slot>
+                <slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]">{{ col.format ? col.format(row[col.key]) : fmt(row[col.key]) }}</slot>
               </td>
               <td v-if="$slots.actions" class="border-t border-hairline py-[15px] pr-0 text-right whitespace-nowrap">
                 <slot name="actions" :row="row" />

@@ -56,6 +56,7 @@ function buildPayload(): Record<string, any> {
 function displayReadonly(field: FormField): string {
   const raw = props.initial?.[field.name]
   if (raw === null || raw === undefined) return '—'
+  if (field.type === 'datetime') return fmtDateTime(raw as string)
   if (Array.isArray(raw)) return raw.join(', ')
   return String(raw)
 }

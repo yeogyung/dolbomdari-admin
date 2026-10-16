@@ -296,3 +296,6 @@
   조회 중 재호출은 같은 Promise 를 기다린다(예전엔 null 을 돌려줘 미들웨어가 로그아웃시킬 수 있었다).
 - **공고 상세 기록 표**: `JobRelations` 를 `RelationTable` 로 옮겨 종사자·기관 상세와 같은 표(이름·서울 시각·실패·최근 N건)를 쓴다.
   북마크·열람·연락 확인 테이블에 `user_id → users.name` 참조를 더했다. 비회원 조회는 `to` 가 undefined 를 돌려 링크 없이 보인다.
+- **UTC 원문 시각**: 구인구직 목록(`Column.format`), 수정 폼의 읽기전용 칸, 이력서 공유 패널은 `fmtDateTime`(서울 yyyy.mm.dd hh:mm),
+  구인구직 엑셀은 `excelStamp`(서울 YYYY-MM-DD HH:MM). 기준은 레지스트리 `type: 'datetime'` 필드다.
+  수정 가능한 datetime 칸은 ISO 원문 입력 그대로 둔다 — 표기를 바꾸면 저장 때 형식 변환이 필요해 저장 경로가 위험해진다.

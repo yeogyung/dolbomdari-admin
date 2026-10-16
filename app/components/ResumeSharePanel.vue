@@ -34,8 +34,9 @@ function linkUrl(token: string) {
   return `${config.public.linkBaseUrl}/r/${token}`
 }
 
+// 서버는 UTC ISO 로 준다 — 잘라 쓰면 서울보다 9시간 이르게 보인다
 function fmt(v: string | null) {
-  return v ? v.replace('T', ' ').slice(0, 16) : '—'
+  return fmtDateTime(v)
 }
 
 /** statusOf 의 색 이름을 StatusBadge 톤으로 옮긴다 — 표시용 매핑이다 */

@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, watchEffect, onMounted } from 'vue'
 import { getTable } from '#shared/tables'
-import { downloadExcel, type ExcelColumn } from '~/utils/excel'
+import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 import type { Column } from '~/types/table'
 import { ORG_APPROVAL_STATUSES, orgApprovalLabel, orgApprovalTone, type OrgApprovalStatus } from '#shared/orgApproval'
 
@@ -46,6 +46,9 @@ function labelFor(col: string): string {
   return def.value?.fields.find((f) => f.name === col)?.label || col
 }
 
+/** 레지스트리에서 시각(datetime)으로 정의한 컬럼 — 목록·엑셀에서 서울 시각으로 바꿔 보인다 */
+const datetimeKeys = computed(() => new Set(def.value?.fields.filter((f) => f.type === 'datetime').map((f) => f.name)))
+
 const tableColumns = computed<Column[]>(() => {
   const base = def.value?.listColumns ?? (rows.value[0] ? Object.keys(rows.value[0]) : [])
   return base
@@ -56,6 +59,8 @@ const tableColumns = computed<Column[]>(() => {
       // 해석(__ref)·집계 컬럼은 DB 컬럼이 아니라 서버 정렬 불가
       sortable: !key.endsWith('__ref') && !def.value?.counts?.some((c) => c.key === key),
       strong: idx === 0,
+      // DB 는 UTC ISO 로 준다 — 원문 그대로면 서울보다 9시간 이르게 보인다
+      format: datetimeKeys.value.has(key) ? (v: unknown) => fmtDateTime(v as string | null) : undefined,
     }))
 })
 
@@ -169,7 +174,13 @@ async function exportExcel() {
     const res = await api.list(tableName.value, { all: true, q: q.value, ...sourceFilter() })
     const keys = res.rows[0] ? Object.keys(res.rows[0]) : (def.value.listColumns ?? [])
     const cols: ExcelColumn[] = keys.map((key) => ({ key, label: labelFor(key) }))
-    downloadExcel(`${def.value.label}_${tableName.value}`, res.rows, cols)
+    // 엑셀도 UTC 원문 대신 서울 시각(YYYY-MM-DD HH:MM)으로 내보낸다
+    const rows = res.rows.map((r) => {
+      const out = { ...r }
+      for (const k of datetimeKeys.value) if (k in out) out[k] = excelStamp(out[k])
+      return out
+    })
+    downloadExcel(`${def.value.label}_${tableName.value}`, rows, cols)
     // 서버 상한(10000행)에 걸리면 파일이 전체가 아니다 — 조용히 넘기지 않는다
     if (res.total > res.rows.length) {
       toast.add({

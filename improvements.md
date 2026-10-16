@@ -21,7 +21,7 @@
 
 ## 3순위 — 표기와 일관성
 
-- [ ] UTC 원문 시각 — 구인구직 목록·수정 폼·엑셀, `JobRelations`, `ResumeSharePanel`
+- [x] UTC 원문 시각 — 구인구직 목록·수정 폼·엑셀, `JobRelations`, `ResumeSharePanel`
 - [x] 공고 상세 기록 표 난수 id — `JobRelations` 를 `RelationTable` + 이름 표시로
 - [ ] 조회 조건 URL 유지 — 구인구직 목록, 출퇴근, 채팅
 - [ ] 계정·사업·FAQ 페이지 번호 무반응

@@ -5,4 +5,6 @@ export interface Column {
   sortable?: boolean
   align?: 'left' | 'right'
   strong?: boolean // 이름 등 강조 컬럼 (ink + semibold)
+  /** 셀 문구를 바꿀 때(예: UTC 시각 → 서울 yyyy.mm.dd hh:mm). 없으면 기본 표기 */
+  format?: (value: unknown) => string
 }
