@@ -60,7 +60,7 @@ async function load() {
     const res = await api.listWorksites({
       page: page.value,
       size: pageSize.value,
-      q: q.value,
+      q: lq.committedOf('q'),
       sort: sortKey.value,
       programId: programFilter.value || undefined,
     })
@@ -142,7 +142,7 @@ async function exportExcel() {
         api.listWorksites({
           page: p,
           size,
-          q: q.value,
+          q: lq.committedOf('q'),
           sort: sortKey.value,
           programId: programFilter.value || undefined,
         }),

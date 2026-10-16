@@ -46,7 +46,7 @@ async function load() {
   const current = ++sequence
   loading.value = true
   try {
-    const res = await api.listDocuments({ page: page.value, size: pageSize.value, q: q.value, sort: sortKey.value })
+    const res = await api.listDocuments({ page: page.value, size: pageSize.value, q: lq.committedOf('q'), sort: sortKey.value })
     if (current !== sequence) return
     rows.value = res.items
     total.value = res.total
@@ -102,7 +102,7 @@ async function exportExcel() {
   await startExport()
   try {
     const all = await fetchAllPages(
-      (p, size) => api.listDocuments({ page: p, size, q: q.value, sort: sortKey.value }),
+      (p, size) => api.listDocuments({ page: p, size, q: lq.committedOf('q'), sort: sortKey.value }),
       (d) => d.id,
     )
     if (!all.length) {

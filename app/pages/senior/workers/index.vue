@@ -55,7 +55,7 @@ async function load() {
     const res = await api.listDirectory({
       page: page.value,
       size: pageSize.value,
-      q: q.value,
+      q: lq.committedOf('q'),
       sort: sortKey.value,
       dir: sortDir.value,
       status: statusFilter.value || undefined,
@@ -135,7 +135,7 @@ async function exportExcel() {
         api.listDirectory({
           page: p,
           size,
-          q: q.value,
+          q: lq.committedOf('q'),
           sort: sortKey.value,
           dir: sortDir.value,
           status: statusFilter.value || undefined,

@@ -26,7 +26,7 @@ const columns: Column[] = [
   { key: 'published_at', label: '발행일' },
 ]
 function listQuery() {
-  return { q: q.value, type: typeFilter.value, authorId: authorFilter.value }
+  return { q: lq.committedOf('q'), type: typeFilter.value, authorId: authorFilter.value }
 }
 async function load() {
   const current = ++sequence
