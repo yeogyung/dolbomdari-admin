@@ -5,6 +5,8 @@ const props = withDefaults(
   defineProps<{ options: Option[]; placeholder?: string; disabled?: boolean }>(),
   { placeholder: '선택' },
 )
+/** FormField 안에 있으면 라벨과 이어질 id */
+const fieldId = inject<string | undefined>('form-field-id', undefined)
 const model = defineModel<string | number | null>()
 
 const normalized = computed(() =>
@@ -15,6 +17,7 @@ const normalized = computed(() =>
 <template>
   <div class="relative">
     <select
+      :id="fieldId"
       v-model="model"
       :disabled="disabled"
       class="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white pr-9 pl-3 text-sm text-slate-900 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50"

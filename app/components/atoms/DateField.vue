@@ -3,11 +3,14 @@
 withDefaults(defineProps<{ type?: 'date' | 'time' | 'datetime-local'; disabled?: boolean }>(), {
   type: 'date',
 })
+/** FormField 안에 있으면 라벨과 이어질 id */
+const fieldId = inject<string | undefined>('form-field-id', undefined)
 const model = defineModel<string | null>()
 </script>
 
 <template>
   <input
+    :id="fieldId"
     v-model="model"
     :type="type"
     :disabled="disabled"

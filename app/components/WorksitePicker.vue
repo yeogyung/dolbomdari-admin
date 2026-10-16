@@ -1,8 +1,11 @@
 <!-- 근무지 고르기 — 검색·사업으로 좁혀 담당자는 여러 곳, 수요처 담당자는 1곳을 고른다 -->
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, provide } from 'vue'
 import type { Program, Worksite } from '~/types/dbo'
 import { addAll, removeAll } from '~/utils/worksiteSelection'
+
+// 안에 입력칸(사업 필터·근무지 선택)이 둘이라 바깥 FormField 의 라벨 id 를 물려받으면 id 가 겹친다 — 끊는다
+provide('form-field-id', undefined)
 
 const props = defineProps<{
   worksites: Worksite[]
