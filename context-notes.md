@@ -279,3 +279,9 @@
 - **master 전용 라우트**: `requireAdmin` 은 manager 만 막는다. 롤 스코프를 걸 수 없는 라우트(이력서 PDF·공유 링크·공고 추천)는
   `requireMaster` 로 막는다. 기관 계정은 resumes·jobs 테이블에 접근하지 못해 이 화면을 쓰는 정상 경로가 없다.
   기존 `assertWriteAllowed(await requireAdmin())` 두 곳(org-documents·review-organization)은 동작이 같아 그대로 둔다.
+- **엑셀 1000행 잘림**: PostgREST 는 range 를 크게 줘도 한 응답에 1000행만 준다. 같은 조건으로 1000행씩 이어 받고(상한 10000 유지),
+  쪽 경계에서 행이 겹치거나 빠지지 않게 pk 를 마지막 정렬 키로 붙인다. 상한에 걸리면 화면에 「전체 N건 중 M건」 경고를 띄운다.
+- **대시보드 집계 실패**: `stats/summary` 가 오류를 0 으로 바꾸던 것을 500 으로 올린다. 화면은 이미 실패 시 「오류」를 보이고,
+  `screenCache` 는 실패를 저장하지 않아 다음 진입·새로고침에서 다시 부른다.
+- **근무지·명부 100건 상한**: 출퇴근 근무지 필터는 `listAllWorksites`, 근무지 화면 담당자·수요처 계정 후보는 `fetchAllPages` 로 끝까지 받는다.
+  실패는 경고 toast 로 알린다. 사업·명부 API 는 master 전용이라 수요처 계정에게는 부르지 않는다(부르면 매번 경고가 뜬다).

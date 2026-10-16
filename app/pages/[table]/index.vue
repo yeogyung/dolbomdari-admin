@@ -165,6 +165,14 @@ async function exportExcel() {
     const keys = res.rows[0] ? Object.keys(res.rows[0]) : (def.value.listColumns ?? [])
     const cols: ExcelColumn[] = keys.map((key) => ({ key, label: labelFor(key) }))
     downloadExcel(`${def.value.label}_${tableName.value}`, res.rows, cols)
+    // 서버 상한(10000행)에 걸리면 파일이 전체가 아니다 — 조용히 넘기지 않는다
+    if (res.total > res.rows.length) {
+      toast.add({
+        title: `전체 ${res.total.toLocaleString()}건 중 ${res.rows.length.toLocaleString()}건만 내보냈습니다.`,
+        description: '검색어로 범위를 좁혀 다시 내보내 주세요.',
+        color: 'warning',
+      })
+    }
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
   } finally {

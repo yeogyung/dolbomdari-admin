@@ -10,10 +10,10 @@
 
 ## 2순위 — 데이터가 조용히 틀리게 보이는 곳
 
-- [ ] 구인구직 엑셀 1000행 잘림 — `[table]/index.get.ts` export 를 1000행씩 이어 받기
-- [ ] 대시보드 지표 오류를 0 으로 삼킴 — `stats/summary.get.ts` 오류를 500 으로 올려 캐시에 남지 않게
-- [ ] 출퇴근 근무지 필터 100곳 제한 — `attendance/index.vue` 를 `listAllWorksites` 로
-- [ ] 근무지 화면 담당자·수요처 계정 목록 100명 제한 — `worksites/index.vue`
+- [x] 구인구직 엑셀 1000행 잘림 — `[table]/index.get.ts` export 를 1000행씩 이어 받기
+- [x] 대시보드 지표 오류를 0 으로 삼킴 — `stats/summary.get.ts` 오류를 500 으로 올려 캐시에 남지 않게
+- [x] 출퇴근 근무지 필터 100곳 제한 — `attendance/index.vue` 를 `listAllWorksites` 로
+- [x] 근무지 화면 담당자·수요처 계정 목록 100명 제한 — `worksites/index.vue`
 - [ ] 하단 기록 표가 오류·권한 없음을 「0건 / 기록 없음」으로 표시 — `*Relations.vue` 에 오류 표시
 - [ ] 하단 기록 표 100건만 보이는데 건수는 전체 — 「최근 100건」 안내
 - [ ] `/me` 한 번 실패로 로그아웃 — 401/403 일 때만 로그아웃, 네트워크 오류는 유지
