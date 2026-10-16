@@ -55,10 +55,10 @@ async function load() {
     const res = await api.listAttendance({
       page: page.value,
       size: pageSize.value,
-      q: q.value,
+      q: lq.committedOf('q'),
       sort: sortKey.value,
-      from: from.value,
-      to: to.value,
+      from: lq.committedOf('from'),
+      to: lq.committedOf('to'),
       worksiteId: worksiteId.value || undefined,
     })
     if (current !== sequence) return
@@ -264,10 +264,10 @@ async function exportExcel() {
       const res = await api.listAttendance({
         page: p,
         size: 100,
-        q: q.value,
+        q: lq.committedOf('q'),
         sort: sortKey.value,
-        from: from.value,
-        to: to.value,
+        from: lq.committedOf('from'),
+        to: lq.committedOf('to'),
         worksiteId: worksiteId.value || undefined,
       })
       all.push(...res.items)
@@ -280,7 +280,7 @@ async function exportExcel() {
       toast.add({ title: '내보낼 기록이 없습니다.', color: 'warning' })
       return
     }
-    downloadExcel(`출퇴근기록_${from.value}_${to.value}`, all.map(toExcelRow), EXCEL_COLUMNS)
+    downloadExcel(`출퇴근기록_${lq.committedOf('from')}_${lq.committedOf('to')}`, all.map(toExcelRow), EXCEL_COLUMNS)
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {

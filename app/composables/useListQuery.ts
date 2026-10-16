@@ -15,7 +15,7 @@ import { readListQuery, toListQuery, withCommitted, type ListQueryDefaults } fro
 export function useListQuery<T extends ListQueryDefaults>(
   defaults: T,
   options: { committed?: (keyof T)[] } = {},
-): { [K in keyof T]: Ref<T[K]> } & { commit: () => void } {
+): { [K in keyof T]: Ref<T[K]> } & { commit: () => void; committedOf: <K extends keyof T>(key: K) => T[K] } {
   const route = useRoute()
   const router = useRouter()
   const initial = readListQuery(route.query as Record<string, unknown>, defaults)
@@ -41,5 +41,11 @@ export function useListQuery<T extends ListQueryDefaults>(
     for (const key of keys) committed[key] = refs[key].value
     write()
   }
-  return Object.assign(refs, { commit })
+  /**
+   * 정해진 값 — 조회는 이걸로 해야 주소와 화면이 같은 조건을 가리킨다. 입력칸에 치다 만 글자로
+   * 페이지·정렬을 바꿔 조회하면, 주소엔 앞 검색어가 남아 상세에 다녀온 뒤 다른 목록이 나온다.
+   */
+  const committedOf = <K extends keyof T>(key: K): T[K] =>
+    (keys.includes(key) ? committed[key] : refs[key].value) as T[K]
+  return Object.assign(refs, { commit, committedOf })
 }

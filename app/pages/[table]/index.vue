@@ -108,7 +108,7 @@ async function load() {
     const res = await api.list(tableName.value, {
       page: page.value,
       pageSize: pageSize.value,
-      q: q.value,
+      q: lq.committedOf('q'),
       sort: sortCol.value || undefined,
       dir: sortCol.value ? sortDir.value : undefined,
       ...sourceFilter(),
@@ -177,7 +177,7 @@ async function exportExcel() {
   if (!def.value) return
   await startExport()
   try {
-    const res = await api.list(tableName.value, { all: true, q: q.value, ...sourceFilter() })
+    const res = await api.list(tableName.value, { all: true, q: lq.committedOf('q'), ...sourceFilter() })
     const keys = res.rows[0] ? Object.keys(res.rows[0]) : (def.value.listColumns ?? [])
     const cols: ExcelColumn[] = keys.map((key) => ({ key, label: labelFor(key) }))
     // 엑셀도 UTC 원문 대신 서울 시각(YYYY-MM-DD HH:MM)으로 내보낸다

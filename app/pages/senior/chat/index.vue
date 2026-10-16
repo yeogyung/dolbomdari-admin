@@ -32,7 +32,7 @@ async function loadRooms() {
   const current = ++sequence
   loadingRooms.value = true
   try {
-    const res = await api.listRooms({ page: page.value, size: pageSize, q: q.value })
+    const res = await api.listRooms({ page: page.value, size: pageSize, q: lq.committedOf('q') })
     if (current !== sequence) return
     rooms.value = res.items
     total.value = res.total
