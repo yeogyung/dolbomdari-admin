@@ -114,6 +114,7 @@ function fmt(v: unknown): string {
                 :key="col.key"
                 class="pr-3 pb-3 text-[13px] font-semibold whitespace-nowrap text-muted"
                 :class="col.align === 'right' ? 'text-right' : 'text-left'"
+                :aria-sort="col.sortable && sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined"
               >
                 <button
                   v-if="col.sortable"
@@ -190,6 +191,7 @@ function fmt(v: unknown): string {
             type="button"
             class="flex size-9 items-center justify-center rounded-full border border-hairline text-muted transition-colors hover:bg-surface-soft disabled:opacity-40"
             :disabled="loading || page <= 1"
+            aria-label="이전 페이지"
             @click="go(page - 1)"
           >
             <UIcon name="i-lucide-chevron-left" class="size-4" />
@@ -202,6 +204,8 @@ function fmt(v: unknown): string {
               class="flex size-9 items-center justify-center rounded-full text-sm tabular-nums transition-colors"
               :class="p === page ? 'bg-brand-500 font-semibold text-white' : 'font-medium text-body hover:bg-surface-soft'"
               :disabled="loading"
+              :aria-label="`${p}페이지`"
+              :aria-current="p === page ? 'page' : undefined"
               @click="go(p)"
             >
               {{ p }}
@@ -211,6 +215,7 @@ function fmt(v: unknown): string {
             type="button"
             class="flex size-9 items-center justify-center rounded-full border border-hairline text-body transition-colors hover:bg-surface-soft disabled:opacity-40"
             :disabled="loading || page >= lastPage"
+            aria-label="다음 페이지"
             @click="go(page + 1)"
           >
             <UIcon name="i-lucide-chevron-right" class="size-4" />
@@ -222,6 +227,7 @@ function fmt(v: unknown): string {
           <select
             :value="pageSize"
             :disabled="loading"
+            aria-label="페이지당 행 수"
             class="h-9 appearance-none rounded-full border border-hairline bg-white pr-8 pl-4 text-sm font-medium text-body outline-none tabular-nums focus:border-brand-500"
             @change="emit('update:pageSize', Number(($event.target as HTMLSelectElement).value))"
           >

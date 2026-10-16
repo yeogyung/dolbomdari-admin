@@ -32,7 +32,7 @@
 ## 4순위 — 접근성
 
 - [x] `Checkbox` 키보드 선택
-- [ ] `DataTable` 페이지·정렬 버튼 스크린리더 라벨
+- [x] `DataTable` 페이지·정렬 버튼 스크린리더 라벨
 - [ ] `AppModal` dialog 역할·포커스 관리
 - [ ] `FormField` 라벨과 입력칸 연결
 
