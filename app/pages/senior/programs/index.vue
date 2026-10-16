@@ -79,6 +79,10 @@ async function submitForm() {
     toast.add({ title: '사업명을 입력해 주세요.', color: 'warning' })
     return
   }
+  // 종료는 되돌리기 어려운 변경이다 — 상태를 종료로 바꿀 때만 한 번 더 묻는다
+  if (editing.value && editing.value.status !== 'ended' && form.value.status === 'ended') {
+    if (!confirm(`${editing.value.name} 사업을 종료하시겠습니까? 기록은 지우지 않습니다.`)) return
+  }
   saving.value = true
   try {
     if (editing.value) {

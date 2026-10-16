@@ -151,6 +151,10 @@ function openEdit(row: AdminAccount) {
 
 async function submitEdit() {
   if (!editing.value) return
+  // 수정 모달에서 상태를 종료로 바꾸는 것도 「종료」 버튼과 같은 일이다 — 확인 없이 지나가지 않게
+  if (editing.value.status !== 'ended' && editForm.value.status === 'ended') {
+    if (!confirm(`${editing.value.name} 계정을 종료하시겠습니까? 로그인만 막고 기록은 남습니다.`)) return
+  }
   saving.value = true
   try {
     await api.updateAccount(editing.value.id, {
