@@ -36,7 +36,16 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // 그리고 롤을 **여기서** 채워야 한다. 페이지가 먼저 그려지면 master 에게도
   // 잠깐 "권한 없음" 화면이 스치는데, 쓰기 버튼의 표시 여부가 이 값에 달려 있다.
   const { me, load, clear } = useAdminRole()
-  const role = await load()
+  let role
+  try {
+    role = await load()
+  } catch {
+    // 네트워크·서버 오류 — 자격이 없다는 뜻이 아니니 세션은 지우지 않는다. 새로고침하면 다시 판정한다
+    if (to.path === '/login') return
+    return abortNavigation(
+      createError({ statusCode: 503, statusMessage: '관리자 정보를 불러오지 못했습니다. 잠시 후 새로고침해 주세요.', fatal: true }),
+    )
+  }
 
   if (!role) {
     if (to.path === '/login') return

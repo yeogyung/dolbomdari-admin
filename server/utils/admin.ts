@@ -79,6 +79,12 @@ export async function requireAdmin(
   }
 
   const { data, error } = await serviceClient().auth.getUser(token);
+  // 401·403 은 클라이언트가 「자격 없음」으로 읽고 로그아웃시킨다. 인증 서버까지의 일시 오류(네트워크·5xx)를
+  // 401 로 바꾸면 잠깐의 끊김에 로그아웃되므로 503 으로 구분한다.
+  const authStatus = (error as { status?: number } | null)?.status ?? 0;
+  if (error && !(authStatus >= 400 && authStatus < 500)) {
+    throw createError({ statusCode: 503, statusMessage: "인증 서버에 연결하지 못했습니다." });
+  }
   if (error || !data.user) {
     throw createError({
       statusCode: 401,
@@ -108,11 +114,15 @@ export async function requireAdmin(
 
   // ── 2) 운영센터 롤 — dbo_profiles 가 정본이다.
   //    dbo-admin Edge Function 과 같은 테이블을 보므로 두 문지기의 판정이 어긋나지 않는다.
-  const { data: profile } = await db
+  const { data: profile, error: profileError } = await db
     .from("dbo_profiles")
     .select("role, directory_id, name")
     .eq("id", userId)
     .maybeSingle();
+  // 조회 실패를 「프로필 없음」으로 넘기면 master 도 아래로 흘러 403 이 되고 로그아웃된다
+  if (profileError) {
+    throw createError({ statusCode: 500, statusMessage: "운영센터 프로필 조회 실패" });
+  }
 
   if (profile?.role === "master") {
     return {
@@ -128,11 +138,12 @@ export async function requireAdmin(
   if (profile?.role === "worksite") {
     // 담당 근무지는 명부에 있다. 없으면 **던진다** — 전체로 떨어뜨리면 수요처 계정이
     // 명부를 통째로 보게 된다. 조용히 넓어지는 실패는 만들지 않는다.
-    const { data: dir } = await db
+    const { data: dir, error: dirError } = await db
       .from("dbo_directory")
       .select("worksite_id, status")
       .eq("id", profile.directory_id)
       .maybeSingle();
+    if (dirError) throw createError({ statusCode: 500, statusMessage: "명부 조회 실패" });
     if (!dir || dir.status !== "active" || !dir.worksite_id) {
       throw createError({
         statusCode: 403,
@@ -151,11 +162,12 @@ export async function requireAdmin(
 
   // ── 담당자(사회복지사). 맡은 수요처 범위는 dbo-admin 이 판정한다 — 여기서는 롤만 확인한다.
   if (profile?.role === "manager") {
-    const { data: dir } = await db
+    const { data: dir, error: dirError } = await db
       .from("dbo_directory")
       .select("status")
       .eq("id", profile.directory_id)
       .maybeSingle();
+    if (dirError) throw createError({ statusCode: 500, statusMessage: "명부 조회 실패" });
     if (!dir || dir.status !== "active") {
       throw createError({ statusCode: 403, statusMessage: "종료된 담당자 계정입니다." });
     }
