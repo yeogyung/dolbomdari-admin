@@ -27,7 +27,8 @@ export default defineEventHandler(async (event) => {
     let q = db.from(table).select('*', { count: 'exact', head: true })
     if (build) q = build(q)
     const { count, error } = await q
-    if (error) return 0
+    // 0 으로 채우면 틀린 숫자가 사실처럼 보이고 5분 캐시에도 남는다 — 실패시켜 화면이 「오류」를 보이게 한다
+    if (error) throw createError({ statusCode: 500, statusMessage: `${table} 집계 실패: ${error.message}` })
     return count ?? 0
   }
 
