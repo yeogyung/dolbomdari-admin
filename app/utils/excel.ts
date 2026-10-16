@@ -31,6 +31,25 @@ function formatCell(value: unknown): string | number | boolean | null {
   return value as string | number | boolean
 }
 
+/** 파일명 끝 시각 — 서울 기준 yymmddhhmm (예: 2610161000). 같은 날 여러 번 받아도 파일이 겹치지 않는다 */
+export function fileStamp(now: Date = new Date()): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: '2-digit',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(now)
+      .map((x) => [x.type, x.value]),
+  )
+  return `${p.year}${p.month}${p.day}${p.hour}${p.minute}`
+}
+
+/** 파일명은 `${filename}_${yymmddhhmm}.xlsx` — 시각은 여기서 붙이므로 호출부는 날짜를 넣지 않는다 */
 export function downloadExcel(
   filename: string,
   rows: Record<string, any>[],
@@ -38,7 +57,7 @@ export function downloadExcel(
 ) {
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, sheetOf(rows, columns), 'Sheet1')
-  XLSX.writeFile(workbook, `${filename}.xlsx`)
+  XLSX.writeFile(workbook, `${filename}_${fileStamp()}.xlsx`)
 }
 
 /** 머리글을 명시한다 — 없으면 행이 0개일 때 머리글까지 사라져 빈 양식이 나간다 */

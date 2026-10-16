@@ -1,7 +1,7 @@
 // 엑셀 내보내기용 시각 표기(excelStamp) 테스트
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
-import { decodeCsv, excelStamp, rowsOfWorkbook, sheetOf } from '../app/utils/excel'
+import { decodeCsv, excelStamp, fileStamp, rowsOfWorkbook, sheetOf } from '../app/utils/excel'
 
 describe('excelStamp', () => {
   it('UTC 시각을 서울 기준 연도 포함 표기로 바꾼다', () => {
@@ -42,5 +42,14 @@ describe('rowsOfWorkbook', () => {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, sheet, 'S')
     expect(rowsOfWorkbook(wb)).toEqual([['이름', '전화번호'], ['홍길동', '01012345678'], ['김철수', '010-1111-2222'], ['나이', '70']])
+  })
+})
+
+describe('fileStamp', () => {
+  it('서울 시각 yymmddhhmm', () => {
+    expect(fileStamp(new Date('2026-10-16T01:00:00Z'))).toBe('2610161000')
+  })
+  it('UTC 로는 전날이어도 서울 날짜를 쓴다', () => {
+    expect(fileStamp(new Date('2026-12-31T15:05:00Z'))).toBe('2701010005')
   })
 })

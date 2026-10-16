@@ -81,7 +81,7 @@ async function exportExcel() {
       status: { draft: '임시저장', sent: '발행됨', revoked: '회수됨' }[n.status],
       published_at: n.published_at ? excelStamp(n.published_at) : '미발행',
     }))
-    downloadExcel(`공지_${todaySeoul()}`, data, EXCEL_COLUMNS)
+    downloadExcel('공지', data, EXCEL_COLUMNS)
   } catch (e) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {

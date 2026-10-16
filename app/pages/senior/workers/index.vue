@@ -120,7 +120,7 @@ watch(selectedIds, (ids) => {
 async function exportExcel() {
   if (selectedIds.value.length > 0) {
     const chosen = selectedIds.value.map((id) => picked.get(id)).filter((r) => !!r)
-    downloadExcel(`명부_선택_${todaySeoul()}`, chosen.map(toExcelRow), EXCEL_COLUMNS)
+    downloadExcel('명부_선택', chosen.map(toExcelRow), EXCEL_COLUMNS)
     return
   }
   await startExport()
@@ -143,7 +143,7 @@ async function exportExcel() {
       toast.add({ title: '내보낼 명부가 없습니다.', color: 'warning' })
       return
     }
-    downloadExcel(`명부_${todaySeoul()}`, all.map(toExcelRow), EXCEL_COLUMNS)
+    downloadExcel('명부', all.map(toExcelRow), EXCEL_COLUMNS)
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {

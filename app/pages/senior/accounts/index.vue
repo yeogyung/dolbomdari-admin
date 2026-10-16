@@ -81,7 +81,7 @@ async function exportExcel() {
       status: lifeStatusLabel(r.status),
       created_at: excelStamp(r.created_at),
     }))
-    downloadExcel(`계정_${todaySeoul()}`, data, EXCEL_COLUMNS)
+    downloadExcel('계정', data, EXCEL_COLUMNS)
   } finally {
     finishExport()
   }

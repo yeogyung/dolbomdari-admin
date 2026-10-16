@@ -145,7 +145,7 @@ async function exportExcel() {
       status: lifeStatusLabel(w.status),
       qr: w.qr_token ? '발급됨' : '없음',
     }))
-    downloadExcel(`근무지_${todaySeoul()}`, data, EXCEL_COLUMNS)
+    downloadExcel('근무지', data, EXCEL_COLUMNS)
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {

@@ -86,7 +86,7 @@ async function exportExcel() {
     }))
     // 파일명에 쓸 수 없는 문자는 바꾼다
     const title = notice.value.title.replace(/[\\/:*?"<>|]/g, '_')
-    downloadExcel(`공지수신자_${title}_${todaySeoul()}`, data, EXCEL_COLUMNS)
+    downloadExcel(`공지수신자_${title}`, data, EXCEL_COLUMNS)
   } catch (e) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {

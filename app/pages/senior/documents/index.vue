@@ -117,7 +117,7 @@ async function exportExcel() {
       byte_size: fmtBytes(d.byte_size),
       updated_at: excelStamp(d.updated_at),
     }))
-    downloadExcel(`AI문서_${todaySeoul()}`, data, EXCEL_COLUMNS)
+    downloadExcel('AI문서', data, EXCEL_COLUMNS)
   } catch (e: any) {
     toast.add({ title: '엑셀 내보내기 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {

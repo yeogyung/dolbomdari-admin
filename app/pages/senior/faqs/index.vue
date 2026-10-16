@@ -76,7 +76,7 @@ async function exportExcel() {
         created_at: excelStamp(f.created_at),
       }
     })
-    downloadExcel(`FAQ_${todaySeoul()}`, data, EXCEL_COLUMNS)
+    downloadExcel('FAQ', data, EXCEL_COLUMNS)
   } finally {
     finishExport()
   }
