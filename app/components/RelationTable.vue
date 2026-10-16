@@ -3,8 +3,8 @@
 export interface RelationColumn {
   label: string
   text: (row: Record<string, any>) => string
-  /** 주면 이 열은 링크로 그린다 */
-  to?: (row: Record<string, any>) => string
+  /** 주면 이 열은 링크로 그린다. 그 행에 대상이 없으면(비회원 등) undefined 를 돌려 글자로만 보인다 */
+  to?: (row: Record<string, any>) => string | undefined
   nowrap?: boolean
 }
 
@@ -52,7 +52,7 @@ defineProps<{
               class="border-t border-hairline-soft py-2.5 pr-3 text-sm"
               :class="c.nowrap ? 'whitespace-nowrap text-body' : ''"
             >
-              <NuxtLink v-if="c.to" :to="c.to(row)" class="font-medium text-brand-500 hover:underline">
+              <NuxtLink v-if="c.to?.(row)" :to="c.to(row)!" class="font-medium text-brand-500 hover:underline">
                 {{ c.text(row) }}
               </NuxtLink>
               <template v-else>{{ c.text(row) }}</template>

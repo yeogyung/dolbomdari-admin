@@ -1,5 +1,7 @@
 <!-- 공고 상세 하단 — 해당 공고의 조회·관심·전화확인·공유·추천 기록 (job_id 필터) -->
 <script setup lang="ts">
+import type { RelationColumn } from '~/components/RelationTable.vue'
+
 const props = defineProps<{ jobId: string }>()
 const api = useAdminApi()
 
@@ -8,23 +10,32 @@ interface Section {
   title: string
   idCol: string // 대상 사용자/종사자 id 컬럼
   timeCol: string
-  extraCol?: string // 추가 표시 컬럼 (예: 공유 채널)
+  extra?: { col: string; label: string } // 추가 표시 컬럼 (예: 공유 채널)
 }
 
 const sections: Section[] = [
   { table: 'job_views', title: '조회', idCol: 'user_id', timeCol: 'viewed_at' },
   { table: 'bookmarks', title: '관심', idCol: 'user_id', timeCol: 'created_at' },
   { table: 'job_contact_views', title: '전화확인', idCol: 'user_id', timeCol: 'viewed_at' },
-  { table: 'job_shares', title: '공유', idCol: 'user_id', timeCol: 'created_at', extraCol: 'channel' },
+  { table: 'job_shares', title: '공유', idCol: 'user_id', timeCol: 'created_at', extra: { col: 'channel', label: '채널' } },
   { table: 'job_recommendations', title: '추천', idCol: 'worker_id', timeCol: 'created_at' },
 ]
 
-const data = ref<Record<string, { rows: Record<string, any>[]; total: number }>>({})
+const data = ref<Record<string, { rows: Record<string, any>[]; total: number; failed?: boolean }>>({})
 const loading = ref(true)
 
-function fmtTime(v: unknown): string {
-  if (!v) return '—'
-  return String(v).replace('T', ' ').slice(0, 19)
+/** 대상은 난수 id 대신 종사자 이름(refs), 시각은 서울 yyyy.mm.dd hh:mm. 비회원 조회는 링크 없이 「비회원」 */
+function columnsFor(s: Section): RelationColumn[] {
+  const cols: RelationColumn[] = [
+    {
+      label: '대상',
+      text: (r) => (r[s.idCol] ? (r[`${s.idCol}__ref`] ?? r[s.idCol]) : '비회원'),
+      to: (r) => (r[s.idCol] ? `/users/${encodeURIComponent(r[s.idCol])}` : undefined),
+    },
+  ]
+  if (s.extra) cols.push({ label: s.extra.label, text: (r) => r[s.extra!.col] ?? '—' })
+  cols.push({ label: '시각', text: (r) => fmtDateTime(r[s.timeCol]), nowrap: true })
+  return cols
 }
 
 // ── 수동 추천 ──
@@ -71,7 +82,7 @@ onMounted(async () => {
         })
         data.value[s.table] = { rows: res.rows, total: res.total }
       } catch {
-        data.value[s.table] = { rows: [], total: 0 }
+        data.value[s.table] = { rows: [], total: 0, failed: true }
       }
     }),
   )
@@ -95,52 +106,22 @@ onMounted(async () => {
       >
         <span class="text-xs font-medium text-muted">{{ s.title }}</span>
         <span class="text-[22px] leading-none font-medium tabular-nums text-ink">
-          {{ loading ? '…' : (data[s.table]?.total ?? 0) }}
+          {{ loading ? '…' : data[s.table]?.failed ? '—' : (data[s.table]?.total ?? 0) }}
         </span>
       </div>
     </div>
 
     <!-- 섹션별 목록 -->
-    <AppCard v-for="s in sections" :key="s.table">
-      <template #header>
-        <h3 class="text-[15px] font-semibold text-ink">{{ s.title }}</h3>
-        <Tag>{{ loading ? '…' : (data[s.table]?.total ?? 0) }}건</Tag>
-      </template>
-
-      <AppSpinner v-if="loading" size="sm" label="불러오는 중…" />
-      <p v-else-if="!data[s.table]?.rows.length" class="py-6 text-center text-sm text-muted-soft">
-        기록이 없습니다.
-      </p>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full border-collapse">
-          <thead>
-            <tr>
-              <th class="w-12 pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">No.</th>
-              <th class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">대상</th>
-              <th v-if="s.extraCol" class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">{{ s.extraCol }}</th>
-              <th class="pr-3 pb-2.5 text-left text-[13px] font-semibold whitespace-nowrap text-muted">시각</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, i) in data[s.table]!.rows" :key="i">
-              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm tabular-nums text-muted-soft">{{ i + 1 }}</td>
-              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm">
-                <NuxtLink
-                  v-if="row[s.idCol]"
-                  :to="`/users/${encodeURIComponent(row[s.idCol])}`"
-                  class="font-medium text-brand-500 hover:underline"
-                >
-                  {{ row[s.idCol] }}
-                </NuxtLink>
-                <span v-else class="text-muted-soft">비회원</span>
-              </td>
-              <td v-if="s.extraCol" class="border-t border-hairline-soft py-2.5 pr-3 text-sm text-body">{{ row[s.extraCol] ?? '—' }}</td>
-              <td class="border-t border-hairline-soft py-2.5 pr-3 text-sm whitespace-nowrap text-body">{{ fmtTime(row[s.timeCol]) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </AppCard>
+    <RelationTable
+      v-for="s in sections"
+      :key="s.table"
+      :title="s.title"
+      :loading="loading"
+      :total="data[s.table]?.total ?? 0"
+      :rows="data[s.table]?.rows ?? []"
+      :columns="columnsFor(s)"
+      :failed="data[s.table]?.failed"
+    />
 
     <!-- 수동 추천 모달 -->
     <AppModal v-model:open="showRec" title="종사자에게 공고 추천" width="max-w-lg">
