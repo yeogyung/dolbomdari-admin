@@ -304,3 +304,17 @@ export function assertWriteAllowed(actor: AdminActor): void {
     throw createError({ statusCode: 403, statusMessage: "쓰기 권한이 없습니다." });
   }
 }
+
+/**
+ * master 만 통과한다. 롤 스코프를 따로 걸 수 없는 라우트(이력서 PDF·공유 링크·공고 추천 등)용이다.
+ *
+ * requireAdmin 은 manager 만 막아 기관·수요처 계정이 그대로 지나간다. 이 라우트들은
+ * 대상 종사자를 롤로 거르지 않으므로 master 외에는 열지 않는다.
+ */
+export async function requireMaster(event: H3Event): Promise<AdminActor> {
+  const actor = await requireAdmin(event);
+  if (actor.role !== "master") {
+    throw createError({ statusCode: 403, statusMessage: "권한이 없습니다." });
+  }
+  return actor;
+}

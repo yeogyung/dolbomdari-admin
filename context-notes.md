@@ -274,3 +274,8 @@
 - **집계 컬럼**: 현재 페이지 id 묶음을 `.in()` 으로 받아 서버에서 센다(id 마다 count 요청은 페이지당 60회). 관심·연락은
   서로 다른 종사자 수(같은 종사자 반복 열람이 부풀리지 않게). 공고 수는 삭제 공고 포함 — 공고 목록·기관 상세 카드가 모두 삭제분을
   거르지 않아 세 화면 숫자를 맞춘다. 가상 컬럼이라 정렬은 끈다.
+
+### 어드민 점검 개선 (2026-10-16)
+- **master 전용 라우트**: `requireAdmin` 은 manager 만 막는다. 롤 스코프를 걸 수 없는 라우트(이력서 PDF·공유 링크·공고 추천)는
+  `requireMaster` 로 막는다. 기관 계정은 resumes·jobs 테이블에 접근하지 못해 이 화면을 쓰는 정상 경로가 없다.
+  기존 `assertWriteAllowed(await requireAdmin())` 두 곳(org-documents·review-organization)은 동작이 같아 그대로 둔다.

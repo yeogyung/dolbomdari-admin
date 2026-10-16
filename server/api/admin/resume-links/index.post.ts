@@ -1,12 +1,12 @@
 // 이력서 공유 링크 발급 — 토큰＋비밀번호를 만들고 만료일을 박는다
-import { requireAdmin, serviceClient } from '~~/server/utils/admin'
+import { requireMaster, serviceClient } from '~~/server/utils/admin'
 import { generatePassword, generateToken } from '~~/server/utils/resume-link'
 
 const DEFAULT_DAYS = 7
 const MAX_DAYS = 90
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireMaster(event)
   const body = await readBody<{ userId?: string; expiresInDays?: number }>(event)
   const userId = String(body?.userId || '')
   if (!userId) {

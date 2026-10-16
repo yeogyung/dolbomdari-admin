@@ -2,7 +2,7 @@
 //
 // 경로가 /api/admin/resumes/... 가 아닌 이유는 그 아래를 제네릭 [table] 라우트가
 // 이미 잡고 있어 assertTable 이 먼저 돌기 때문이다.
-import { requireAdmin, serviceClient } from '~~/server/utils/admin'
+import { requireMaster, serviceClient } from '~~/server/utils/admin'
 import { renderResumePdf } from '~~/server/utils/resume-pdf'
 import type { Resume } from '#shared/resume-form'
 
@@ -22,7 +22,7 @@ async function nanumGothic(): Promise<Uint8Array> {
 }
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireMaster(event)
   const resumeId = getRouterParam(event, 'resumeId')
   if (!resumeId) {
     throw createError({ statusCode: 400, statusMessage: '이력서 ID가 없습니다.' })

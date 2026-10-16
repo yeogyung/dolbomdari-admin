@@ -1,8 +1,8 @@
 // 이력서 공유 링크 발급 이력 — 종사자 기준 최신순
-import { requireAdmin, serviceClient } from '~~/server/utils/admin'
+import { requireMaster, serviceClient } from '~~/server/utils/admin'
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireMaster(event)
   const userId = String(getQuery(event).userId || '')
   if (!userId) {
     throw createError({ statusCode: 400, statusMessage: 'userId 가 필요합니다.' })

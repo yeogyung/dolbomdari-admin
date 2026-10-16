@@ -1,9 +1,9 @@
 // 이력서 공개 링크를 문자로 보낸다 — URL 과 비밀번호를 한 통에 담는다 (설계 D10)
-import { requireAdmin, serviceClient } from '~~/server/utils/admin'
+import { requireMaster, serviceClient } from '~~/server/utils/admin'
 import { sendSms } from '~~/server/utils/sms'
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireMaster(event)
   const token = getRouterParam(event, 'token')
   const body = await readBody<{ to?: string }>(event)
   const to = String(body?.to ?? '').trim()

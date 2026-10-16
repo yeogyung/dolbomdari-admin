@@ -1,8 +1,8 @@
 // 어드민 수동 공고 추천 — job_recommendations insert (AFTER INSERT 트리거가 종사자에게 W5 푸시)
-import { requireAdmin, serviceClient } from '~~/server/utils/admin'
+import { requireMaster, serviceClient } from '~~/server/utils/admin'
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireMaster(event)
   const body = (await readBody(event)) as { jobId?: string; workerId?: string }
   const jobId = String(body.jobId || '').trim()
   const workerId = String(body.workerId || '').trim()

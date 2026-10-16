@@ -1,8 +1,8 @@
 // 이력서 공유 링크 폐기 — 행을 지우지 않고 revoked_at 을 찍는다 (AGENTS §1.9)
-import { requireAdmin, serviceClient } from '~~/server/utils/admin'
+import { requireMaster, serviceClient } from '~~/server/utils/admin'
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireMaster(event)
   const token = getRouterParam(event, 'token')
   if (!token) {
     throw createError({ statusCode: 400, statusMessage: '토큰이 없습니다.' })
