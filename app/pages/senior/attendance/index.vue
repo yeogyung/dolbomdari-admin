@@ -95,10 +95,11 @@ function openHistory(row: AttendanceShift) {
 
 async function loadWorksites() {
   try {
-    const res = await api.listWorksites({ size: 100, sort: 'name' })
-    worksites.value = res.items
-  } catch {
-    // 근무지 필터는 편의 기능이다.
+    // 근무지는 300곳 가까이 되는데 한 페이지는 100곳까지다 — 끝까지 받는다
+    worksites.value = await api.listAllWorksites()
+  } catch (e: any) {
+    // 출결 조회는 그대로 되지만 필터 선택지가 비거나 모자라다 — 조용히 넘기지 않는다
+    toast.add({ title: '근무지 목록을 불러오지 못했습니다.', description: dboErrorMessage(e), color: 'warning' })
   }
 }
 

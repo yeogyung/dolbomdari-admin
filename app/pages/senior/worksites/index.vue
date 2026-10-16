@@ -74,18 +74,30 @@ async function load() {
 const refsSettled = ref(false)
 
 async function loadRefs() {
+  // 사업·명부 목록은 master 전용 API 다 — 수요처 계정은 부르면 매번 실패하니 부르지 않는다
+  if (me.value?.role !== 'master') {
+    refsSettled.value = true
+    return
+  }
   try {
     const [pg, mgr, ws] = await Promise.all([
       api.listPrograms(),
-      // 명부 목록에 여러 역할이 섞이므로 역할을 서버에서 거른다 — 100건 안에서 밀려나지 않게
-      api.listDirectory({ size: 100, status: 'active', role: 'manager' }),
-      api.listDirectory({ size: 100, status: 'active', role: 'worksite' }),
+      // 역할을 서버에서 거르고 끝까지 받는다 — 100명을 넘으면 뒤쪽 담당자가 이름 대신 id 로 보인다
+      fetchAllPages(
+        (page, size) => api.listDirectory({ page, size, status: 'active', role: 'manager' }),
+        (d) => d.id,
+      ),
+      fetchAllPages(
+        (page, size) => api.listDirectory({ page, size, status: 'active', role: 'worksite' }),
+        (d) => d.id,
+      ),
     ])
     programs.value = pg.items
-    managers.value = mgr.items
-    contacts.value = ws.items
-  } catch {
-    // 사업·담당자 목록은 선택 편의용이다.
+    managers.value = mgr
+    contacts.value = ws
+  } catch (e: any) {
+    // 표의 사업·담당자 칸이 이름 대신 id 로 보인다 — 조용히 넘기지 않는다
+    toast.add({ title: '사업·담당자 목록을 불러오지 못했습니다.', description: dboErrorMessage(e), color: 'warning' })
   } finally {
     refsSettled.value = true
   }
