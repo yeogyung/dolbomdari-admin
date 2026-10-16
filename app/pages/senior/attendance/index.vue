@@ -13,13 +13,19 @@ setHeader('출퇴근 기록')
 
 const rows = ref<AttendanceShift[]>([])
 const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
-const q = ref('')
-const from = ref(todaySeoul())
-const to = ref(todaySeoul())
-const worksiteId = ref<string | null>(null)
-const sortKey = ref('work_date')
+// 검색·기간·근무지·정렬·페이지는 주소에 담는다 — 다른 화면에 다녀와도 조회 조건이 그대로다.
+// 검색어·기간은 「조회」를 눌러야 정해지는 칸이라 commit() 때 싣는다
+const lq = useListQuery(
+  { page: 1, size: 20, q: '', from: todaySeoul(), to: todaySeoul(), worksite: '', sort: 'work_date' },
+  { committed: ['q', 'from', 'to'] },
+)
+const page = lq.page
+const pageSize = lq.size
+const q = lq.q
+const from = lq.from
+const to = lq.to
+const worksiteId = lq.worksite
+const sortKey = lq.sort
 const loading = ref(false)
 const { exporting, startExport, finishExport } = useExcelExport()
 
@@ -113,6 +119,7 @@ async function loadWorksites() {
 // 조회 Promise 를 돌려준다 — 조회 버튼(AppButton)이 끝날 때까지 다시 눌리지 않게
 function search() {
   page.value = 1
+  lq.commit()
   return load()
 }
 

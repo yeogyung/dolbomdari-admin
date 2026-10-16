@@ -12,9 +12,11 @@ setHeader('채팅방')
 
 const rooms = ref<ChatRoom[]>([])
 const total = ref(0)
-const page = ref(1)
+// 검색어·페이지는 주소에 담는다 — 다른 화면에 다녀와도 그대로다. 검색어는 「검색」 때 싣는다
+const lq = useListQuery({ page: 1, q: '' }, { committed: ['q'] })
+const page = lq.page
 const pageSize = 20
-const q = ref('')
+const q = lq.q
 const loadingRooms = ref(false)
 
 const selected = ref<ChatRoom | null>(null)
@@ -84,6 +86,7 @@ async function toggleStatus() {
 
 function search() {
   page.value = 1
+  lq.commit()
   loadRooms()
 }
 

@@ -23,7 +23,7 @@
 
 - [x] UTC 원문 시각 — 구인구직 목록·수정 폼·엑셀, `JobRelations`, `ResumeSharePanel`
 - [x] 공고 상세 기록 표 난수 id — `JobRelations` 를 `RelationTable` + 이름 표시로
-- [ ] 조회 조건 URL 유지 — 구인구직 목록, 출퇴근, 채팅
+- [x] 조회 조건 URL 유지 — 구인구직 목록, 출퇴근, 채팅
 - [x] 계정·사업·FAQ 페이지 번호 무반응
 - [x] 계정·사업 수정 모달에서 상태 「종료」 변경이 확인 없이 진행
 - [x] `FormField` 오류 문구 파랑(`text-brand-500`) → 빨강

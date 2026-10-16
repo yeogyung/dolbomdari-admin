@@ -1,6 +1,6 @@
 <!-- 테이블 목록 — 헤더(상단바) + 툴바(검색·탭) + DataTable(정렬·페이지네이션·엑셀·행 액션) -->
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect, onMounted } from 'vue'
+import { ref, computed, watch, watchEffect, onMounted, type Ref } from 'vue'
 import { getTable } from '#shared/tables'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 import type { Column } from '~/types/table'
@@ -18,20 +18,25 @@ const def = computed(() => getTable(tableName.value))
 
 const rows = ref<Record<string, any>[]>([])
 const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
-const q = ref('')
+// 검색·탭·정렬·페이지는 주소에 담는다 — 상세에 다녀와도 목록 조건이 그대로다. 검색어는 「검색」 때 싣는다
+const lq = useListQuery(
+  { page: 1, size: 20, q: '', sort: '', dir: 'asc', source: 'all', approval: 'all' },
+  { committed: ['q'] },
+)
+const page = lq.page
+const pageSize = lq.size
+const q = lq.q
 const loading = ref(false)
 const { exporting, startExport, finishExport } = useExcelExport()
 
-const sortCol = ref('')
-const sortDir = ref<'asc' | 'desc'>('asc')
+const sortCol = lq.sort
+const sortDir = lq.dir as Ref<'asc' | 'desc'>
 
-const sourceTab = ref<'all' | 'user' | 'auto'>('all')
+const sourceTab = lq.source as Ref<'all' | 'user' | 'auto'>
 const isJobs = computed(() => tableName.value === 'jobs')
 
 // 기관 담당자: 가입 검토 상태 필터 + 승인대기 건수
-const approvalTab = ref<'all' | OrgApprovalStatus>('all')
+const approvalTab = lq.approval as Ref<'all' | OrgApprovalStatus>
 const isOrgManager = computed(() => tableName.value === 'organization_manager')
 const pendingCount = ref(0)
 
@@ -121,6 +126,7 @@ async function load() {
 
 function search() {
   page.value = 1
+  lq.commit()
   load()
 }
 
@@ -233,6 +239,8 @@ watch(() => route.params.table, () => {
   sortCol.value = ''
   sourceTab.value = 'all'
   approvalTab.value = 'all'
+  // 정해 둔 검색어도 비운다 — 안 비우면 다른 테이블 주소에 앞 테이블 검색어가 실린다
+  lq.commit()
   rows.value = []
   load()
 })
