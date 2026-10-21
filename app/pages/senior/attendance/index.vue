@@ -4,6 +4,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { downloadExcel, type ExcelColumn } from '~/utils/excel'
 import type { Column } from '~/types/table'
 import type { AttendanceChange, AttendanceShift, Worksite } from '~/types/dbo'
+import type { AttendanceDisplay } from '~/utils/attendanceState'
 
 const api = useDboAdmin()
 const { listChangesByShifts } = useAttendanceChanges()
@@ -20,7 +21,7 @@ const total = ref(0)
 // 검색·기간·근무지·정렬·페이지는 주소에 담는다 — 다른 화면에 다녀와도 조회 조건이 그대로다.
 // 검색어·기간은 「조회」를 눌러야 정해지는 칸이라 commit() 때 싣는다
 const lq = useListQuery(
-  { page: 1, size: 20, q: '', from: todaySeoul(), to: todaySeoul(), worksite: '', sort: 'work_date' },
+  { page: 1, size: 20, q: '', from: todaySeoul(), to: todaySeoul(), worksite: '', display: '', sort: 'work_date' },
   { committed: ['q', 'from', 'to'] },
 )
 const page = lq.page
@@ -29,6 +30,8 @@ const q = lq.q
 const from = lq.from
 const to = lq.to
 const worksiteId = lq.worksite
+/** 표시 상태 필터. 서버가 같은 규칙(dbo_display_state)으로 걸러 페이지·건수가 맞는다 */
+const display = lq.display
 const sortKey = lq.sort
 const loading = ref(false)
 const { exporting, startExport, finishExport } = useExcelExport()
@@ -64,6 +67,7 @@ async function load() {
       from: lq.committedOf('from'),
       to: lq.committedOf('to'),
       worksiteId: worksiteId.value || undefined,
+      display: (display.value || undefined) as AttendanceDisplay | undefined,
     })
     if (current !== sequence) return
     rows.value = res.items
@@ -139,7 +143,7 @@ function toggleSort(key: string) {
   load()
 }
 
-watch(worksiteId, search)
+watch([worksiteId, display], search)
 
 /* 집계 — 조회된 페이지 기준. 목록과 같은 표시 상태(attendanceDisplay)로 센다.
  * 퇴근 완료 = 정상 + 지각, 미기록·결근 = 미출근 + 결석. 인정 결석·출근 전은 어디에도 세지 않는다.
@@ -318,6 +322,7 @@ async function exportExcel() {
         from: lq.committedOf('from'),
         to: lq.committedOf('to'),
         worksiteId: worksiteId.value || undefined,
+        display: (display.value || undefined) as AttendanceDisplay | undefined,
       })
       all.push(...res.items)
       // 「수정 이력」 칸도 목록과 같은 기준으로 채운다. 이 페이지 몫의 이력을 함께 읽는다
@@ -445,6 +450,10 @@ onMounted(() => {
             { label: '근무지 전체', value: '' },
             ...worksites.map((w) => ({ label: w.name, value: w.id })),
           ]"
+        />
+        <PillSelect
+          v-model="display"
+          :options="[{ label: '상태 전체', value: '' }, ...ATTENDANCE_DISPLAY_OPTIONS]"
         />
       </template>
       <template #toolbar-end>

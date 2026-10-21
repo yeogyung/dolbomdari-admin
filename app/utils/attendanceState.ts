@@ -25,6 +25,15 @@ const DISPLAY: Record<AttendanceDisplay, { label: string; tone: 'green' | 'red' 
 }
 
 export const attendanceDisplayLabel = (d: AttendanceDisplay) => DISPLAY[d].label
+
+/**
+ * 상태 필터 선택지. 서버가 같은 규칙(DB 함수 dbo_display_state)으로 걸러 준다 —
+ * 아래 attendanceDisplay 를 고치면 서버 마이그레이션도 같이 고친다.
+ */
+export const ATTENDANCE_DISPLAY_OPTIONS = (Object.keys(DISPLAY) as AttendanceDisplay[]).map((value) => ({
+  value,
+  label: DISPLAY[value].label,
+}))
 export const attendanceDisplayTone = (d: AttendanceDisplay) => DISPLAY[d].tone
 
 function seoulDate(now: Date): string {
@@ -48,6 +57,8 @@ function plannedStartMs(workDate: string, plannedStart: string | null | undefine
  * - 퇴근이 없으면 오늘은 근무 중, 지난 날은 퇴근 누락
  * - 출근이 없으면 지난 날·예정 시각 지난 오늘은 미출근, 그 밖은 출근 전
  * 자정을 넘기는 근무는 따로 다루지 않는다 — 다음 날 0시부터 퇴근 누락으로 보인다.
+ *
+ * **같은 규칙이 서버 DB 함수 `dbo_display_state` 에도 있다**(상태 필터용). 고치면 둘 다 고친다.
  */
 export function attendanceDisplay(
   row: Pick<AttendanceShift, 'work_date' | 'planned_start' | 'attendance'>,

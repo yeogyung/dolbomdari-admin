@@ -1,6 +1,7 @@
 // 출퇴근 표시 상태·「수정됨」 판정·이력 문구 테스트(QA 2026-10-14 11·12·13번)
 import { describe, expect, it } from 'vitest'
 import {
+  ATTENDANCE_DISPLAY_OPTIONS,
   attendanceDisplay,
   describeChange,
   editDefaultStatus,
@@ -167,5 +168,16 @@ describe('editDefaultStatus', () => {
 
   it('기록이 없으면 출근', () => {
     expect(editDefaultStatus(shift('2026-10-13', null))).toBe('present')
+  })
+})
+
+describe('상태 필터 선택지', () => {
+  // 서버 dolbomdari-server routes.ts 의 ATTENDANCE_DISPLAY_STATES 와 같아야 한다.
+  // 다르면 고른 상태를 서버가 400 으로 거부하거나, 서버가 아는 상태를 화면에서 고를 수 없다.
+  it('서버가 받는 8가지 상태와 같다', () => {
+    expect(ATTENDANCE_DISPLAY_OPTIONS.map((o) => o.value).sort()).toEqual(
+      ['absent', 'excused', 'late', 'missing_checkout', 'normal', 'not_arrived', 'scheduled', 'working'],
+    )
+    expect(ATTENDANCE_DISPLAY_OPTIONS.find((o) => o.value === 'late')?.label).toBe('지각')
   })
 })

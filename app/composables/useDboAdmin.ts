@@ -25,6 +25,7 @@ import type {
   MonthlyReport,
 } from '~/types/dbo'
 import type { DocumentCreateBody } from '~/utils/documentImport'
+import type { AttendanceDisplay } from '~/utils/attendanceState'
 import { fetchAllPages } from '~/utils/paging'
 
 /** Edge Function 오류 응답({ error })과 상태 코드를 사람이 읽는 한국어로 바꾼다 */
@@ -214,7 +215,7 @@ export function useDboAdmin() {
 
     /* 출결 — 읽기는 worksite 범위 제한, 수정은 master 전용 */
     listAttendance: (
-      q: ListQuery & { from?: string; to?: string; worksiteId?: string } = {},
+      q: ListQuery & { from?: string; to?: string; worksiteId?: string; display?: AttendanceDisplay } = {},
     ) => req<Paged<AttendanceShift>>('/attendance', { query: clean(q) }),
     patchAttendance: (
       shiftId: string,
