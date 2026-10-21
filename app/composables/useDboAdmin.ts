@@ -3,6 +3,7 @@ import type {
   AdminAccount,
   AdminRole,
   Assignment,
+  AttendanceDeletion,
   AttendanceShift,
   ChatMessage,
   ChatRoom,
@@ -225,6 +226,16 @@ export function useDboAdmin() {
         memo?: string | null
       },
     ) => req<{ id: string }>(`/attendance/${shiftId}`, { method: 'PATCH', body }),
+    /* 출결 삭제 — master·담당자, 오늘 활동만. 지운 내용·삭제자·사유가 삭제 기록에 남는다 */
+    deleteAttendance: (shiftId: string, reason: string) =>
+      // 응답은 남긴 기록 그대로다. 이름(senior·worksite·deleted_by)은 목록에서만 붙는다
+      req<Omit<AttendanceDeletion, 'senior' | 'worksite' | 'deleted_by'>>(`/attendance/${shiftId}/delete`, {
+        method: 'POST',
+        body: { reason },
+      }),
+    /* 출결 삭제 기록 — master 전용 */
+    listAttendanceDeletions: (q: ListQuery & { from?: string; to?: string } = {}) =>
+      req<Paged<AttendanceDeletion>>('/attendance-deletions', { query: clean(q) }),
 
     /* 채팅방 열람 — master 전용 */
     listRooms: (q: ListQuery = {}) => req<Paged<ChatRoom>>('/rooms', { query: clean(q) }),

@@ -167,6 +167,31 @@ export interface AttendanceChange {
   after: AttendanceSnapshot
 }
 
+/**
+ * 지운 출결의 기록(dbo_attendance_deletions). 고치거나 지울 수 없다.
+ * 이름은 기록에 없고 서버가 명부·근무지에서 붙여 준다 — 그 행이 없으면 null 이다.
+ */
+export interface AttendanceDeletion {
+  id: string
+  attendance_id: string
+  shift_id: string
+  directory_id: string
+  worksite_id: string
+  work_date: string
+  status: string
+  started_at: string | null
+  ended_at: string | null
+  method: string | null
+  memo: string | null
+  deleted_by_directory_id: string
+  deleted_by_role: string
+  reason: string
+  deleted_at: string
+  senior: { name: string; phone: string | null } | null
+  worksite: { name: string } | null
+  deleted_by: { name: string } | null
+}
+
 export interface ChatRoom {
   id: string
   title: string

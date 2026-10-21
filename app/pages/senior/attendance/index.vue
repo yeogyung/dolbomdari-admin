@@ -9,7 +9,11 @@ const api = useDboAdmin()
 const { listChangesByShifts } = useAttendanceChanges()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
+const { me } = useAdminRole()
 setHeader('출퇴근 기록')
+
+/** 「삭제 기록」 탭은 master 만 본다. 서버도 master 가 아니면 403 이다 */
+const tab = ref<'records' | 'deletions'>('records')
 
 const rows = ref<AttendanceShift[]>([])
 const total = ref(0)
@@ -212,6 +216,51 @@ async function submitEdit() {
   }
 }
 
+/* 출결 삭제 — master·담당자, 오늘 활동만. 지운 내용·삭제자·사유가 삭제 기록에 남는다 */
+const deleteOpen = ref(false)
+const deleting = ref(false)
+const deleteTarget = ref<AttendanceShift | null>(null)
+const deleteReason = ref('')
+const deleteError = ref<string | null>(null)
+
+function canDelete(row: AttendanceShift) {
+  return canDeleteAttendance(me.value?.role, row, todaySeoul())
+}
+
+function openDelete(row: AttendanceShift) {
+  // 앞 요청이 끝나기 전에는 새 창을 열지 않는다. 창 상태를 한 벌만 두기 때문이다
+  if (deleting.value || !canDelete(row)) return
+  deleteTarget.value = row
+  deleteReason.value = ''
+  deleteError.value = null
+  deleteOpen.value = true
+}
+
+/** 다시 눌러도 같은 결과인 실패. 목록이 낡은 것이라 새로 읽는다 */
+const STALE_DELETE_ERRORS = ['attendance_not_found', 'not_found', 'not_today']
+
+async function submitDelete() {
+  const target = deleteTarget.value
+  if (!target) return
+  deleteError.value = deleteReasonError(deleteReason.value)
+  if (deleteError.value) return
+  deleting.value = true
+  try {
+    await api.deleteAttendance(target.id, deleteReason.value.trim())
+    toast.add({ title: '출결 기록을 삭제했습니다.', color: 'success' })
+    if (deleteTarget.value === target) deleteOpen.value = false
+    load()
+  } catch (e: any) {
+    // 창을 닫지 않는다. 적은 사유가 그대로 남아 있어야 다시 시도할 수 있다
+    if (deleteTarget.value === target) {
+      deleteError.value = deleteErrorMessage(e) ?? dboErrorMessage(e, '출결을 삭제하지 못했습니다.')
+    }
+    if (STALE_DELETE_ERRORS.includes(e?.data?.error)) load()
+  } finally {
+    deleting.value = false
+  }
+}
+
 /* 엑셀 — 조회 조건 전체를 100건씩 순회해 모은다 */
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'work_date', label: '근무일' },
@@ -296,6 +345,32 @@ onMounted(() => {
 
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col gap-6">
+    <div v-if="me?.role === 'master'" class="flex gap-2" role="tablist">
+      <AppButton
+        size="sm"
+        role="tab"
+        :aria-selected="tab === 'records'"
+        :variant="tab === 'records' ? 'solid' : 'outline'"
+        :color="tab === 'records' ? 'primary' : 'neutral'"
+        @click="tab = 'records'"
+      >
+        출결
+      </AppButton>
+      <AppButton
+        size="sm"
+        role="tab"
+        :aria-selected="tab === 'deletions'"
+        :variant="tab === 'deletions' ? 'solid' : 'outline'"
+        :color="tab === 'deletions' ? 'primary' : 'neutral'"
+        @click="tab = 'deletions'"
+      >
+        삭제 기록
+      </AppButton>
+    </div>
+
+    <AttendanceDeletionsPanel v-if="tab === 'deletions' && me?.role === 'master'" />
+
+    <template v-else>
     <Teleport to="#admin-topbar-actions">
       <AppButton
         variant="outline"
@@ -420,15 +495,25 @@ onMounted(() => {
       </template>
 
       <template #actions="{ row }">
-        <button
-          v-if="canEditAttendance(row.work_date, todaySeoul())"
-          type="button"
-          class="text-sm font-medium text-brand-500 hover:underline"
-          @click="openEdit(row)"
-        >
-          기록 수정
-        </button>
-        <span v-else class="text-sm text-muted">예정</span>
+        <div class="flex items-center gap-3">
+          <button
+            v-if="canEditAttendance(row.work_date, todaySeoul())"
+            type="button"
+            class="text-sm font-medium text-brand-500 hover:underline"
+            @click="openEdit(row)"
+          >
+            기록 수정
+          </button>
+          <span v-else class="text-sm text-muted">예정</span>
+          <button
+            v-if="canDelete(row as AttendanceShift)"
+            type="button"
+            class="text-sm font-medium text-down hover:underline"
+            @click="openDelete(row as AttendanceShift)"
+          >
+            삭제
+          </button>
+        </div>
       </template>
     </DataTable>
 
@@ -476,6 +561,53 @@ onMounted(() => {
       </template>
     </AppModal>
 
+    <!-- 출결 삭제. 임금과 이어진 기록이라 경고를 먼저 보이고 사유를 받는다 -->
+    <AppModal v-model:open="deleteOpen" title="출결 기록 삭제" width="max-w-lg">
+      <div v-if="deleteTarget" class="space-y-4">
+        <div class="rounded-lg border border-down bg-down-soft px-4 py-3 text-sm text-down" role="alert">
+          <p class="font-semibold">삭제하기 전에 확인해 주세요.</p>
+          <ul class="mt-1.5 list-disc space-y-0.5 pl-5">
+            <li>이 활동의 출근·퇴근 기록이 사라지고, <b>활동비(임금) 정산에 그대로 반영</b>됩니다.</li>
+            <li>삭제한 사람과 사유는 기록으로 남으며, 되돌리거나 지울 수 없습니다.</li>
+            <li>삭제한 뒤에도 시니어는 오늘 QR 출근을 다시 찍을 수 있습니다.</li>
+          </ul>
+        </div>
+        <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">
+          <p class="font-semibold text-ink">
+            {{ deleteTarget.directory?.name ?? '—' }} · {{ deleteTarget.worksite?.name ?? '—' }}
+          </p>
+          <p class="mt-0.5 text-muted tabular-nums">
+            {{ deleteTarget.work_date }} ·
+            {{ attendanceDisplayLabel(attendanceDisplay(deleteTarget)) }} · 출근
+            {{ fmtClock(attendanceOf(deleteTarget)?.started_at) }} · 퇴근
+            {{ fmtClock(attendanceOf(deleteTarget)?.ended_at) }}
+          </p>
+        </div>
+        <FormField label="삭제 사유" required :error="deleteError ?? undefined">
+          <AppTextarea
+            v-model="deleteReason"
+            :rows="3"
+            :maxlength="DELETE_REASON_MAX"
+            placeholder="예: 현장 확인 결과 미출근(허위 출결)"
+          />
+        </FormField>
+      </div>
+      <template #footer>
+        <AppButton variant="outline" color="neutral" size="sm" @click="deleteOpen = false">
+          취소
+        </AppButton>
+        <AppButton
+          color="down"
+          size="sm"
+          :loading="deleting"
+          :disabled="!deleteReason.trim()"
+          @click="submitDelete"
+        >
+          삭제
+        </AppButton>
+      </template>
+    </AppModal>
+
     <!-- 변경 이력(QA 2026-10-14 13번) -->
     <AppModal v-model:open="historyOpen" title="출결 변경 이력" width="max-w-lg">
       <div v-if="historyTarget" class="space-y-4">
@@ -500,5 +632,6 @@ onMounted(() => {
         <AppButton variant="outline" color="neutral" size="sm" @click="historyOpen = false">닫기</AppButton>
       </template>
     </AppModal>
+    </template>
   </div>
 </template>
