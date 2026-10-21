@@ -5,6 +5,7 @@ import type {
   Assignment,
   AttendanceDeletion,
   AttendanceShift,
+  AttendanceSummary,
   ChatMessage,
   ChatRoom,
   DirectoryEntry,
@@ -215,8 +216,15 @@ export function useDboAdmin() {
 
     /* 출결 — 읽기는 worksite 범위 제한, 수정은 master 전용 */
     listAttendance: (
-      q: ListQuery & { from?: string; to?: string; worksiteId?: string; display?: AttendanceDisplay } = {},
-    ) => req<Paged<AttendanceShift>>('/attendance', { query: clean(q) }),
+      q: ListQuery & {
+        from?: string
+        to?: string
+        worksiteId?: string
+        display?: AttendanceDisplay
+        /** '1' 이면 조회 조건 전체의 상태별 건수를 함께 받는다. 전 페이지를 도는 호출은 보내지 않는다 */
+        summary?: '1'
+      } = {},
+    ) => req<Paged<AttendanceShift> & { summary?: AttendanceSummary }>('/attendance', { query: clean(q) }),
     patchAttendance: (
       shiftId: string,
       body: {

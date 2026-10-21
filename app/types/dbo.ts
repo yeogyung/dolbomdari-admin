@@ -148,6 +148,16 @@ export interface AttendanceShift {
   attendance: AttendanceRecord | null
 }
 
+/** 출퇴근 목록 상단 집계. 서버가 조회 조건 전체를 센다(페이지가 아니다) */
+export interface AttendanceSummary {
+  /** 퇴근 완료 = 정상 + 지각 */
+  done: number
+  working: number
+  missingCheckout: number
+  /** 미기록·결근 = 미출근 + 결석 */
+  missing: number
+}
+
 /** 출결 변경 전·후. 서버 트리거(dbo_attendance_changes)가 떠 둔다. 키 이름은 DB 칸 그대로다 */
 export interface AttendanceSnapshot {
   status: string | null

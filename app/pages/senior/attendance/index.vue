@@ -3,7 +3,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { downloadExcel, type ExcelColumn } from '~/utils/excel'
 import type { Column } from '~/types/table'
-import type { AttendanceChange, AttendanceShift, Worksite } from '~/types/dbo'
+import type { AttendanceChange, AttendanceShift, AttendanceSummary, Worksite } from '~/types/dbo'
 import type { AttendanceDisplay } from '~/utils/attendanceState'
 
 const api = useDboAdmin()
@@ -68,10 +68,13 @@ async function load() {
       to: lq.committedOf('to'),
       worksiteId: worksiteId.value || undefined,
       display: (display.value || undefined) as AttendanceDisplay | undefined,
+      summary: '1',
     })
     if (current !== sequence) return
     rows.value = res.items
     total.value = res.total
+    // 집계를 모르는 서버(배포 순서가 어긋남)여도 화면이 깨지지 않게 0 으로 둔다
+    summary.value = res.summary ?? EMPTY_SUMMARY
     const changes = await loadChanges(res.items)
     if (current !== sequence) return
     changesByShift.value = changes
@@ -145,20 +148,12 @@ function toggleSort(key: string) {
 
 watch([worksiteId, display], search)
 
-/* 집계 — 조회된 페이지 기준. 목록과 같은 표시 상태(attendanceDisplay)로 센다.
+/* 집계 — 서버가 조회 조건 **전체**를 표시 상태(dbo_display_state)로 세어 준다.
  * 퇴근 완료 = 정상 + 지각, 미기록·결근 = 미출근 + 결석. 인정 결석·출근 전은 어디에도 세지 않는다.
- * 예전에는 지난 날의 퇴근 누락까지 「근무 중」으로 셌다(QA 2026-10-14 11번). */
-const summary = computed(() => {
-  const stat = { working: 0, done: 0, missing: 0, noCheckout: 0 }
-  for (const row of rows.value) {
-    const d = attendanceDisplay(row)
-    if (d === 'normal' || d === 'late') stat.done++
-    else if (d === 'working') stat.working++
-    else if (d === 'missing_checkout') stat.noCheckout++
-    else if (d === 'not_arrived' || d === 'absent') stat.missing++
-  }
-  return stat
-})
+ * 예전에는 받은 한 페이지만 셌다 — 오늘 활동이 1,000건을 넘자 근무 중인 사람이 다른 페이지에
+ * 있으면 「근무 중 0」이 됐다(2026-10-21). */
+const EMPTY_SUMMARY: AttendanceSummary = { done: 0, working: 0, missingCheckout: 0, missing: 0 }
+const summary = ref<AttendanceSummary>(EMPTY_SUMMARY)
 
 /* 대리 기록 수정 */
 const editOpen = ref(false)
@@ -412,7 +407,7 @@ onMounted(() => {
       <StatCard label="조회된 근무" :value="loading ? '…' : total.toLocaleString()" />
       <StatCard label="퇴근 완료" :value="loading ? '…' : summary.done" tone="up" />
       <StatCard label="근무 중" :value="loading ? '…' : summary.working" tone="primary" />
-      <StatCard label="퇴근 누락" :value="loading ? '…' : summary.noCheckout" tone="down" />
+      <StatCard label="퇴근 누락" :value="loading ? '…' : summary.missingCheckout" tone="down" />
       <StatCard label="미기록·결근" :value="loading ? '…' : summary.missing" tone="down" />
     </div>
 
