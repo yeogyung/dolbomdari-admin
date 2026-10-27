@@ -10,6 +10,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { DaySummary, ForecastRow, HourSlot, WeatherKind } from '~/utils/weather'
 import { searchByName } from '~/utils/nameSearch'
 import { useDebounced } from '~/composables/useDebounced'
+import { alertHeadline } from '~/utils/holidays'
 
 /** `sub` 는 사업 이름 — 같은 이름의 근무지가 여러 사업에 있어(서대문시니어클럽 6곳 등) 이것으로 구별한다 */
 type Site = { id: string; name: string; grid_nx: number; grid_ny: number; sub: string | null }
@@ -173,6 +174,21 @@ onMounted(() => {
 })
 onUnmounted(() => clearInterval(timer))
 
+/*
+ * 내일 폭염·한파인 근무지가 남아 있으면 「휴무 관리」로 가는 띠를 띄운다(2026-10-27). 판정은 서버가 한다.
+ * 대시보드의 부가 정보라 실패하면 띠를 그리지 않고 로그만 남긴다 — 날씨 표는 그대로 보인다.
+ */
+const holidayAlert = ref<{ date: string; title: string; detail: string; count: number } | null>(null)
+onMounted(async () => {
+  try {
+    const o = await useDboApp().holidayOverview()
+    const h = alertHeadline(o)
+    holidayAlert.value = h ? { date: o.date, title: h.title, detail: h.detail, count: h.count } : null
+  } catch (e) {
+    console.error('[WeatherCard] 휴무 판정 조회 실패', e)
+  }
+})
+
 onMounted(async () => {
   const { data, error: e } = await supabase
     .from('dbo_worksites')
@@ -231,6 +247,17 @@ const cellTitle = (s: HourSlot) =>
 
 <template>
   <section>
+    <NuxtLink
+      v-if="holidayAlert"
+      :to="{ path: '/senior/holidays', query: { date: holidayAlert.date } }"
+      class="mb-4 flex items-center justify-between gap-3 rounded-lg bg-down-soft px-4 py-3 text-sm text-down hover:opacity-90"
+    >
+      <span>
+        <span class="font-semibold">{{ holidayAlert.title }}</span>
+        · {{ holidayAlert.detail }} · 근무지 {{ holidayAlert.count }}곳
+      </span>
+      <span class="shrink-0 font-medium">휴무 관리 →</span>
+    </NuxtLink>
     <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
         <h2 class="text-[18px] font-semibold text-ink">날씨</h2>

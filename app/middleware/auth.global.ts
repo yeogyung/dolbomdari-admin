@@ -1,4 +1,5 @@
 // 전역 인증 가드 — 세션과 어드민 롤을 화면이 그려지기 전에 확정한다
+import { managerAllows } from '#shared/nav'
 // 공개 경로(공유 링크 랜딩 등)는 인증 없이 접근 허용
 const PUBLIC_PREFIXES = ['/l/']
 
@@ -65,8 +66,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo(home)
   }
 
-  // 담당자에게 연 화면은 출퇴근 기록 하나다. 다른 화면은 열어도 데이터가 403 이라 빈 화면이 된다.
-  if (me.value?.role === 'manager' && !to.path.startsWith(home)) {
+  // 담당자에게 연 화면은 출퇴근 기록과 휴무 관리다(`managerAllows`). 다른 화면은 열어도 데이터가
+  // 403 이라 빈 화면이 된다.
+  if (me.value?.role === 'manager' && !managerAllows(to.path)) {
     return navigateTo(home)
   }
 
