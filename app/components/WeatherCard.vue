@@ -175,15 +175,23 @@ onMounted(() => {
 onUnmounted(() => clearInterval(timer))
 
 /*
- * 내일 폭염·한파인 근무지가 남아 있으면 「휴무 관리」로 가는 띠를 띄운다(2026-10-27). 판정은 서버가 한다.
+ * 내일 폭염·한파·비인 근무지가 남아 있으면 「휴무 관리」로 가는 띠를 띄운다(2026-10-27). 판정은 서버가 한다.
+ * 띠 색은 휴무 관리 화면과 같다 — 폭염 빨강 · 한파 파랑 · 비 노랑 면에 검정 글자.
  * 대시보드의 부가 정보라 실패하면 띠를 그리지 않고 로그만 남긴다 — 날씨 표는 그대로 보인다.
  */
-const holidayAlert = ref<{ date: string; title: string; detail: string; count: number } | null>(null)
+const holidayAlert = ref<{ date: string; kind: string; title: string; detail: string; count: number } | null>(
+  null,
+)
+const BAND_CLS: Record<string, string> = {
+  heat: 'bg-down-soft text-down',
+  cold: 'bg-brand-soft text-brand-500',
+  rain: 'bg-[#fdf6e3] text-ink',
+}
 onMounted(async () => {
   try {
     const o = await useDboApp().holidayOverview()
     const h = alertHeadline(o)
-    holidayAlert.value = h ? { date: o.date, title: h.title, detail: h.detail, count: h.count } : null
+    holidayAlert.value = h ? { date: o.date, kind: h.kind, title: h.title, detail: h.detail, count: h.count } : null
   } catch (e) {
     console.error('[WeatherCard] 휴무 판정 조회 실패', e)
   }
@@ -250,7 +258,8 @@ const cellTitle = (s: HourSlot) =>
     <NuxtLink
       v-if="holidayAlert"
       :to="{ path: '/senior/holidays', query: { date: holidayAlert.date } }"
-      class="mb-4 flex items-center justify-between gap-3 rounded-lg bg-down-soft px-4 py-3 text-sm text-down hover:opacity-90"
+      class="mb-4 flex items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm hover:opacity-90"
+      :class="BAND_CLS[holidayAlert.kind] ?? 'bg-surface-soft text-ink'"
     >
       <span>
         <span class="font-semibold">{{ holidayAlert.title }}</span>

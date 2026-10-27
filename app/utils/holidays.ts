@@ -1,18 +1,29 @@
-// 휴무 관리 화면 규칙 — 서버 응답 타입, 대시보드 띠 문구, 시각 묶기, 근무지 검색, 오류 문구
+// 휴무 관리 화면 규칙 — 서버 응답 타입, 대시보드 띠 문구, 시각 묶기, 근무지 검색, 오류 문구, 직접 알릴 분
 //
 // **앱(`db-operation-rn/lib/holidays.ts`)과 같은 규칙이다.** 한쪽을 고치면 다른 쪽도 고친다.
 // 판정은 서버(`GET /dbo/holidays`)가 한다. 여기는 받은 값을 그리는 규칙만 정한다.
 import { searchByName } from './nameSearch'
 
-export type HolidayKind = 'heat' | 'cold'
+export type HolidayKind = 'heat' | 'cold' | 'rain'
 export type HolidayReason = HolidayKind | 'manual'
 
 export type HolidayDay = {
   date: string
   low: number
   high: number
-  /** `hit` 은 판정 기준을 넘은 시각 — 화면이 강조한다 */
-  hours: { hour: number; temp: number; hit: boolean }[]
+  /** `rain` 은 1시간 강수량(mm, 없으면 0·「1mm 미만」0.5). `hit` 은 판정 기준을 넘은 시각 — 화면이 강조한다 */
+  hours: { hour: number; temp: number; rain: number; hit: boolean }[]
+}
+
+/** 근무지 구역에 발효 중인 특보 — 판정에 쓰였다 */
+export type HolidayWarning = {
+  kind: HolidayKind
+  /** '폭염경보' · '호우주의보' … */
+  name: string
+  /** '서울서북권' */
+  zone: string
+  areaCode: string
+  since: string
 }
 
 export type HolidayWorksite = {
@@ -31,8 +42,15 @@ export type HolidayOverview = {
   today: string
   /** 내일 이후면 지정·취소할 수 있다 */
   editable: boolean
-  /** 격자마다 하나. 예보가 없으면 kind null · days [] */
-  weather: { grid: string; kind: HolidayKind | null; days: HolidayDay[] }[]
+  /** 특보 수집이 멈춰 예보로만 판정했다. 특보를 싣기 전 서버는 없다 */
+  warningsStale?: boolean
+  /** 격자마다 하나. 예보가 없으면 kind null · days [] · warnings [] */
+  weather: {
+    grid: string
+    kind: HolidayKind | null
+    days: HolidayDay[]
+    warnings: HolidayWarning[]
+  }[]
   worksites: HolidayWorksite[]
   upcoming: { date: string; worksites: number }[]
 }
@@ -40,11 +58,29 @@ export type HolidayOverview = {
 /** 시니어 알림 결과. `pushed` 는 나간 앱 푸시 수(토큰 기준), `aborted` 는 알림 단계가 중간에 멈춤 */
 export type PushOutcome = { pushed: number; failed: number; aborted: boolean }
 
+/**
+ * 받는 방법 — 서버 `receiveChannel`. none 앱 계정 없음 · noPush 앱 알림 꺼짐 · push 앱 알림 받음.
+ * 직접 알릴 분 명단에 push 가 섞이는 것은 이번 알림이 실패했을 때다.
+ */
+export type Channel = 'none' | 'noPush' | 'push'
+
+export type ContactPerson = { directoryId: string; name: string; phone: string | null; channel: Channel }
+
+/**
+ * 직접 알릴 분 — 앱 알림을 못 받는 시니어를 근무지별로(알림 단계가 통째로 실패했으면 전원).
+ * 서버가 명단을 못 읽었으면 null 이다.
+ */
+export type HolidayContacts = { worksiteId: string; worksite: string; people: ContactPerson[] }[]
+
 export type CreateResult = {
   created: { worksiteId: string; holidayId: string; people: number }[]
   skipped: { worksiteId: string; reason: 'exists' }[]
   push: PushOutcome
+  /** 특보·명단을 싣기 전 서버(2026-10-27 이전 배포)는 없다 */
+  contacts?: HolidayContacts | null
 }
+
+export type CancelResult = { canceled: true; push: PushOutcome; contacts?: HolidayContacts | null }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 const DAY_MS = 86_400_000
@@ -79,7 +115,12 @@ export function hoursLabel(hours: number[]): string {
 
 export const hitHours = (day: HolidayDay) => day.hours.filter((h) => h.hit).map((h) => h.hour)
 
-/** 대시보드 띠 문구. 조건이 남은 근무지가 없으면 null */
+const KIND_TITLE: Record<HolidayKind, string> = { heat: '폭염', cold: '한파', rain: '많은 비' }
+
+/**
+ * 대시보드 띠 문구. 조건이 남은 근무지가 없으면 null. **특보만으로 조건이 된 날은 특보를 말한다** —
+ * 예보가 기준 아래인데 기준을 넘었다고 지어내지 않는다.
+ */
 export function alertHeadline(
   o: HolidayOverview,
 ): { kind: HolidayKind; title: string; detail: string; count: number } | null {
@@ -88,27 +129,70 @@ export function alertHeadline(
   if (!first || !first.alert) return null
   const kind = first.alert
   const when = o.date === addDays(o.today, 1) ? '내일' : shortDate(o.date)
-  if (kind === 'cold') {
-    return {
-      kind,
-      title: `${when} 한파 예보`,
-      detail: `${shortDate(addDays(o.date, -1))}·${shortDate(o.date)} 영하 10도 이하`,
-      count: pending.length,
-    }
-  }
-  const day = o.weather.find((w) => w.grid === first.grid)?.days.find((d) => d.date === o.date)
+  const weather = o.weather.find((w) => w.grid === first.grid)
+  // 특보를 싣기 전 서버는 `warnings` 가 없다
+  const warning = (weather?.warnings ?? []).find((w) => w.kind === kind)
+  const warned = warning ? `${warning.zone} ${warning.name} 발효 중` : null
+  const day = weather?.days.find((d) => d.date === o.date)
   const hits = day ? hitHours(day) : []
-  return {
+  const headline = (detail: string) => ({
     kind,
-    title: `${when} 폭염 예보`,
-    detail: hits.length
-      ? `${shortDate(o.date)} ${hoursLabel(hits)} 30도 이상`
-      : day
-        ? `${shortDate(o.date)} 최고 ${day.high}도`
-        : // 그날 칸이 없으면 기온을 지어내지 않는다
-          `${shortDate(o.date)} 30도 이상 예보`,
+    // 모르는 종류(서버가 새로 더한)면 「날씨」 — 다른 조건으로 지어내지 않는다
+    title: `${when} ${KIND_TITLE[kind] ?? '날씨'} 예보`,
+    detail,
     count: pending.length,
+  })
+
+  if (kind === 'cold') {
+    // 예보로 한파면 전날·그날 두 칸이 온다
+    return headline(
+      warned && (weather?.days.length ?? 0) < 2
+        ? warned
+        : `${shortDate(addDays(o.date, -1))}·${shortDate(o.date)} 영하 10도 이하`,
+    )
   }
+  if (kind === 'rain') {
+    return headline(
+      hits.length ? `${shortDate(o.date)} ${hoursLabel(hits)} 시간당 10mm 이상` : (warned ?? `${shortDate(o.date)} 많은 비 예보`),
+    )
+  }
+  if (hits.length) return headline(`${shortDate(o.date)} ${hoursLabel(hits)} 30도 이상`)
+  if (warned && !(day && day.high >= 30)) return headline(warned)
+  return headline(
+    day
+      ? `${shortDate(o.date)} 최고 ${day.high}도`
+      : // 그날 칸이 없으면 기온을 지어내지 않는다
+        `${shortDate(o.date)} 30도 이상 예보`,
+  )
+}
+
+/** 특보 발효 시각 → '10/27 11시'(분이 있으면 '11시 30분'). 읽지 못하면 빈 글자 */
+export function sinceLabel(iso: string): string {
+  const at = Date.parse(iso)
+  if (Number.isNaN(at)) return ''
+  const d = new Date(at + 9 * 60 * 60 * 1000)
+  const minutes = d.getUTCMinutes()
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${d.getUTCHours()}시${minutes ? ` ${minutes}분` : ''}`
+}
+
+/** 시각 칸의 강수량 글자(mm 생략). 없으면 줄표, 「1mm 미만」은 <1 */
+export function rainLabel(mm: number): string {
+  if (mm <= 0) return '–'
+  if (mm < 1) return '<1'
+  return String(mm)
+}
+
+const CHANNEL_LABEL: Record<Channel, string> = {
+  none: '앱 미설치',
+  noPush: '앱 알림 꺼짐',
+  push: '앱 알림 실패',
+}
+
+export const channelLabel = (channel: Channel) => CHANNEL_LABEL[channel]
+
+/** 직접 알릴 분 수 — 근무지를 가로질러 센다 */
+export function contactCount(contacts: HolidayContacts | null | undefined): number {
+  return (contacts ?? []).reduce((n, g) => n + g.people.length, 0)
 }
 
 /**

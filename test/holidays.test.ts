@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   alertHeadline,
   cancelNotice,
+  channelLabel,
+  contactCount,
   createNotice,
   filterWorksites,
   hitHours,
@@ -11,8 +13,11 @@ import {
   hoursLabel,
   nextDate,
   pendingAlerts,
+  rainLabel,
   shortDate,
+  sinceLabel,
   type HolidayOverview,
+  type HolidayWarning,
   type HolidayWorksite,
 } from '../app/utils/holidays'
 
@@ -44,13 +49,14 @@ const overview = (
           low: 22,
           high: 32,
           hours: [
-            { hour: 11, temp: 29, hit: false },
-            { hour: 12, temp: 30, hit: true },
-            { hour: 13, temp: 31, hit: true },
-            { hour: 16, temp: 30, hit: true },
+            { hour: 11, temp: 29, rain: 0, hit: false },
+            { hour: 12, temp: 30, rain: 0, hit: true },
+            { hour: 13, temp: 31, rain: 0, hit: true },
+            { hour: 16, temp: 30, rain: 0, hit: true },
           ],
         },
       ],
+      warnings: [],
     },
   ],
   worksites,
@@ -82,14 +88,81 @@ describe('alertHeadline', () => {
 
   it('한파면 이틀을 말한다', () => {
     const o = overview([site('a', { alert: 'cold' })], {
-      weather: [{ grid: '59,127', kind: 'cold', days: [] }],
+      weather: [{ grid: '59,127', kind: 'cold', days: [], warnings: [] }],
     })
     expect(alertHeadline(o)?.detail).toBe('10/27(화)·10/28(수) 영하 10도 이하')
   })
 
   it('그날 예보 칸이 없으면 기온을 지어내지 않는다', () => {
-    const o = overview([site('a')], { weather: [{ grid: '59,127', kind: 'heat', days: [] }] })
+    const o = overview([site('a')], {
+      weather: [{ grid: '59,127', kind: 'heat', days: [], warnings: [] }],
+    })
     expect(alertHeadline(o)?.detail).toBe('10/28(수) 30도 이상 예보')
+  })
+
+  const warning = (kind: HolidayWarning['kind'], name: string): HolidayWarning => ({
+    kind,
+    name,
+    zone: '서울서북권',
+    areaCode: 'L1100400',
+    since: '2026-10-27T02:00:00.000Z',
+  })
+  const mildDay = {
+    date: '2026-10-28',
+    low: 1,
+    high: 8,
+    hours: [{ hour: 9, temp: 3, rain: 0, hit: false }],
+  }
+
+  it('비면 시간당 10mm 넘는 시각을 말한다', () => {
+    const o = overview([site('a', { alert: 'rain' })], {
+      weather: [
+        {
+          grid: '59,127',
+          kind: 'rain',
+          days: [
+            {
+              date: '2026-10-28',
+              low: 15,
+              high: 19,
+              hours: [
+                { hour: 9, temp: 17, rain: 12, hit: true },
+                { hour: 10, temp: 17, rain: 15, hit: true },
+              ],
+            },
+          ],
+          warnings: [],
+        },
+      ],
+    })
+    expect(alertHeadline(o)).toEqual({
+      kind: 'rain',
+      title: '내일 많은 비 예보',
+      detail: '10/28(수) 9~10시 시간당 10mm 이상',
+      count: 1,
+    })
+  })
+
+  it('특보만으로 조건이면 특보를 말한다(앱과 같다)', () => {
+    const cold = overview([site('a', { alert: 'cold' })], {
+      weather: [
+        { grid: '59,127', kind: 'cold', days: [mildDay], warnings: [warning('cold', '한파주의보')] },
+      ],
+    })
+    expect(alertHeadline(cold)?.detail).toBe('서울서북권 한파주의보 발효 중')
+    const heat = overview([site('a')], {
+      weather: [
+        { grid: '59,127', kind: 'heat', days: [mildDay], warnings: [warning('heat', '폭염경보')] },
+      ],
+    })
+    expect(alertHeadline(heat)?.detail).toBe('서울서북권 폭염경보 발효 중')
+  })
+
+  it('모르는 종류(서버가 새로 더한)는 다른 날씨로 지어내지 않는다', () => {
+    const o = overview([site('a', { alert: 'dust' as never })], {
+      weather: [{ grid: '59,127', kind: 'dust' as never, days: [], warnings: [] }],
+    })
+    expect(alertHeadline(o)?.title).toBe('내일 날씨 예보')
   })
 
   it('남은 조건 근무지가 없으면 없다', () => {
@@ -170,5 +243,34 @@ describe('결과 문구', () => {
     expect(cancelNotice('북아현 경로당', 2, { pushed: 2, failed: 0, aborted: false })).toBe(
       '북아현 경로당 휴무를 취소했습니다. 시니어 2명 중 앱 알림 2건이 나갔습니다.',
     )
+  })
+})
+
+describe('직접 알릴 분 · 특보 · 강수량 칸(앱과 같다)', () => {
+  it('받는 방법을 사람 말로', () => {
+    expect(channelLabel('none')).toBe('앱 미설치')
+    expect(channelLabel('noPush')).toBe('앱 알림 꺼짐')
+    // 명단에 push 가 섞이는 것은 이번 알림이 실패했을 때다
+    expect(channelLabel('push')).toBe('앱 알림 실패')
+  })
+  it('근무지를 가로질러 사람 수를 센다', () => {
+    const p = (id: string) => ({ directoryId: id, name: id, phone: null, channel: 'none' as const })
+    expect(
+      contactCount([
+        { worksiteId: 'a', worksite: 'A', people: [p('1'), p('2')] },
+        { worksiteId: 'b', worksite: 'B', people: [p('3')] },
+      ]),
+    ).toBe(3)
+    expect(contactCount(null)).toBe(0)
+  })
+  it('특보 발효 시각은 서울 시각, 분이 있을 때만 분', () => {
+    expect(sinceLabel('2026-10-27T02:00:00.000Z')).toBe('10/27 11시')
+    expect(sinceLabel('2026-10-27T15:30:00.000Z')).toBe('10/28 0시 30분')
+    expect(sinceLabel('')).toBe('')
+  })
+  it('강수량 칸 — 없으면 줄표, 1mm 미만은 <1', () => {
+    expect(rainLabel(0)).toBe('–')
+    expect(rainLabel(0.5)).toBe('<1')
+    expect(rainLabel(12)).toBe('12')
   })
 })
