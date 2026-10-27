@@ -2,6 +2,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   alertHeadline,
+  cancelNotice,
+  createNotice,
   filterWorksites,
   hitHours,
   holidayErrorMessage,
@@ -85,6 +87,11 @@ describe('alertHeadline', () => {
     expect(alertHeadline(o)?.detail).toBe('10/27(화)·10/28(수) 영하 10도 이하')
   })
 
+  it('그날 예보 칸이 없으면 기온을 지어내지 않는다', () => {
+    const o = overview([site('a')], { weather: [{ grid: '59,127', kind: 'heat', days: [] }] })
+    expect(alertHeadline(o)?.detail).toBe('10/28(수) 30도 이상 예보')
+  })
+
   it('남은 조건 근무지가 없으면 없다', () => {
     expect(alertHeadline(overview([site('a', { alert: null })]))).toBeNull()
   })
@@ -130,5 +137,38 @@ describe('holidayErrorMessage', () => {
       '이미 취소된 휴무입니다.',
     )
     expect(holidayErrorOf({ statusCode: 401 })).toBe('로그인이 만료되었습니다. 다시 로그인해 주세요.')
+  })
+})
+
+describe('결과 문구', () => {
+  const push = { pushed: 2, failed: 0, aborted: false }
+  it('지정 — 앱 알림이 몇 건 나갔는지와 나머지는 직접 알리라는 말', () => {
+    expect(
+      createNotice({
+        created: [
+          { worksiteId: 'a', holidayId: 'h1', people: 10 },
+          { worksiteId: 'b', holidayId: 'h2', people: 5 },
+        ],
+        skipped: [{ worksiteId: 'c', reason: 'exists' }],
+        push,
+      }),
+    ).toBe(
+      '2곳을 휴무로 정했습니다. 1곳은 이미 휴무였습니다. 시니어 15명 중 앱 알림 2건이 나갔습니다. ' +
+        '앱 알림을 못 받는 분께는 직접 알려 주세요.',
+    )
+  })
+  it('알림 단계가 멈췄으면 그렇게 말한다', () => {
+    expect(
+      createNotice({
+        created: [{ worksiteId: 'a', holidayId: 'h1', people: 3 }],
+        skipped: [],
+        push: { pushed: 0, failed: 0, aborted: true },
+      }),
+    ).toBe('1곳을 휴무로 정했습니다. 시니어 알림을 보내지 못했습니다. 직접 알려 주세요.')
+  })
+  it('취소 — 같은 규칙', () => {
+    expect(cancelNotice('북아현 경로당', 2, { pushed: 2, failed: 0, aborted: false })).toBe(
+      '북아현 경로당 휴무를 취소했습니다. 시니어 2명 중 앱 알림 2건이 나갔습니다.',
+    )
   })
 })

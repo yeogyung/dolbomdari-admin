@@ -37,10 +37,13 @@ export type HolidayOverview = {
   upcoming: { date: string; worksites: number }[]
 }
 
+/** 시니어 알림 결과. `pushed` 는 나간 앱 푸시 수(토큰 기준), `aborted` 는 알림 단계가 중간에 멈춤 */
+export type PushOutcome = { pushed: number; failed: number; aborted: boolean }
+
 export type CreateResult = {
   created: { worksiteId: string; holidayId: string; people: number }[]
   skipped: { worksiteId: string; reason: 'exists' }[]
-  push: { pushed: number; failed: number }
+  push: PushOutcome
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -100,9 +103,37 @@ export function alertHeadline(
     title: `${when} 폭염 예보`,
     detail: hits.length
       ? `${shortDate(o.date)} ${hoursLabel(hits)} 30도 이상`
-      : `${shortDate(o.date)} 최고 ${day?.high ?? 30}도`,
+      : day
+        ? `${shortDate(o.date)} 최고 ${day.high}도`
+        : // 그날 칸이 없으면 기온을 지어내지 않는다
+          `${shortDate(o.date)} 30도 이상 예보`,
     count: pending.length,
   }
+}
+
+/**
+ * 시니어에게 몇 건이 닿았는지. **앱 알림을 못 받는 분이 있으면 직접 알리라고 말한다** — 운영 시니어
+ * 대부분이 아직 앱 알림을 켜지 않아(2026-10-26 1,599명 중 5명), 숫자 없이 「정했습니다」만 보이면
+ * 알렸다고 여기게 된다. 앱(`lib/holidays.ts`)과 같은 규칙이고 말투만 합니다체다.
+ */
+function reachText(people: number, push: PushOutcome): string {
+  if (push.aborted) return '시니어 알림을 보내지 못했습니다. 직접 알려 주세요.'
+  const parts = [`시니어 ${people}명 중 앱 알림 ${push.pushed}건이 나갔습니다.`]
+  if (push.failed) parts.push(`앱 알림 ${push.failed}건은 보내지 못했습니다.`)
+  if (push.pushed < people) parts.push('앱 알림을 못 받는 분께는 직접 알려 주세요.')
+  return parts.join(' ')
+}
+
+export function createNotice(result: CreateResult): string {
+  const people = result.created.reduce((n, c) => n + c.people, 0)
+  const parts = [`${result.created.length}곳을 휴무로 정했습니다.`]
+  if (result.skipped.length) parts.push(`${result.skipped.length}곳은 이미 휴무였습니다.`)
+  parts.push(reachText(people, result.push))
+  return parts.join(' ')
+}
+
+export function cancelNotice(worksite: string, people: number, push: PushOutcome): string {
+  return `${worksite} 휴무를 취소했습니다. ${reachText(people, push)}`
 }
 
 /** 근무지 검색 — 이름·사업 이름, 띄어쓰기 무시. 빈 검색어면 전부 */

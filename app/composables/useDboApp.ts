@@ -1,5 +1,5 @@
 // 앱 API(dbo) 호출 — 어드민에 없는 기능을 앱 엔드포인트로 쓴다. 공지 발송(QA 2026-10-14 15번)·날씨 휴무
-import type { CreateResult, HolidayOverview } from '~/utils/holidays'
+import type { CreateResult, HolidayOverview, PushOutcome } from '~/utils/holidays'
 
 /**
  * `useDboAdmin` 은 주소가 dbo-admin 으로 고정이라 따로 둔다. 인증은 같다 —
@@ -40,6 +40,7 @@ export function useDboApp() {
       call<HolidayOverview>('GET', date ? `/holidays?date=${date}` : '/holidays'),
     createHolidays: (date: string, worksiteIds: string[]) =>
       post<CreateResult>('/holidays', { date, worksiteIds }),
-    cancelHoliday: (id: string) => post<{ canceled: true }>(`/holidays/${id}/cancel`, {}),
+    cancelHoliday: (id: string) =>
+      post<{ canceled: true; push: PushOutcome }>(`/holidays/${id}/cancel`, {}),
   }
 }

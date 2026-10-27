@@ -2,6 +2,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import {
+  cancelNotice,
+  createNotice,
   filterWorksites,
   holidayErrorOf,
   hoursLabel,
@@ -31,7 +33,10 @@ const q = ref('')
 const selected = ref(new Set<string>())
 const busy = ref(false)
 
-type Ask = { kind: 'create'; ids: string[]; people: number } | { kind: 'cancel'; site: HolidayWorksite }
+/** 지정은 누른 순간 화면에 그려진 날짜(`overview.date`)를 싣는다 — 날짜를 바꾸는 사이 다른 날로 나가지 않게 */
+type Ask =
+  | { kind: 'create'; date: string; ids: string[]; people: number }
+  | { kind: 'cancel'; site: HolidayWorksite }
 const ask = ref<Ask | null>(null)
 const askOpen = computed({
   get: () => ask.value !== null,
@@ -70,6 +75,8 @@ watch(date, (d) => {
   if (!d) return
   void router.replace({ query: { ...route.query, date: d } })
   q.value = ''
+  // 이전 날짜의 목록·버튼을 남겨 두지 않는다 — 새 목록이 오기 전에 누르면 다른 날짜가 지정된다
+  overview.value = null
   void load()
 })
 onMounted(() => load())
@@ -116,19 +123,25 @@ const REASON: Record<string, string> = { heat: '폭염', cold: '한파', manual:
 
 async function run() {
   const current = ask.value
-  if (!current || !date.value) return
+  if (!current) return
   busy.value = true
   try {
     if (current.kind === 'create') {
-      const r = await app.createHolidays(date.value, current.ids)
-      const parts = [`${r.created.length}곳을 휴무로 정했습니다.`]
-      if (r.skipped.length) parts.push(`${r.skipped.length}곳은 이미 휴무였습니다.`)
-      if (r.push.failed) parts.push(`앱 알림 ${r.push.failed}건을 보내지 못했습니다.`)
-      toast.add({ title: '휴무 지정', description: parts.join(' '), color: r.push.failed ? 'warning' : 'success' })
+      const r = await app.createHolidays(current.date, current.ids)
+      const warn = r.push.aborted || r.push.failed > 0
+      // 알림 도달 수는 담당자가 직접 연락할지 정하는 근거라 저절로 사라지지 않게 둔다
+      toast.add({ title: '휴무 지정', description: createNotice(r), color: warn ? 'warning' : 'success', duration: 0 })
       selected.value = new Set()
     } else {
-      await app.cancelHoliday(current.site.holiday!.id)
-      toast.add({ title: '휴무 취소', description: `${current.site.name} 휴무를 취소했습니다.`, color: 'success' })
+      const r = await app.cancelHoliday(current.site.holiday!.id)
+      const push = r?.push ?? { pushed: 0, failed: 0, aborted: true }
+      const warn = push.aborted || push.failed > 0
+      toast.add({
+        title: '휴무 취소',
+        description: cancelNotice(current.site.name, current.site.people, push),
+        color: warn ? 'warning' : 'success',
+        duration: 0,
+      })
     }
   } catch (e) {
     console.error('[holidays] 처리 실패', e)
@@ -260,7 +273,7 @@ async function run() {
         <div v-if="openAll.length && overview.editable" class="mt-4 flex justify-end">
           <AppButton
             :disabled="picked.length === 0 || busy"
-            @click="ask = { kind: 'create', ids: picked.map((s) => s.id), people: picked.reduce((n, s) => n + s.people, 0) }"
+            @click="ask = { kind: 'create', date: overview.date, ids: picked.map((s) => s.id), people: picked.reduce((n, s) => n + s.people, 0) }"
           >
             {{ shortDate(overview.date) }} {{ picked.length }}곳 휴무 지정
           </AppButton>
@@ -299,7 +312,9 @@ async function run() {
       :title="
         ask?.kind === 'cancel'
           ? `${ask.site.name} 휴무를 취소할까요?`
-          : `${overview ? shortDate(overview.date) : ''} ${ask?.kind === 'create' ? ask.ids.length : 0}곳을 휴무로 정할까요?`
+          : ask?.kind === 'create'
+            ? `${shortDate(ask.date)} ${ask.ids.length}곳을 휴무로 정할까요?`
+            : ''
       "
       width="max-w-md"
     >
