@@ -97,12 +97,11 @@ async function onDelete() {
 
       <RecordDetail v-if="def" :def="def" :record="record" :id="id" />
 
-      <!-- 이력서: 서류 양식 뷰 -->
-      <ResumeDocument v-if="tableName === 'resumes'" :resume="(record as any)" />
+      <!-- 이력서: A4 서류 양식 뷰 + PDF·이미지 저장 -->
+      <ResumeDocumentPanel v-if="tableName === 'resumes'" :resume="(record as any)" />
 
       <ResumeSharePanel
         v-if="tableName === 'resumes' && record"
-        :resume-id="id"
         :user-id="String((record as any).user_id)"
       />
 

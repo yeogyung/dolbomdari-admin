@@ -1,6 +1,6 @@
-<!-- 이력서 공유 패널 — PDF 다운로드, 공개 링크 발급/폐기, 문자 발송 -->
+<!-- 이력서 공유 패널 — 공개 링크 발급/폐기, 문자 발송 -->
 <script setup lang="ts">
-const props = defineProps<{ resumeId: string; userId: string }>()
+const props = defineProps<{ userId: string }>()
 
 const supabase = useSupabase()
 const toast = useToast()
@@ -145,25 +145,6 @@ async function sendLink(l: ShareLink) {
   }
 }
 
-async function downloadPdf() {
-  try {
-    const res = await $fetch<Blob>(`/api/admin/resume-pdf/${props.resumeId}`, {
-      headers: await authHeader(),
-      responseType: 'blob',
-    })
-    const url = URL.createObjectURL(res)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = '이력서.pdf'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 0)
-  } catch (e: any) {
-    toast.add({ title: '다운로드 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
-  }
-}
-
 onMounted(load)
 defineExpose({ load })
 </script>
@@ -172,14 +153,9 @@ defineExpose({ load })
   <AppCard>
     <template #header>
       <h3 class="text-[15px] font-semibold text-ink">이력서 공유</h3>
-      <div class="flex gap-2">
-        <AppButton size="sm" variant="outline" color="neutral" icon="i-lucide-download" @click="downloadPdf">
-          PDF 다운로드
-        </AppButton>
-        <AppButton size="sm" icon="i-lucide-link" :loading="issuing" :disabled="loading" @click="issue">
-          공개 링크 발급
-        </AppButton>
-      </div>
+      <AppButton size="sm" icon="i-lucide-link" :loading="issuing" :disabled="loading" @click="issue">
+        공개 링크 발급
+      </AppButton>
     </template>
 
     <AppSpinner v-if="loading" size="sm" label="불러오는 중…" />
