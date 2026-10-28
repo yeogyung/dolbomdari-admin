@@ -2,6 +2,11 @@
 //
 // ⚠ dolbomdari-link/app/utils/resumeExport.ts 에 같은 파일이 복제돼 있다. 하나를 고치면 둘 다 고친다.
 // 라이브러리는 누를 때 불러온다 — 서류를 보기만 하는 사람에게 번들을 싣지 않는다
+//
+// import() 앞의 `if (!import.meta.client) throw` 는 지우지 말 것. 서버 빌드에서 import.meta.client 가 false 로 박혀
+// 그 뒤 import() 가 죽은 코드로 빠진다. 남으면 Nitro 가 pdf-lib 를 서버 함수에 싣고, pdf-lib 의 tslib 1.x 때문에
+// tslib 가 두 벌이 되어 윈도우 빌드에서 절대 경로 링크로 묶인다 → Netlify 에서 Supabase 가 tslib 를 못 찾아 API 전부 500 (2026-10-28).
+// 같은 함수 안에 둬야 한다 — 함수로 빼면 Rollup 이 항상 던진다는 걸 몰라 import() 가 남는다
 import { PAGE_H, PAGE_W } from './resumePages'
 
 /** 화면 1px 을 그림 2px 로 — 인쇄해도 글자가 뭉개지지 않는 정도 */
@@ -20,6 +25,7 @@ const CAPTURE_TIMEOUT_MS = 20_000
 const REVOKE_DELAY_MS = 60_000
 
 async function capture(sheet: HTMLElement, pixelRatio: number): Promise<HTMLCanvasElement> {
+  if (!import.meta.client) throw new Error('브라우저에서만 저장할 수 있습니다.')
   const { toCanvas } = await import('html-to-image')
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
@@ -77,6 +83,7 @@ export async function downloadResumePng(sheets: HTMLElement[], filename: string)
 
 /** 장마다 그림 한 장을 A4 PDF 한 쪽에 꽉 채운다 — 글자는 선택·검색되지 않는다 */
 export async function downloadResumePdf(sheets: HTMLElement[], filename: string) {
+  if (!import.meta.client) throw new Error('브라우저에서만 저장할 수 있습니다.')
   const { PDFDocument } = await import('pdf-lib')
   const doc = await PDFDocument.create()
   for (const sheet of sheets) {
