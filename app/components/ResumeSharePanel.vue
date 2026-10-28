@@ -69,15 +69,31 @@ async function load() {
   }
 }
 
+// 서버가 새 링크를 발급하면서 폐기하는 대상과 같은 조건이다 — 폐기 안 됨·만료 전
+const hasLiveLink = computed(() =>
+  links.value.some((l) => !l.revoked_at && new Date(l.expires_at) > new Date()),
+)
+
 async function issue() {
+  if (
+    hasLiveLink.value &&
+    !confirm('새 링크를 발급하면 이전 공개 링크는 자동으로 폐기됩니다.\n이전 링크를 받은 사람은 더 이상 열 수 없습니다. 발급하시겠습니까?')
+  ) {
+    return
+  }
   issuing.value = true
   try {
-    await $fetch('/api/admin/resume-links', {
+    const res = await $fetch<{ revoked_count: number }>('/api/admin/resume-links', {
       method: 'POST',
       headers: await authHeader(),
       body: { userId: props.userId },
     })
-    toast.add({ title: '링크를 발급했습니다.', color: 'success' })
+    toast.add({
+      title: res.revoked_count
+        ? `링크를 발급했습니다. 이전 링크 ${res.revoked_count}개는 폐기했습니다.`
+        : '링크를 발급했습니다.',
+      color: 'success',
+    })
     await load()
   } catch (e: any) {
     toast.add({ title: '발급 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
@@ -160,7 +176,7 @@ defineExpose({ load })
         <AppButton size="sm" variant="outline" color="neutral" icon="i-lucide-download" @click="downloadPdf">
           PDF 다운로드
         </AppButton>
-        <AppButton size="sm" icon="i-lucide-link" :loading="issuing" @click="issue">
+        <AppButton size="sm" icon="i-lucide-link" :loading="issuing" :disabled="loading" @click="issue">
           공개 링크 발급
         </AppButton>
       </div>
