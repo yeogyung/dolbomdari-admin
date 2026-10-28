@@ -1,7 +1,7 @@
 // 이력서 서류의 A4 장 나누기 — 양식을 줄 목록으로 펴고, 실측한 줄 높이로 장마다 담을 줄을 고른다
 //
 // ⚠ dolbomdari-link/app/utils/resumePages.ts 에 같은 파일이 복제돼 있다. 하나를 고치면 둘 다 고친다.
-import { RESUME_FORM, sectionRows, type FormSection, type Resume } from '../../shared/resume-form'
+import { RESUME_FORM, sectionRows, type FormSection, type Resume } from '#shared/resume-form'
 
 /** A4(210×297mm)를 CSS 96dpi 픽셀로 */
 export const PAGE_W = 794
