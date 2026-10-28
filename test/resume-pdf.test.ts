@@ -1,4 +1,4 @@
-// 이력서 PDF 렌더러 테스트 — 바이트 출력·페이지 분할·빈 이력서
+// 이력서 PDF 렌더러 테스트 — 바이트 출력·페이지 분할·빈 이력서·내장 글꼴 무결성
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import fontkit from '@pdf-lib/fontkit'
 import { decodePDFRawStream, PDFDict, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib'
@@ -79,7 +79,8 @@ describe('renderResumePdf', () => {
       .enumerateIndirectObjects()
       .map(([, obj]) => obj)
       .filter((obj): obj is PDFDict => obj instanceof PDFDict && obj.has(PDFName.of('FontFile2')))
-      .map((desc) => desc.lookup(PDFName.of('FontFile2'), PDFRawStream))
+      .map((desc) => desc.lookup(PDFName.of('FontFile2')))
+      .filter((stream): stream is PDFRawStream => stream instanceof PDFRawStream)
     expect(fontFiles).toHaveLength(1)
 
     const embedded = fontkit.create(decodePDFRawStream(fontFiles[0]).decode())
