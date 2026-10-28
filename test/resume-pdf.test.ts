@@ -1,6 +1,7 @@
-// 이력서 PDF 렌더러 테스트 — 바이트 출력·페이지 분할·빈 이력서
+// 이력서 PDF 렌더러 테스트 — 바이트 출력·페이지 분할·빈 이력서·내장 글꼴 무결성
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { PDFDocument } from 'pdf-lib'
+import fontkit from '@pdf-lib/fontkit'
+import { decodePDFRawStream, PDFDict, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import { renderResumePdf } from '../server/utils/resume-pdf'
 import type { Resume } from '../shared/resume-form'
@@ -68,6 +69,30 @@ describe('renderResumePdf', () => {
     expect(bytes.length).toBeGreaterThan(1000)
     const doc = await PDFDocument.load(bytes)
     expect(doc.getPageCount()).toBe(1)
+  })
+
+  // 서브셋 임베드 시 글리프 데이터가 깨져 글자가 빈칸으로 렌더링됐다 — 내장 글꼴을 직접 디코드해 막는다
+  it('내장 글꼴의 글리프가 모두 디코드된다', async () => {
+    const bytes = await renderResumePdf(makeResume(), font)
+    const doc = await PDFDocument.load(bytes)
+    const fontFiles = doc.context
+      .enumerateIndirectObjects()
+      .map(([, obj]) => obj)
+      .filter((obj): obj is PDFDict => obj instanceof PDFDict && obj.has(PDFName.of('FontFile2')))
+      .map((desc) => desc.lookup(PDFName.of('FontFile2')))
+      .filter((stream): stream is PDFRawStream => stream instanceof PDFRawStream)
+    expect(fontFiles).toHaveLength(1)
+
+    const embedded = fontkit.create(decodePDFRawStream(fontFiles[0]).decode())
+    const broken: number[] = []
+    for (let gid = 0; gid < embedded.numGlyphs; gid++) {
+      try {
+        void embedded.getGlyph(gid).path
+      } catch {
+        broken.push(gid)
+      }
+    }
+    expect(broken).toEqual([])
   })
 
   // 양식 대조용 덤프 — test-output/ 는 .gitignore 에 넣는다
