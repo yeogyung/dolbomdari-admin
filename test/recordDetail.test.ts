@@ -148,3 +148,28 @@ describe('buildDetailView — 넓은 칸', () => {
     expect(buildDetailView(def, { bio: 'a'.repeat(60) }, tables).cards[0]!.entries[0]!.wide).toBe(false)
   })
 })
+
+describe('buildDetailView — 칸별 문구 함수', () => {
+  const def: TableDef = {
+    name: 't',
+    label: 'T',
+    mode: 'log',
+    pk: ['id'],
+    canCreate: false,
+    fields: [
+      { name: 'items', label: '항목', type: 'textarea' },
+      { name: 'raw', label: '원문', type: 'textarea' },
+    ],
+  }
+  const fieldText = { items: (v: unknown) => (v as string[]).join('\n') }
+
+  it('문구 함수가 있는 칸은 그 결과를 쓰고, 없는 칸은 예전 그대로', () => {
+    const view = buildDetailView(def, { items: ['a', 'b'], raw: { k: 1 } }, tables, fieldText)
+    expect(view.cards[0]!.entries[0]).toMatchObject({ text: 'a\nb', wide: true })
+    expect(view.cards[0]!.entries[1]!.text).toBe(JSON.stringify({ k: 1 }, null, 2))
+  })
+
+  it('문구 함수가 빈 문자열을 내면 「—」', () => {
+    expect(buildDetailView(def, { items: [] }, tables, fieldText).cards[0]!.entries[0]!.text).toBe('—')
+  })
+})

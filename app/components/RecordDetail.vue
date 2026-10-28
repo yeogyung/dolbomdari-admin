@@ -2,10 +2,16 @@
 <script setup lang="ts">
 import { TABLES, type TableDef } from '#shared/tables'
 import { buildDetailView } from '~/utils/recordDetail'
+import { RESUME_FIELD_TEXT } from '~/utils/resumeFields'
 
 const props = defineProps<{ def: TableDef; record: Record<string, unknown>; id: string }>()
 
-const view = computed(() => buildDetailView(props.def, props.record, TABLES))
+// 테이블별 칸 문구 — JSON 원문 대신 항목별 줄로 보인다
+const FIELD_TEXT: Record<string, Record<string, (value: unknown) => string>> = {
+  resumes: RESUME_FIELD_TEXT,
+}
+
+const view = computed(() => buildDetailView(props.def, props.record, TABLES, FIELD_TEXT[props.def.name]))
 </script>
 
 <template>

@@ -35,10 +35,15 @@ function textOf(value: unknown): string {
   return String(value)
 }
 
+/**
+ * @param fieldText 칸 이름 → 값 문구. JSON 칸처럼 원문이 읽기 어려운 칸을 테이블별로 편다.
+ *                  빈 문자열을 내면 「—」로 보인다
+ */
 export function buildDetailView(
   def: TableDef,
   record: Record<string, unknown>,
   tables: Record<string, TableDef>,
+  fieldText: Record<string, (value: unknown) => string> = {},
 ): DetailView {
   const detail = def.detail
   const hidden = new Set(detail?.hidden ?? [])
@@ -54,6 +59,7 @@ export function buildDetailView(
     const field = def.fields.find((f) => f.name === key)
     const raw = record[key]
     const ref = def.refs?.find((r) => r.column === key)
+    const toText = fieldText[key]
     let text: string
     let to: string | undefined
     if (ref) {
@@ -61,6 +67,8 @@ export function buildDetailView(
       text = textOf(name ?? raw)
       const target = tables[ref.table]
       if (raw && target && target.pk.length === 1) to = `/${ref.table}/${encodeURIComponent(String(raw))}`
+    } else if (toText) {
+      text = toText(raw) || '—'
     } else if (detail && field?.type === 'datetime') {
       // 시각 표기는 detail 설정이 있는 화면만 바꾼다 — 나머지 테이블은 예전 원문 그대로
       text = fmtDateTime(raw as string | null)
