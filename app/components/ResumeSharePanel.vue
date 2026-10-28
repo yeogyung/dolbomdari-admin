@@ -117,8 +117,8 @@ async function revoke(token: string) {
 }
 
 async function copyLink(l: ShareLink) {
-  await navigator.clipboard.writeText(`${linkUrl(l.token)}\n비밀번호 ${l.password}`)
-  toast.add({ title: '주소와 비밀번호를 복사했습니다.', color: 'success' })
+  await navigator.clipboard.writeText(linkUrl(l.token))
+  toast.add({ title: '링크 주소를 복사했습니다.', color: 'success' })
 }
 
 async function sendLink(l: ShareLink) {
