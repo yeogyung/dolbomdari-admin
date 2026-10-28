@@ -35,7 +35,7 @@ const view = computed(() => buildDetailView(props.def, props.record, TABLES, FIE
           class="grid grid-cols-[8rem_1fr] gap-4 border-b border-hairline-soft py-3.5 text-sm"
           :class="{ 'md:col-span-2': e.wide }"
         >
-          <dt class="font-medium text-muted">{{ e.label }}</dt>
+          <dt class="font-bold text-muted">{{ e.label }}</dt>
           <dd class="min-w-0 break-words whitespace-pre-wrap text-body">
             <NuxtLink v-if="e.to" :to="e.to" class="font-medium text-brand-500 hover:underline">{{ e.text }}</NuxtLink>
             <template v-else>{{ e.text }}</template>
