@@ -1,9 +1,8 @@
 // 이력서 서류 양식 정의 — 섹션 순서·라벨·기본 행 수와 표시 포맷 헬퍼
 //
-// ⚠ 이 양식은 세 곳에 복제돼 있다. 하나를 고치면 셋을 모두 고쳐야 한다.
+// ⚠ 이 양식은 두 곳에 복제돼 있다. 하나를 고치면 둘을 모두 고쳐야 한다.
 //   · dolbomdari-admin/shared/resume-form.ts        (이 파일 — 원본)
 //   · dolbomdari-link/shared/resume-form.ts         (복제)
-//   · dolbomdari-admin/server/utils/resume-pdf.ts   (PDF 렌더러가 이 표를 따른다)
 // 근거 양식: dolbomdari-link/docs/이력서_양식.hwp
 
 export type Career = { company: string; start_ym: string; end_ym: string | null; duty: string }
@@ -85,7 +84,7 @@ export function addressText(base: string, detail: string): string {
 
 /**
  * 섹션의 행을 [1열, 2열, 3열] 문자열 배열로 만든다.
- * 세 렌더러(admin HTML · link HTML · PDF)가 모두 이 함수를 거쳐야 표기가 갈리지 않는다.
+ * 두 렌더러(admin HTML · link HTML)가 모두 이 함수를 거쳐야 표기가 갈리지 않는다.
  *
  * 훈련 사항의 1열은 양식 헤더가 '훈련기간'이지만 수료년월만 넣는다 —
  * DB 에 시작일이 없고 수집하지 않기로 했다 (설계 D13).
