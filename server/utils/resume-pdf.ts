@@ -97,7 +97,8 @@ function ensure(ctx: Ctx, needed: number) {
 export async function renderResumePdf(resume: Resume, fontBytes: Uint8Array): Promise<Uint8Array> {
   const doc = await PDFDocument.create()
   doc.registerFontkit(fontkit)
-  const font = await doc.embedFont(fontBytes, { subset: true })
+  // 서브셋은 @pdf-lib/fontkit 이 나눔고딕 글리프 일부를 깨뜨려 글자가 빈칸이 된다 — 전체 임베드(약 730KB)
+  const font = await doc.embedFont(fontBytes, { subset: false })
 
   const ctx: Ctx = { doc, font, page: doc.addPage([PAGE_W, PAGE_H]), y: PAGE_H - MARGIN }
 
