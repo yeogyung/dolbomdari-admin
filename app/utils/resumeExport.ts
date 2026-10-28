@@ -14,11 +14,27 @@ const MAX_CANVAS_AREA = 16_000_000
 const MAX_CANVAS_SIDE = 16_384
 /** A4 를 PDF 포인트(1/72in)로 */
 const A4_PT: [number, number] = [595.28, 841.89]
+/** 한 장을 뜨는 시간 상한 — html-to-image 는 그림 해독이 실패하면 끝나지 않고 멈춘다(createImage 의 decode 에 catch 가 없다) */
+const CAPTURE_TIMEOUT_MS = 20_000
+/** 내려받기 주소를 풀기까지 — 바로 풀면 iOS 사파리가 다운로드 확인 중에 파일을 잃는다 (FileSaver.js 는 40초) */
+const REVOKE_DELAY_MS = 60_000
 
 async function capture(sheet: HTMLElement, pixelRatio: number): Promise<HTMLCanvasElement> {
   const { toCanvas } = await import('html-to-image')
-  // 서류는 시스템 글꼴만 쓴다 — 웹 글꼴을 심으면 페이지의 모든 글꼴 조각을 받느라 느리다
-  return toCanvas(sheet, { width: PAGE_W, height: PAGE_H, pixelRatio, backgroundColor: '#fff', skipFonts: true })
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('서류를 그림으로 만드는 데 시간이 너무 오래 걸립니다.')), CAPTURE_TIMEOUT_MS)
+  })
+  try {
+    // 서류는 시스템 글꼴만 쓴다 — 웹 글꼴을 심으면 페이지의 모든 글꼴 조각을 받느라 느리다
+    const drawing = toCanvas(sheet, { width: PAGE_W, height: PAGE_H, pixelRatio, backgroundColor: '#fff', skipFonts: true })
+    return await Promise.race([drawing, timeout])
+  } catch (e) {
+    // html-to-image 는 Error 가 아니라 이미지 onerror 의 Event 로 거부하기도 한다
+    throw e instanceof Error ? e : new Error('서류를 그림으로 만들지 못했습니다.')
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -35,7 +51,7 @@ function download(blob: Blob, filename: string) {
   document.body.appendChild(a)
   a.click()
   a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS)
 }
 
 export async function downloadResumePng(sheets: HTMLElement[], filename: string) {

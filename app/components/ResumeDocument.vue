@@ -63,6 +63,8 @@ watch(rows, measure)
 
 async function sheetElements() {
   await measure()
+  // 재지 못하면 한 장에 몰아 담은 상태라 넘친 줄이 잘린 채 저장된다 — 저장하지 않는다
+  if (heights.value.length !== rows.value.length) throw new Error('서류 장 나누기를 하지 못했습니다. 새로고침 후 다시 시도해 주세요.')
   await nextTick()
   return [...(root.value?.querySelectorAll<HTMLElement>('.sheet:not(.measure)') ?? [])]
 }

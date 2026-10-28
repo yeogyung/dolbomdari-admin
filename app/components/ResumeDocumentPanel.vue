@@ -13,8 +13,13 @@ async function save(kind: 'pdf' | 'png') {
   saving.value = kind
   try {
     await (kind === 'pdf' ? doc.value.savePdf() : doc.value.savePng())
-  } catch (e: any) {
-    toast.add({ title: '저장 실패', description: e?.message, color: 'error' })
+  } catch (e) {
+    console.error('[resume-save]', kind, e)
+    toast.add({
+      title: '저장 실패',
+      description: e instanceof Error ? e.message : '서류를 그림으로 만들지 못했습니다. 새로고침 후 다시 시도해 주세요.',
+      color: 'error',
+    })
   } finally {
     saving.value = null
   }
