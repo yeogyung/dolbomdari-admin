@@ -34,23 +34,23 @@ export default defineEventHandler(async (event) => {
 
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
 
-  // 공개 링크는 종사자당 하나만 살려 둔다 — 새 링크를 뺀 나머지 살아 있는 링크를 폐기한다.
-  // 발급을 먼저 해야 발급이 실패해도 쓰던 링크를 잃지 않는다. 만료된 링크는 「만료됨」 표시를 지키려고 그대로 둔다
+  // 공개 링크는 종사자당 하나만 살려 둔다 — 새 링크보다 먼저 만든 살아 있는 링크를 폐기한다.
+  // 발급을 먼저 해야 발급이 실패해도 쓰던 링크를 잃지 않는다. 만료된 링크는 「만료됨」 표시를 지키려고 그대로 둔다.
+  // 「먼저 만든」으로 거르는 이유: 두 곳에서 거의 동시에 발급해도 서로의 새 링크를 지워 하나도 안 남는 일이 없다
   const now = new Date().toISOString()
   const { data: revoked, error: revokeError } = await serviceClient()
     .from('resume_share_links')
     .update({ revoked_at: now })
     .eq('user_id', userId)
-    .neq('token', data.token)
+    .lt('created_at', data.created_at)
     .is('revoked_at', null)
     .gt('expires_at', now)
     .select('token')
 
+  // 새 링크는 이미 만들어졌다 — 발급 실패로 보이면 다시 눌러 링크가 쌓이므로 성공으로 돌려주고 폐기 실패만 알린다
   if (revokeError) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: `새 링크는 발급했지만 이전 링크를 폐기하지 못했습니다. 목록에서 직접 폐기해 주세요. (${revokeError.message})`,
-    })
+    console.error('[resume-links] 이전 링크 폐기 실패', { userId, token: data.token, revokeError })
+    return { ...data, revoked_count: 0, revoke_error: revokeError.message }
   }
   return { ...data, revoked_count: revoked?.length ?? 0 }
 })

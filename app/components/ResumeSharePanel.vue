@@ -19,6 +19,8 @@ interface ShareLink {
 
 const links = ref<ShareLink[]>([])
 const loading = ref(true)
+/** 목록을 못 불러왔으면 살아 있는 링크가 있는지 모른다 — 발급 전 확인창을 늘 띄운다 */
+const loadFailed = ref(false)
 const issuing = ref(false)
 const revealed = ref<Record<string, boolean>>({})
 const smsTarget = ref<Record<string, string>>({})
@@ -62,7 +64,9 @@ async function load() {
       query: { userId: props.userId },
     })
     links.value = res.rows
+    loadFailed.value = false
   } catch (e: any) {
+    loadFailed.value = true
     toast.add({ title: '링크 조회 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
   } finally {
     loading.value = false
@@ -76,29 +80,38 @@ const hasLiveLink = computed(() =>
 
 async function issue() {
   if (
-    hasLiveLink.value &&
+    (hasLiveLink.value || loadFailed.value) &&
     !confirm('새 링크를 발급하면 이전 공개 링크는 자동으로 폐기됩니다.\n이전 링크를 받은 사람은 더 이상 열 수 없습니다. 발급하시겠습니까?')
   ) {
     return
   }
   issuing.value = true
   try {
-    const res = await $fetch<{ revoked_count: number }>('/api/admin/resume-links', {
+    const res = await $fetch<{ revoked_count: number; revoke_error?: string }>('/api/admin/resume-links', {
       method: 'POST',
       headers: await authHeader(),
       body: { userId: props.userId },
     })
-    toast.add({
-      title: res.revoked_count
-        ? `링크를 발급했습니다. 이전 링크 ${res.revoked_count}개는 폐기했습니다.`
-        : '링크를 발급했습니다.',
-      color: 'success',
-    })
-    await load()
+    if (res.revoke_error) {
+      toast.add({
+        title: '새 링크는 발급했지만 이전 링크를 폐기하지 못했습니다.',
+        description: '아래 목록에서 이전 링크를 직접 폐기해 주세요.',
+        color: 'warning',
+      })
+    } else {
+      toast.add({
+        title: res.revoked_count
+          ? `링크를 발급했습니다. 이전 링크 ${res.revoked_count}개는 폐기했습니다.`
+          : '링크를 발급했습니다.',
+        color: 'success',
+      })
+    }
   } catch (e: any) {
     toast.add({ title: '발급 실패', description: e?.data?.statusMessage || e.message, color: 'error' })
   } finally {
     issuing.value = false
+    // 실패했어도 서버에서 일부가 처리됐을 수 있다 — 목록을 늘 다시 받아 실제 상태를 보인다
+    await load()
   }
 }
 
@@ -117,8 +130,13 @@ async function revoke(token: string) {
 }
 
 async function copyLink(l: ShareLink) {
-  await navigator.clipboard.writeText(linkUrl(l.token))
-  toast.add({ title: '링크 주소를 복사했습니다.', color: 'success' })
+  try {
+    await navigator.clipboard.writeText(linkUrl(l.token))
+    toast.add({ title: '링크 주소를 복사했습니다.', color: 'success' })
+  } catch {
+    // 실패를 숨기면 클립보드에 남아 있던 이전(폐기된) 주소를 붙여 넣게 된다
+    toast.add({ title: '복사하지 못했습니다.', description: '주소를 직접 선택해 복사해 주세요.', color: 'error' })
+  }
 }
 
 async function sendLink(l: ShareLink) {
