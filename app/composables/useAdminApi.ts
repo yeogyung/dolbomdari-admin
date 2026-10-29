@@ -1,4 +1,6 @@
 // 자체 어드민 서버 API 래퍼 — 현재 세션 토큰을 Authorization 헤더에 실어 호출
+import { ORG_DOCUMENT_MAX_BYTES, orgDocumentExt } from '#shared/orgDocument'
+
 export interface ListResult<T = Record<string, any>> {
   rows: T[]
   total: number
@@ -102,8 +104,25 @@ export function useAdminApi() {
     return res.url
   }
 
-
-
+  /**
+   * 관리자가 사업자등록증을 대신 올린다 — 주소 발급 → 브라우저가 Storage 로 바로 업로드 → 담당자에 연결.
+   * 파일이 어드민 서버를 거치지 않아 서버 요청 크기 제한에 걸리지 않는다
+   */
+  async function uploadOrgDocument(managerId: string, file: File): Promise<void> {
+    if (!orgDocumentExt(file.type)) throw new Error('서류는 JPG·PNG·WEBP 이미지로 올려 주세요.')
+    if (file.size > ORG_DOCUMENT_MAX_BYTES) throw new Error('서류 파일은 10MB 이하만 올릴 수 있습니다.')
+    const base = `/api/admin/org-documents/${encodeURIComponent(managerId)}`
+    const { path, token } = await $fetch<{ path: string; token: string }>(`${base}/upload-url`, {
+      method: 'POST',
+      headers: await authHeader(),
+      body: { contentType: file.type },
+    })
+    const { error } = await supabase.storage
+      .from('org-documents')
+      .uploadToSignedUrl(path, token, file, { contentType: file.type })
+    if (error) throw new Error('서류를 올리지 못했습니다: ' + error.message)
+    await $fetch(`${base}/attach`, { method: 'POST', headers: await authHeader(), body: { path } })
+  }
 
   return {
     list,
@@ -114,5 +133,6 @@ export function useAdminApi() {
     statsSummary,
     action,
     orgDocumentUrl,
+    uploadOrgDocument,
   }
 }

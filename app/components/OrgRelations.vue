@@ -99,6 +99,7 @@ onMounted(async () => {
             <Tag v-if="e.differs">담당자마다 다름</Tag>
           </dd>
         </div>
+        <OrgDocumentRow :managers="data.organization_manager?.rows ?? []" />
       </dl>
     </AppCard>
 
