@@ -20,32 +20,19 @@ const scale = ref<{ seniors: number | null; managers: number | null; worksites: 
   rooms: null,
 })
 
-const stat = computed(() => {
-  const out = { total: shifts.value.length, done: 0, working: 0, absent: 0, missing: 0 }
-  for (const row of shifts.value) {
-    const rec = attendanceOf(row)
-    if (!rec) out.missing++
-    // 완료는 ended_at 으로 판정한다 — status 는 퇴근해도 present 그대로다.
-    else if (rec.status === 'absent') out.absent++
-    else if (rec.ended_at) out.done++
-    else out.working++
-  }
-  return out
-})
+// 출퇴근 기록 화면과 같은 판정으로 센다 — 예정 시각 전 근무는 미기록이 아니다(QA 2026-11-02 ADM-03).
+// 시각이 기준이라 받아 온 시각(`fetchedAt`)으로 판정한다. 5분 캐시 안에서 숫자와 「기준」 시각이 맞는다.
+const judgedAt = computed(() => (fetchedAt.value ? new Date(fetchedAt.value) : new Date()))
+const stat = computed(() => tallyDay(shifts.value, judgedAt.value))
 
-/** 확인이 필요한 근무 — 미기록·결근을 앞에 둔다 */
+/** 확인이 필요한 근무 — 미출근·결석을 앞에 둔다. 출근 전 근무는 뒤로 */
 const attention = computed(() =>
   [...shifts.value]
-    .sort((a, b) => {
-      const rank = (row: AttendanceShift) => {
-        const s = attendanceOf(row)?.status
-        if (!s) return 0
-        if (s === 'absent') return 1
-        if (s === 'late') return 2
-        return 3
-      }
-      return rank(a) - rank(b) || a.planned_start.localeCompare(b.planned_start)
-    })
+    .sort(
+      (a, b) =>
+        attentionRank(a, judgedAt.value) - attentionRank(b, judgedAt.value) ||
+        a.planned_start.localeCompare(b.planned_start),
+    )
     .slice(0, 10),
 )
 

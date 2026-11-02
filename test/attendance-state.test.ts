@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest'
 import {
   ATTENDANCE_DISPLAY_OPTIONS,
   attendanceDisplay,
+  attentionRank,
   describeChange,
   editDefaultStatus,
   groupChangesByShift,
   isHumanEdited,
+  tallyDay,
 } from '../app/utils/attendanceState'
 import type { AttendanceChange } from '../app/types/dbo'
 
@@ -168,6 +170,34 @@ describe('editDefaultStatus', () => {
 
   it('기록이 없으면 출근', () => {
     expect(editDefaultStatus(shift('2026-10-13', null))).toBe('present')
+  })
+})
+
+// QA 2026-11-02 ADM-03 — 10:46 에 14:00 시작 근무 2건이 대시보드 미기록으로 잡혔다(출퇴근 기록은 「출근 전」).
+describe('tallyDay', () => {
+  it('예정 시각 전 근무는 미기록·결근에 넣지 않는다', () => {
+    const rows = [
+      shift('2026-10-14', null, '09:00:00'), // 14:00 기준 미출근
+      shift('2026-10-14', null, '15:00:00'), // 출근 전
+      shift('2026-10-14', null, '15:30:00'), // 출근 전
+      shift('2026-10-14', { started_at: at('2026-10-14', '08:55:00') }), // 근무 중
+      shift('2026-10-14', { started_at: at('2026-10-14', '08:55:00'), ended_at: at('2026-10-14', '12:00:00') }), // 정상
+      shift('2026-10-14', { status: 'absent' }),
+      shift('2026-10-14', { status: 'excused' }),
+    ]
+    expect(tallyDay(rows, NOW)).toEqual({ total: 7, done: 1, working: 1, missing: 1, absent: 1, scheduled: 2 })
+  })
+
+  it('출퇴근 기록 화면과 같은 판정이다 — 출근 전은 attendanceDisplay 의 scheduled 와 같다', () => {
+    const row = shift('2026-10-14', null, '15:00:00')
+    expect(attendanceDisplay(row, NOW)).toBe('scheduled')
+    expect(tallyDay([row], NOW).scheduled).toBe(1)
+  })
+
+  it('확인 순서는 미출근, 결석, 지각, 나머지다', () => {
+    expect(attentionRank(shift('2026-10-14', null, '09:00:00'), NOW)).toBe(0)
+    expect(attentionRank(shift('2026-10-14', { status: 'absent' }), NOW)).toBe(1)
+    expect(attentionRank(shift('2026-10-14', null, '15:00:00'), NOW)).toBe(3)
   })
 })
 

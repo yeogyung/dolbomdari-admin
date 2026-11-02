@@ -81,6 +81,54 @@ export function attendanceDisplay(
   return planned !== null && now.getTime() >= planned ? 'not_arrived' : 'scheduled'
 }
 
+export type DayTally = {
+  total: number
+  /** 퇴근까지 찍음(정상·지각) */
+  done: number
+  /** 출근만 찍고 아직 근무 중 */
+  working: number
+  /** 예정 시각이 지났는데 출근 기록이 없음, 또는 퇴근 누락 */
+  missing: number
+  /** 결석(인정 결석은 넣지 않는다 — 사전 연락된 것이다) */
+  absent: number
+  /** 아직 예정 시각 전. 미기록·결근에 넣지 않는다 */
+  scheduled: number
+}
+
+/**
+ * 대시보드 「오늘 출결」 숫자. **출퇴근 기록 화면과 같은 판정(`attendanceDisplay`)으로 센다.**
+ *
+ * 예전에는 「출결 기록이 없으면 미기록」으로 따로 세어, 14:00 시작 근무가 10:46 에 미기록으로 잡혔다.
+ * 출퇴근 기록 화면은 같은 근무를 「출근 전」으로 보였다 — 두 화면 숫자가 갈렸다(QA 2026-11-02 ADM-03).
+ */
+export function tallyDay(
+  rows: Pick<AttendanceShift, 'work_date' | 'planned_start' | 'attendance'>[],
+  now: Date = new Date(),
+): DayTally {
+  const out: DayTally = { total: rows.length, done: 0, working: 0, missing: 0, absent: 0, scheduled: 0 }
+  for (const row of rows) {
+    const d = attendanceDisplay(row, now)
+    if (d === 'normal' || d === 'late') out.done++
+    else if (d === 'working') out.working++
+    else if (d === 'not_arrived' || d === 'missing_checkout') out.missing++
+    else if (d === 'absent') out.absent++
+    else if (d === 'scheduled') out.scheduled++
+  }
+  return out
+}
+
+/** 확인이 필요한 순서 — 미출근·퇴근 누락, 결석, 지각, 나머지(출근 전 포함). 대시보드 목록이 쓴다 */
+export function attentionRank(
+  row: Pick<AttendanceShift, 'work_date' | 'planned_start' | 'attendance'>,
+  now: Date = new Date(),
+): number {
+  const d = attendanceDisplay(row, now)
+  if (d === 'not_arrived' || d === 'missing_checkout') return 0
+  if (d === 'absent') return 1
+  if (d === 'late') return 2
+  return 3
+}
+
 /** 지각 판정에서 퇴근 유무는 상관없다. attendanceDisplay 의 지각 규칙만 떼어 본다 */
 function isLateByTime(row: Pick<AttendanceShift, 'work_date' | 'planned_start' | 'attendance'>): boolean {
   const rec = row.attendance
