@@ -257,6 +257,7 @@ watch(assignProgram, () => {
 })
 
 function openAssign(row?: Assignment) {
+  assignTried.value = false
   editingId.value = row?.id ?? null
   assignProgram.value = row ? (row.program_id ?? NO_PROGRAM) : null
   assignForm.value = row
@@ -279,9 +280,11 @@ function openAssign(row?: Assignment) {
   assignOpen.value = true
 }
 
-const assignPeriodError = computed(() =>
-  assignmentPeriodError(assignForm.value.periodStart, assignForm.value.periodEnd),
+const assignPeriodErrors = computed(() =>
+  assignmentPeriodErrors(assignForm.value.periodStart, assignForm.value.periodEnd),
 )
+/** 저장을 한 번 눌렀는가. 시작일 「입력해 주세요」는 그 뒤부터 칸 아래에 보인다 — 창을 열자마자 빨간 글씨가 뜨지 않게 */
+const assignTried = ref(false)
 
 function toggleWeekday(day: number) {
   const list = assignForm.value.weekdays
@@ -304,8 +307,10 @@ async function submitAssign() {
     toast.add({ title: '근무 요일을 하나 이상 선택해 주세요.', color: 'warning' })
     return
   }
-  if (assignPeriodError.value) {
-    toast.add({ title: assignPeriodError.value, color: 'warning' })
+  assignTried.value = true
+  const periodError = assignPeriodErrors.value.start ?? assignPeriodErrors.value.end
+  if (periodError) {
+    toast.add({ title: periodError, color: 'warning' })
     return
   }
   assignSaving.value = true
@@ -669,10 +674,10 @@ onMounted(async () => {
           </FormField>
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <FormField label="시작일">
+          <FormField label="시작일" required :error="assignTried ? assignPeriodErrors.start : undefined">
             <DateField v-model="assignForm.periodStart" />
           </FormField>
-          <FormField label="종료일" hint="비우면 무기한" :error="assignPeriodError ?? undefined">
+          <FormField label="종료일" hint="비우면 무기한" :error="assignPeriodErrors.end">
             <DateField v-model="assignForm.periodEnd" />
           </FormField>
         </div>

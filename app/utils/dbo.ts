@@ -148,10 +148,20 @@ export function appConnectionBadge(entry: {
   return null
 }
 
-/** 반복 배정 기간 검사(QA 2026-10-14 5번). 한쪽이 비면 무기한이라 통과한다. */
-export function assignmentPeriodError(start: string | null, end: string | null): string | null {
-  if (start && end && end < start) return '종료일은 시작일보다 빠를 수 없습니다.'
-  return null
+/**
+ * 반복 배정 기간 검사. 칸마다 오류를 돌려준다(빈 객체면 통과).
+ *
+ * - **시작일은 반드시 넣는다**(QA 2026-11-02 ADM-05). 비워 저장하면 「— ~ 무기한」 배정이 생겼다.
+ *   종료일은 비우면 무기한이다.
+ * - 종료일이 시작일보다 빠르면 막는다(QA 2026-10-14 5번).
+ */
+export function assignmentPeriodErrors(
+  start: string | null,
+  end: string | null,
+): { start?: string; end?: string } {
+  if (!start) return { start: '시작일을 입력해 주세요.' }
+  if (end && end < start) return { end: '종료일은 시작일보다 빠를 수 없습니다.' }
+  return {}
 }
 
 /**
