@@ -2,8 +2,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { ChatMessage, ChatRoom } from '~/types/dbo'
+import type { RoomStats } from '~/composables/useRoomStats'
 
 const api = useDboAdmin()
+const { statsFor } = useRoomStats()
 const toast = useToast()
 /** 방을 여는 중에는 다른 방을 열지 않는다 — 늦게 온 응답이 다른 방 메시지를 덮지 않게 */
 const openGuard = createClickGuard()
@@ -18,6 +20,9 @@ const page = lq.page
 const pageSize = 20
 const q = lq.q
 const loadingRooms = ref(false)
+
+/** 방별 참여 인원·마지막 메시지 시각(QA 2026-11-02 CHAT-02). 못 읽으면 비어 있고 그 칸만 안 보인다 */
+const stats = ref(new Map<string, RoomStats>())
 
 const selected = ref<ChatRoom | null>(null)
 const messages = ref<ChatMessage[]>([])
@@ -37,6 +42,16 @@ async function loadRooms() {
     rooms.value = res.items
     total.value = res.total
     if (!selected.value && res.items.length) openRoom(res.items[0]!)
+    // 덧붙이는 정보다. 실패해도 목록은 그대로 두고 알린다 — 조용히 비우면 「인원 0」처럼 읽힌다
+    stats.value = new Map()
+    statsFor(res.items.map((r) => r.id))
+      .then((m) => {
+        if (current === sequence) stats.value = m
+      })
+      .catch((e: any) => {
+        if (current !== sequence) return
+        toast.add({ title: '참여 인원·최근 메시지를 불러오지 못했습니다.', description: dboErrorMessage(e), color: 'warning' })
+      })
   } catch (e: any) {
     if (current !== sequence) return
     toast.add({ title: '채팅방 조회 실패', description: dboErrorMessage(e), color: 'error' })
@@ -135,10 +150,14 @@ onMounted(loadRooms)
                 {{ room.status === 'active' ? '활성' : '종료' }}
               </StatusBadge>
             </span>
-            <span class="flex items-center gap-2 text-xs text-muted">
+            <span class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
               <span>{{ room.kind === 'direct' ? '1:1' : '단체' }}</span>
+              <span v-if="stats.has(room.id)" class="tabular-nums">참여 {{ stats.get(room.id)!.members }}명</span>
               <span v-if="room.ai_enabled" class="text-brand-500">AI 사용</span>
-              <span>{{ fmtStamp(room.created_at) }}</span>
+              <!-- 날짜는 마지막 메시지 시각이다. 예전에는 개설 시각이라 대화가 오간 방도 오래된 방처럼 보였다 -->
+              <span v-if="stats.has(room.id)" class="tabular-nums">
+                {{ stats.get(room.id)!.lastMessageAt ? `최근 ${fmtStamp(stats.get(room.id)!.lastMessageAt!)}` : '메시지 없음' }}
+              </span>
             </span>
           </button>
         </li>
@@ -174,6 +193,7 @@ onMounted(loadRooms)
           <h2 class="text-[18px] font-semibold text-ink">{{ selected.title }}</h2>
           <p class="mt-0.5 text-sm text-muted">
             {{ selected.kind === 'direct' ? '1:1 대화' : '단체방' }} ·
+            <template v-if="stats.has(selected.id)">참여 {{ stats.get(selected.id)!.members }}명 · </template>
             {{ selected.ai_enabled ? 'AI 답변 사용' : 'AI 답변 없음' }} ·
             개설 {{ fmtStamp(selected.created_at) }}
           </p>
