@@ -332,7 +332,8 @@ onMounted(() => {
       >
         엑셀 다운로드
       </AppButton>
-      <AppButton icon="i-lucide-plus" @click="openForm()">근무지 등록</AppButton>
+      <!-- 등록·수정은 master 만 — 서버(`createWorksite`·`patchWorksite`)도 master 전용이다(QA 2026-11-02 PARTNER-05) -->
+      <AppButton v-if="me?.role === 'master'" icon="i-lucide-plus" @click="openForm()">근무지 등록</AppButton>
     </Teleport>
 
     <DataTable
@@ -416,6 +417,7 @@ onMounted(() => {
             상세
           </NuxtLink>
           <button
+            v-if="me?.role === 'master'"
             type="button"
             class="text-sm font-medium text-brand-500 hover:underline"
             @click="openForm(row)"
@@ -533,6 +535,7 @@ onMounted(() => {
           토큰 복사
         </AppButton>
         <AppButton
+          v-if="me?.role === 'master'"
           size="sm"
           color="down"
           variant="soft"
