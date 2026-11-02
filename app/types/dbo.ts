@@ -228,6 +228,8 @@ export interface Faq {
   id: string
   question: string
   answer: string
+  /** 비슷한 질문. AI 프롬프트에 함께 실린다. 비었으면 null 일 수 있다(QA 2026-11-02 DOC-01) */
+  paraphrases: string[] | null
   enabled: boolean
   sort: number
   status: FaqStatus

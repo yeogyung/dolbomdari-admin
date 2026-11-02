@@ -107,6 +107,13 @@ onMounted(loadFaq)
           <h3 class="mb-2 text-[13px] font-semibold text-muted">질문</h3>
           <p class="text-[15px] font-semibold whitespace-pre-line text-ink">{{ faq.question }}</p>
         </section>
+        <!-- 비슷한 질문 — 저장돼 있고 AI 도 쓰는데 어드민이 읽지 않아 안 보였다(QA 2026-11-02 DOC-01) -->
+        <section v-if="faq.paraphrases?.length">
+          <h3 class="mb-2 text-[13px] font-semibold text-muted">비슷한 질문</h3>
+          <ul class="list-disc space-y-1 pl-5 text-[15px] text-body">
+            <li v-for="(p, i) in faq.paraphrases" :key="i">{{ p }}</li>
+          </ul>
+        </section>
         <section>
           <h3 class="mb-2 text-[13px] font-semibold text-muted">답변</h3>
           <p class="text-[15px] leading-relaxed whitespace-pre-line text-body">{{ faq.answer }}</p>

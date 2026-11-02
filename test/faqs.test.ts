@@ -14,6 +14,7 @@ const base: Faq = {
   id: 'f1',
   question: '출근 QR 이 안 찍혀요',
   answer: '근무지 담당자에게 새 QR 을 요청하세요.',
+  paraphrases: null,
   enabled: false,
   sort: 0,
   status: 'pending',
