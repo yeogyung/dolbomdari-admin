@@ -4,6 +4,7 @@ import {
   ATTENDANCE_DISPLAY_OPTIONS,
   attendanceDisplay,
   attentionRank,
+  changedSince,
   describeChange,
   editDefaultStatus,
   groupChangesByShift,
@@ -198,6 +199,25 @@ describe('tallyDay', () => {
     expect(attentionRank(shift('2026-10-14', null, '09:00:00'), NOW)).toBe(0)
     expect(attentionRank(shift('2026-10-14', { status: 'absent' }), NOW)).toBe(1)
     expect(attentionRank(shift('2026-10-14', null, '15:00:00'), NOW)).toBe(3)
+  })
+})
+
+// QA 2026-11-02 ADM-02 — 두 탭에서 같은 기록을 열고 차례로 저장하면 뒤 것이 경고 없이 덮었다.
+describe('changedSince', () => {
+  it('창을 연 뒤 새 이력이 생겼으면 고친 것이다', () => {
+    expect(changedSince('c1', [{ id: 'c2' }, { id: 'c1' }])).toBe(true)
+    // 이력이 없던 기록에 누군가 처음 기록을 남겼다
+    expect(changedSince(null, [{ id: 'c1' }])).toBe(true)
+  })
+
+  it('그대로면 고친 것이 아니다', () => {
+    expect(changedSince('c1', [{ id: 'c1' }])).toBe(false)
+    expect(changedSince(null, [])).toBe(false)
+  })
+
+  // 목록의 이력 조회가 실패했으면 기준이 없다. 그때 비교하면 매번 충돌로 막힌다.
+  it('기준을 모르면 판정하지 않는다', () => {
+    expect(changedSince(undefined, [{ id: 'c9' }])).toBe(false)
   })
 })
 

@@ -163,6 +163,25 @@ export function isHumanEdited(
   return null
 }
 
+/**
+ * 수정 창을 연 뒤 다른 곳에서 그 근무를 고쳤는가(QA 2026-11-02 ADM-02).
+ *
+ * 서버 수정 API 는 나중 저장이 앞 저장을 그대로 덮는다. 변경 이력(`dbo_attendance_changes`)은 모든
+ * 저장마다 한 줄씩 쌓이므로, 창을 열 때 본 「가장 최근 이력」과 저장 직전에 다시 읽은 것이 다르면
+ * 그 사이 누군가 고친 것이다(다른 관리자든 시니어의 QR 이든).
+ *
+ * @param baseline 창을 열 때 본 가장 최근 이력 id. 이력이 없었으면 null, **모르면 undefined** —
+ *                 목록의 이력 조회가 실패했으면 비교하지 않는다(매번 충돌로 오판하지 않게)
+ * @param latest   저장 직전에 다시 읽은 그 근무의 이력, 최근 것부터
+ */
+export function changedSince(
+  baseline: string | null | undefined,
+  latest: Pick<AttendanceChange, 'id'>[],
+): boolean {
+  if (baseline === undefined) return false
+  return (latest[0]?.id ?? null) !== baseline
+}
+
 /** 근무별로 묶는다. 들어온 순서(최근 것부터)를 지킨다 */
 export function groupChangesByShift(changes: AttendanceChange[]): Map<string, AttendanceChange[]> {
   const map = new Map<string, AttendanceChange[]>()

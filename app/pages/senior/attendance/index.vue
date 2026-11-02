@@ -89,11 +89,17 @@ async function load() {
 /* 변경 이력 — 페이지마다 한 번에 읽어 「수정됨」 판정과 이력 창에 쓴다 */
 const changesByShift = ref(new Map<string, AttendanceChange[]>())
 
+/** 이력을 제대로 받은 근무. 동시 수정 검사는 여기 든 근무만 한다(`changedSince`) */
+const changesKnown = new Set<string>()
+
 /** 실패해도 목록은 보여 준다. 그때 「수정됨」은 method 로만 판정된다(QR 을 수정됨으로 잘못 보이진 않는다) */
 async function loadChanges(items: AttendanceShift[]) {
   try {
-    return groupChangesByShift(await listChangesByShifts(items.map((r) => r.id)))
+    const grouped = groupChangesByShift(await listChangesByShifts(items.map((r) => r.id)))
+    for (const r of items) changesKnown.add(r.id)
+    return grouped
   } catch (e: any) {
+    for (const r of items) changesKnown.delete(r.id)
     toast.add({ title: '변경 이력 조회 실패', description: dboErrorMessage(e), color: 'warning' })
     return new Map<string, AttendanceChange[]>()
   }
@@ -168,10 +174,14 @@ const form = ref({
 
 const editErrors = ref<{ memo?: string; endedAt?: string }>({})
 
+/** 창을 열 때 본 가장 최근 이력 id. 저장 직전에 다시 읽어 비교한다(QA 2026-11-02 ADM-02) */
+const editBaseline = ref<string | null | undefined>(undefined)
+
 function openEdit(row: AttendanceShift) {
   if (!canEditAttendance(me.value?.role, row.work_date, todaySeoul())) return
   const rec = attendanceOf(row)
   target.value = row
+  editBaseline.value = changesKnown.has(row.id) ? (changesByShift.value.get(row.id)?.[0]?.id ?? null) : undefined
   // 사유는 빈칸으로 시작한다. 이전 메모를 채워 두면 그대로 저장해도 필수 검사를
   // 통과하고, 수정 이력에도 옛 사유가 이번 변경의 사유처럼 남는다(QA 2026-10-14 6번).
   form.value = {
@@ -198,6 +208,27 @@ async function submitEdit() {
   if (Object.keys(editErrors.value).length > 0) return
   saving.value = true
   try {
+    // **조용히 덮어쓰지 않는다.** 창을 연 뒤 다른 곳에서 고쳤으면 저장하지 않고 최신 기록으로 다시 연다.
+    // 적던 사유는 남긴다. 다시 읽기가 실패하면 저장을 막지 않는다 — 검사 때문에 저장을 못 하는 쪽이 더 나쁘다.
+    const shiftId = target.value.id
+    const latest = await listChangesByShifts([shiftId]).catch(() => null)
+    if (latest && changedSince(editBaseline.value, latest)) {
+      toast.add({
+        title: '다른 곳에서 먼저 고친 기록입니다',
+        description: '최신 기록을 다시 불러왔습니다. 확인한 뒤 다시 저장해 주세요.',
+        color: 'warning',
+      })
+      const memo = form.value.memo
+      await load()
+      const fresh = rows.value.find((r) => r.id === shiftId)
+      if (fresh) {
+        openEdit(fresh)
+        form.value.memo = memo
+      } else {
+        editOpen.value = false
+      }
+      return
+    }
     await api.patchAttendance(target.value.id, {
       status: form.value.status,
       startedAt: fromLocalInput(form.value.startedAt),
