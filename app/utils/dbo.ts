@@ -176,6 +176,14 @@ export function canEditAttendance(role: string | undefined, workDate: string, to
   return workDate <= today
 }
 
+/**
+ * 수정 창에서 고친 것이 있는가. 열 때의 값과 지금 값을 칸마다 비교한다.
+ * 저장하지 않고 닫을 때 묻는 데 쓴다(QA 2026-11-02 ADM-01).
+ */
+export function formChanged<T extends Record<string, unknown>>(initial: T, current: T): boolean {
+  return (Object.keys(initial) as (keyof T)[]).some((k) => initial[k] !== current[k])
+}
+
 /** 운영 일자는 항상 Asia/Seoul 기준 */
 export function todaySeoul(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date())

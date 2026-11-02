@@ -1,6 +1,6 @@
 // 출결 목록 행에서 기록을 꺼내는 규칙 테스트 — 응답의 attendance 는 배열이 아니라 객체다
 import { describe, expect, it } from 'vitest'
-import { attendanceEditErrors, attendanceOf, canEditAttendance } from '../app/utils/dbo'
+import { attendanceEditErrors, attendanceOf, canEditAttendance, formChanged } from '../app/utils/dbo'
 
 /* 2026-09-17 운영 DB 실측 응답. dbo-admin 이 도는 것과 같은 쿼리로 받았다. */
 const CHECKED_IN = {
@@ -59,6 +59,18 @@ describe('attendanceEditErrors', () => {
   it('한쪽 시각만 있으면 순서를 보지 않는다', () => {
     expect(attendanceEditErrors({ ...ok, endedAt: null })).toEqual({})
     expect(attendanceEditErrors({ ...ok, startedAt: null })).toEqual({})
+  })
+})
+
+// QA 2026-11-02 ADM-01 — 사유를 적고 X 로 닫으면 말없이 사라졌다
+describe('formChanged', () => {
+  const initial = { status: 'present', startedAt: '2026-10-24T09:00', endedAt: '', memo: '' }
+  it('그대로면 고친 것이 없다', () => {
+    expect(formChanged(initial, { ...initial })).toBe(false)
+  })
+  it('한 칸이라도 바뀌면 고친 것이다', () => {
+    expect(formChanged(initial, { ...initial, memo: '지각 정정' })).toBe(true)
+    expect(formChanged(initial, { ...initial, startedAt: '2026-10-24T09:10' })).toBe(true)
   })
 })
 

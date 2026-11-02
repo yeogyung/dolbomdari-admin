@@ -177,6 +177,19 @@ const editErrors = ref<{ memo?: string; endedAt?: string }>({})
 /** 창을 열 때 본 가장 최근 이력 id. 저장 직전에 다시 읽어 비교한다(QA 2026-11-02 ADM-02) */
 const editBaseline = ref<string | null | undefined>(undefined)
 
+/**
+ * 저장하지 않고 닫을 때 묻는다(QA 2026-11-02 ADM-01). 사유를 적고 X 로 닫으면 말없이 사라졌다.
+ * 확인은 QR 재발급과 같은 브라우저 확인 창이다.
+ */
+const editInitial = ref<typeof form.value | null>(null)
+const COPY_DISCARD = '저장하지 않고 닫을까요? 입력한 내용이 사라집니다.'
+function confirmDiscardEdit(): boolean {
+  if (!editInitial.value || !formChanged(editInitial.value, form.value)) return true
+  return confirm(COPY_DISCARD)
+}
+// 창이 열린 채 메뉴로 다른 화면에 갈 때도 같다
+onBeforeRouteLeave(() => (editOpen.value ? confirmDiscardEdit() : true))
+
 function openEdit(row: AttendanceShift) {
   if (!canEditAttendance(me.value?.role, row.work_date, todaySeoul())) return
   const rec = attendanceOf(row)
@@ -190,6 +203,7 @@ function openEdit(row: AttendanceShift) {
     endedAt: toLocalInput(rec?.ended_at),
     memo: '',
   }
+  editInitial.value = { ...form.value }
   editErrors.value = {}
   editOpen.value = true
 }
@@ -553,7 +567,7 @@ onMounted(() => {
     </DataTable>
 
     <!-- 대리 기록 -->
-    <AppModal v-model:open="editOpen" title="출결 기록 수정" width="max-w-lg">
+    <AppModal v-model:open="editOpen" title="출결 기록 수정" width="max-w-lg" :before-close="confirmDiscardEdit">
       <div v-if="target" class="space-y-4">
         <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">
           <p class="font-semibold text-ink">

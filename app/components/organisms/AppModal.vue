@@ -2,8 +2,21 @@
 <script setup lang="ts">
 import { watch, nextTick, onBeforeUnmount, useId, useTemplateRef } from 'vue'
 
-const props = defineProps<{ title?: string; width?: string }>()
+const props = defineProps<{
+  title?: string
+  width?: string
+  /**
+   * 사용자가 닫으려 할 때(X·바깥 누르기·Esc) 묻는다. false 면 닫지 않는다.
+   * 저장 뒤 화면이 `open` 을 직접 내리는 것은 묻지 않는다 — 그건 닫기 요청이 아니다.
+   */
+  beforeClose?: () => boolean
+}>()
 const open = defineModel<boolean>('open', { default: false })
+
+function requestClose() {
+  if (props.beforeClose && !props.beforeClose()) return
+  open.value = false
+}
 
 const titleId = useId()
 const panel = useTemplateRef<HTMLElement>('panel')
@@ -11,7 +24,7 @@ const panel = useTemplateRef<HTMLElement>('panel')
 let lastFocus: HTMLElement | null = null
 
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') open.value = false
+  if (e.key === 'Escape') requestClose()
 }
 
 watch(open, async (v) => {
@@ -38,7 +51,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <Transition name="modal">
       <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-slate-900/40" @click="open = false" />
+        <div class="absolute inset-0 bg-slate-900/40" @click="requestClose" />
         <div
           ref="panel"
           role="dialog"
@@ -55,7 +68,7 @@ onBeforeUnmount(() => {
               type="button"
               class="inline-flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-soft"
               aria-label="닫기"
-              @click="open = false"
+              @click="requestClose"
             >
               <UIcon name="i-lucide-x" class="size-5" />
             </button>
