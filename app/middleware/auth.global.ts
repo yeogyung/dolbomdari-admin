@@ -1,12 +1,12 @@
 // 전역 인증 가드 — 세션과 어드민 롤을 화면이 그려지기 전에 확정한다
-import { managerAllows } from '#shared/nav'
+import { managerAllows, worksiteAllows } from '#shared/nav'
 // 공개 경로(공유 링크 랜딩 등)는 인증 없이 접근 허용
 const PUBLIC_PREFIXES = ['/l/']
 
 /** 롤별 첫 화면 — 그 롤이 실제로 볼 수 있는 첫 메뉴여야 한다 */
 const ROLE_HOME: Record<string, string> = {
   master: '/',
-  worksite: '/senior/worksites',
+  worksite: '/senior/attendance',
   org: '/users',
   manager: '/senior/attendance',
 }
@@ -69,6 +69,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // 담당자에게 연 화면은 출퇴근 기록과 휴무 관리다(`managerAllows`). 다른 화면은 열어도 데이터가
   // 403 이라 빈 화면이 된다.
   if (me.value?.role === 'manager' && !managerAllows(to.path)) {
+    return navigateTo(home)
+  }
+
+  // 수요처 담당자도 같다. 명부·계정 같은 화면을 주소로 열면 이유 없는 빈 화면이 됐다(QA 2026-11-02 PARTNER-03).
+  if (me.value?.role === 'worksite' && !worksiteAllows(to.path)) {
     return navigateTo(home)
   }
 

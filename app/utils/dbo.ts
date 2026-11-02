@@ -154,8 +154,15 @@ export function assignmentPeriodError(start: string | null, end: string | null):
   return null
 }
 
-/** 미래 근무일의 기록은 고칠 수 없다(QA 2026-10-14 14번, 사용자 결정: 전부 차단). */
-export function canEditAttendance(workDate: string, today: string): boolean {
+/**
+ * 기록 수정 버튼을 낼지.
+ *
+ * - **수요처 담당자는 고칠 수 없다**(QA 2026-11-02 PARTNER-01, 시안 W10 「수요처는 기록을 수정할 수
+ *   없음」). 화면만 막는다 — 서버 API 는 2026-09-22 사용자 지시로 수요처에도 수정을 열어 두었다.
+ * - 미래 근무일은 고칠 수 없다(QA 2026-10-14 14번, 사용자 결정: 전부 차단).
+ */
+export function canEditAttendance(role: string | undefined, workDate: string, today: string): boolean {
+  if (role === 'worksite') return false
   return workDate <= today
 }
 

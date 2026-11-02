@@ -169,7 +169,7 @@ const form = ref({
 const editErrors = ref<{ memo?: string; endedAt?: string }>({})
 
 function openEdit(row: AttendanceShift) {
-  if (!canEditAttendance(row.work_date, todaySeoul())) return
+  if (!canEditAttendance(me.value?.role, row.work_date, todaySeoul())) return
   const rec = attendanceOf(row)
   target.value = row
   // 사유는 빈칸으로 시작한다. 이전 메모를 채워 두면 그대로 저장해도 필수 검사를
@@ -501,14 +501,14 @@ onMounted(() => {
       <template #actions="{ row }">
         <div class="flex items-center gap-3">
           <button
-            v-if="canEditAttendance(row.work_date, todaySeoul())"
+            v-if="canEditAttendance(me?.role, row.work_date, todaySeoul())"
             type="button"
             class="text-sm font-medium text-brand-500 hover:underline"
             @click="openEdit(row)"
           >
             기록 수정
           </button>
-          <span v-else class="text-sm text-muted">예정</span>
+          <span v-else-if="row.work_date > todaySeoul()" class="text-sm text-muted">예정</span>
           <button
             v-if="canDelete(row as AttendanceShift)"
             type="button"

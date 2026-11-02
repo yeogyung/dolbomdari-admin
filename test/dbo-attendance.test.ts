@@ -64,11 +64,19 @@ describe('attendanceEditErrors', () => {
 
 describe('canEditAttendance', () => {
   it('오늘과 지난 날짜는 고칠 수 있다', () => {
-    expect(canEditAttendance('2026-10-14', '2026-10-14')).toBe(true)
-    expect(canEditAttendance('2026-10-01', '2026-10-14')).toBe(true)
+    for (const role of ['master', 'manager', undefined]) {
+      expect(canEditAttendance(role, '2026-10-14', '2026-10-14')).toBe(true)
+      expect(canEditAttendance(role, '2026-10-01', '2026-10-14')).toBe(true)
+    }
   })
 
   it('미래 날짜는 고칠 수 없다', () => {
-    expect(canEditAttendance('2026-10-15', '2026-10-14')).toBe(false)
+    expect(canEditAttendance('master', '2026-10-15', '2026-10-14')).toBe(false)
+  })
+
+  // QA 2026-11-02 PARTNER-01 — 수요처에게 「기록 수정」이 보이고 저장 버튼까지 열렸다. 시안 W10.
+  it('수요처 담당자는 어떤 날짜도 고칠 수 없다', () => {
+    expect(canEditAttendance('worksite', '2026-10-14', '2026-10-14')).toBe(false)
+    expect(canEditAttendance('worksite', '2026-10-01', '2026-10-14')).toBe(false)
   })
 })
