@@ -35,6 +35,12 @@ export function useDboApp() {
     /** 같은 requestId 로 다시 보내면 서버가 먼저 만든 공지를 돌려준다(duplicate: true) */
     createNotice: (body: ReturnType<typeof buildNoticeBody>) =>
       post<{ id: string; duplicate?: boolean }>('/notices', body),
+    /**
+     * 그 근무지 공지의 받는 사람 수. 발송과 같은 함수로 센다(서버 `noticeRecipients`).
+     * 근무지 하나씩만 받는다 — 여러 곳을 한 번에 세는 길은 아직 없다.
+     */
+    recipientCount: (worksiteId: string) =>
+      call<{ total: number; withoutPush: number }>('GET', `/worksites/${worksiteId}/recipients`),
     /** 그 날짜(없으면 내일)의 날씨 판정·근무지별 인원·휴무. master 는 전부, 담당자는 맡은 곳 */
     holidayOverview: (date?: string) =>
       call<HolidayOverview>('GET', date ? `/holidays?date=${date}` : '/holidays'),

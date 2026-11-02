@@ -1,8 +1,8 @@
 <!-- 공지 작성 — 근무지·유형·제목·내용을 골라 발송한다(앱 API POST /dbo/notices, QA 2026-10-14 15번) -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import type { Program, Worksite } from '~/types/dbo'
-import { BODY_MAX, NOTICE_LEVELS, TITLE_MAX, type NoticeLevel } from '~/utils/noticeCompose'
+import { BODY_MAX, NOTICE_LEVELS, TITLE_MAX, recipientSummary, type NoticeLevel } from '~/utils/noticeCompose'
 
 const api = useDboAdmin()
 const app = useDboApp()
@@ -26,6 +26,27 @@ const canSubmit = computed(() =>
   canSubmitNotice({ worksiteIds: worksiteIds.value, title: title.value, body: body.value }),
 )
 const levelLabel = computed(() => NOTICE_LEVELS.find((l) => l.value === level.value)!.label)
+
+/**
+ * 근무지별 받는 사람 수(QA 2026-11-02 ANOTICE-02). 한 번 센 근무지는 기억해 두고, 새로 고른 곳만 센다.
+ * 값이 undefined 면 오는 중, null 이면 못 셌다.
+ */
+const recipientCounts = ref(new Map<string, number | null | undefined>())
+watch(
+  worksiteIds,
+  (ids) => {
+    for (const id of ids) {
+      if (recipientCounts.value.has(id)) continue
+      recipientCounts.value.set(id, undefined)
+      app
+        .recipientCount(id)
+        .then((r) => recipientCounts.value.set(id, r.total))
+        .catch(() => recipientCounts.value.set(id, null))
+    }
+  },
+  { deep: true },
+)
+const recipientText = computed(() => recipientSummary(worksiteIds.value.map((id) => recipientCounts.value.get(id))))
 
 onMounted(async () => {
   try {
@@ -80,6 +101,7 @@ async function send() {
         <FormField label="받는 근무지" required hint="고른 근무지에 배정된 시니어에게 갑니다.">
           <AppSpinner v-if="refsLoading" label="근무지 불러오는 중…" />
           <WorksitePicker v-else v-model="worksiteIds" :worksites="worksites" :programs="programs" multiple />
+          <p v-if="recipientText" class="mt-2 text-sm text-body tabular-nums">{{ recipientText }}</p>
         </FormField>
         <FormField label="공지 유형" required>
           <div class="flex gap-2">
@@ -107,6 +129,7 @@ async function send() {
     <AppModal v-model:open="confirmOpen" title="이대로 보낼까요?" width="max-w-md">
       <div class="space-y-2 text-sm text-body">
         <p>근무지 {{ worksiteIds.length }}곳에 {{ levelLabel }} 공지를 보냅니다.</p>
+        <p v-if="recipientText" class="tabular-nums">{{ recipientText }}</p>
         <p v-if="level === 'urgent'" class="font-medium text-brand-500">
           긴급 공지는 모두에게 문자도 함께 나갑니다. 나간 문자는 회수할 수 없습니다.
         </p>

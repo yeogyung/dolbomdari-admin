@@ -5,6 +5,7 @@ import {
   buildNoticeBody,
   canSubmitNotice,
   createNoticeErrorMessage,
+  recipientSummary,
   TITLE_MAX,
 } from '../app/utils/noticeCompose'
 
@@ -55,5 +56,21 @@ describe('createNoticeErrorMessage', () => {
   it('권한·세션', () => {
     expect(createNoticeErrorMessage({ status: 401 })).toContain('로그인')
     expect(createNoticeErrorMessage({ status: 403 })).toContain('권한')
+  })
+})
+
+// QA 2026-11-02 ANOTICE-02 — 근무지를 골라도 대상 인원이 안 보였다
+describe('recipientSummary', () => {
+  it('한 곳이면 정확한 수다', () => {
+    expect(recipientSummary([12])).toBe('받는 사람 12명')
+  })
+  // 서버는 겹친 분에게 한 번만 보내는데 수는 근무지마다 따로 와서 겹침을 뺄 수 없다
+  it('여러 곳이면 합계를 최대로 적는다', () => {
+    expect(recipientSummary([12, 5])).toBe('받는 사람 최대 17명 · 여러 곳에 배정된 분은 한 번만 받습니다')
+  })
+  it('세는 중·실패·안 고름을 가른다', () => {
+    expect(recipientSummary([12, undefined])).toBe('받는 사람 세는 중…')
+    expect(recipientSummary([12, null])).toBe('받는 사람 수를 세지 못했습니다')
+    expect(recipientSummary([])).toBeNull()
   })
 })
