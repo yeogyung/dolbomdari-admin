@@ -75,9 +75,13 @@ async function load() {
     total.value = res.total
     // 집계를 모르는 서버(배포 순서가 어긋남)여도 화면이 깨지지 않게 0 으로 둔다
     summary.value = res.summary ?? EMPTY_SUMMARY
-    const changes = await loadChanges(res.items)
+    // 목록이 바뀐 순간부터 이력이 올 때까지는 기준을 모른다. 그 사이에 연 창은 동시 수정 검사를 하지 않는다 —
+    // 옛 이력을 기준으로 삼으면 방금 내가 저장한 것을 「다른 곳에서 고쳤다」로 본다(ADM-02 리뷰)
+    changesKnown = new Set()
+    const changes = await fetchChanges(res.items)
     if (current !== sequence) return
-    changesByShift.value = changes
+    changesByShift.value = changes ?? new Map()
+    changesKnown = changes ? new Set(res.items.map((r) => r.id)) : new Set()
   } catch (e: any) {
     if (current !== sequence) return
     toast.add({ title: '출결 조회 실패', description: dboErrorMessage(e), color: 'error' })
@@ -89,20 +93,25 @@ async function load() {
 /* 변경 이력 — 페이지마다 한 번에 읽어 「수정됨」 판정과 이력 창에 쓴다 */
 const changesByShift = ref(new Map<string, AttendanceChange[]>())
 
-/** 이력을 제대로 받은 근무. 동시 수정 검사는 여기 든 근무만 한다(`changedSince`) */
-const changesKnown = new Set<string>()
+/**
+ * 지금 보이는 목록에서 이력을 제대로 받은 근무. 동시 수정 검사는 여기 든 근무만 한다(`changedSince`).
+ * 고치지 않고 통째로 갈아 끼운다 — 늦게 끝난 옛 조회가 섞이지 않게 순번 검사 안에서만 바꾼다.
+ */
+let changesKnown = new Set<string>()
 
-/** 실패해도 목록은 보여 준다. 그때 「수정됨」은 method 로만 판정된다(QR 을 수정됨으로 잘못 보이진 않는다) */
-async function loadChanges(items: AttendanceShift[]) {
+/** 이력을 받는다. 실패하면 알리고 null — 목록은 그대로 보여 준다. 그때 「수정됨」은 method 로만 판정된다 */
+async function fetchChanges(items: AttendanceShift[]) {
   try {
-    const grouped = groupChangesByShift(await listChangesByShifts(items.map((r) => r.id)))
-    for (const r of items) changesKnown.add(r.id)
-    return grouped
+    return groupChangesByShift(await listChangesByShifts(items.map((r) => r.id)))
   } catch (e: any) {
-    for (const r of items) changesKnown.delete(r.id)
     toast.add({ title: '변경 이력 조회 실패', description: dboErrorMessage(e), color: 'warning' })
-    return new Map<string, AttendanceChange[]>()
+    return null
   }
+}
+
+/** 엑셀처럼 실패해도 빈 이력으로 이어 가는 곳이 쓴다 */
+async function loadChanges(items: AttendanceShift[]) {
+  return (await fetchChanges(items)) ?? new Map<string, AttendanceChange[]>()
 }
 
 function editedOf(row: AttendanceShift) {
@@ -227,20 +236,29 @@ async function submitEdit() {
     const shiftId = target.value.id
     const latest = await listChangesByShifts([shiftId]).catch(() => null)
     if (latest && changedSince(editBaseline.value, latest)) {
-      toast.add({
-        title: '다른 곳에서 먼저 고친 기록입니다',
-        description: '최신 기록을 다시 불러왔습니다. 확인한 뒤 다시 저장해 주세요.',
-        color: 'warning',
-      })
       const memo = form.value.memo
       await load()
       const fresh = rows.value.find((r) => r.id === shiftId)
       if (fresh) {
+        toast.add({
+          title: '다른 곳에서 먼저 고친 기록입니다',
+          description: '최신 기록을 다시 불러왔습니다. 확인한 뒤 다시 저장해 주세요.',
+          color: 'warning',
+        })
         openEdit(fresh)
         form.value.memo = memo
-      } else {
-        editOpen.value = false
+        return
       }
+      // 바뀐 기록이 지금 조회 조건에서 빠졌다(예: 「미출근」을 보는데 그새 QR 출근). 창을 닫으면 적던 사유가
+      // 사라진다 — 창과 입력은 그대로 두고, 바뀐 내용을 알린 뒤 기준을 새 이력으로 옮긴다. 다시 저장하면 지금
+      // 입력한 내용으로 고친다(알고 덮는 것이라 조용히 덮는 것이 아니다).
+      const last = latest[0] ? describeChange(latest[0]) : null
+      toast.add({
+        title: '다른 곳에서 먼저 고친 기록입니다',
+        description: `${last ? `${last.who} · ${last.what}. ` : ''}이 기록은 지금 조회 조건에서 빠졌습니다. 다시 저장하면 지금 입력한 내용으로 바뀝니다.`,
+        color: 'warning',
+      })
+      editBaseline.value = latest[0]?.id ?? null
       return
     }
     await api.patchAttendance(target.value.id, {

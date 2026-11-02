@@ -32,17 +32,45 @@ const levelLabel = computed(() => NOTICE_LEVELS.find((l) => l.value === level.va
  * 값이 undefined 면 오는 중, null 이면 못 셌다.
  */
 const recipientCounts = ref(new Map<string, number | null | undefined>())
+/**
+ * 세야 할 근무지 줄. **동시에 `COUNT_CONCURRENCY` 개까지만** 보낸다 — 「전체 선택」으로 수백 곳을 고르면 요청이
+ * 한꺼번에 몰리고, 요청마다 서버가 배정을 처음부터 훑는다.
+ */
+const countQueue: string[] = []
+let counting = 0
+const COUNT_CONCURRENCY = 4
+function pumpCounts() {
+  while (counting < COUNT_CONCURRENCY && countQueue.length > 0) {
+    const id = countQueue.shift()!
+    // 줄에 있는 사이에 선택을 풀었으면 세지 않는다
+    if (!worksiteIds.value.includes(id)) {
+      recipientCounts.value.delete(id)
+      continue
+    }
+    counting++
+    app
+      .recipientCount(id)
+      .then((r) => recipientCounts.value.set(id, r.total))
+      .catch(() => recipientCounts.value.set(id, null))
+      .finally(() => {
+        counting--
+        pumpCounts()
+      })
+  }
+}
 watch(
   worksiteIds,
-  (ids) => {
+  (ids, prev) => {
+    // 선택을 푼 근무지의 실패는 지운다 — 다시 고르면 다시 센다
+    for (const id of prev ?? []) {
+      if (!ids.includes(id) && recipientCounts.value.get(id) === null) recipientCounts.value.delete(id)
+    }
     for (const id of ids) {
       if (recipientCounts.value.has(id)) continue
       recipientCounts.value.set(id, undefined)
-      app
-        .recipientCount(id)
-        .then((r) => recipientCounts.value.set(id, r.total))
-        .catch(() => recipientCounts.value.set(id, null))
+      countQueue.push(id)
     }
+    pumpCounts()
   },
   { deep: true },
 )
