@@ -258,6 +258,7 @@ watch(assignProgram, () => {
 
 function openAssign(row?: Assignment) {
   assignTried.value = false
+  assignError.value = null
   editingId.value = row?.id ?? null
   assignProgram.value = row ? (row.program_id ?? NO_PROGRAM) : null
   assignForm.value = row
@@ -285,6 +286,8 @@ const assignPeriodErrors = computed(() =>
 )
 /** 저장을 한 번 눌렀는가. 시작일 「입력해 주세요」는 그 뒤부터 칸 아래에 보인다 — 창을 열자마자 빨간 글씨가 뜨지 않게 */
 const assignTried = ref(false)
+/** 서버가 저장을 거절한 이유(시작일 없음·겹친 배정). 창 안에 보이고, 창을 열거나 다시 저장하면 지운다 */
+const assignError = ref<{ message: string; conflicts: string[] } | null>(null)
 
 function toggleWeekday(day: number) {
   const list = assignForm.value.weekdays
@@ -314,6 +317,7 @@ async function submitAssign() {
     return
   }
   assignSaving.value = true
+  assignError.value = null
   try {
     if (editingId.value) {
       // 근무지·대상은 배정 수정에서 바꿀 수 없다(API 계약). 바꿔야 하면 삭제 후 재등록한다.
@@ -341,7 +345,9 @@ async function submitAssign() {
     assignOpen.value = false
     loadAssignments()
   } catch (e: any) {
-    toast.add({ title: '배정 저장 실패', description: dboErrorMessage(e), color: 'error' })
+    // 겹친 배정은 여러 줄이라 알림 대신 창 안에 보인다. 창은 닫지 않는다 — 고쳐서 다시 저장한다
+    assignError.value = assignmentSaveError(e)
+    if (!assignError.value) toast.add({ title: '배정 저장 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
     assignSaving.value = false
   }
@@ -680,6 +686,16 @@ onMounted(async () => {
           <FormField label="종료일" hint="비우면 무기한" :error="assignPeriodErrors.end">
             <DateField v-model="assignForm.periodEnd" />
           </FormField>
+        </div>
+        <!-- 모양은 출결 삭제 창의 경고 상자를 따른다 -->
+        <div v-if="assignError" class="rounded-lg border border-down bg-down-soft px-4 py-3 text-sm text-down" role="alert">
+          <p class="font-semibold">{{ assignError.message }}</p>
+          <template v-if="assignError.conflicts.length">
+            <p class="mt-1.5">이 근무지의 아래 배정과 요일·시간·기간이 겹쳐 저장하지 않았습니다.</p>
+            <ul class="mt-1.5 list-disc space-y-0.5 pl-5 tabular-nums">
+              <li v-for="(line, i) in assignError.conflicts" :key="i">{{ line }}</li>
+            </ul>
+          </template>
         </div>
       </div>
       <template #footer>

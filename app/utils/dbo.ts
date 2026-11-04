@@ -1,5 +1,5 @@
 // 시니어 어드민 공용 포맷·라벨 유틸 — 요일·출결 상태·시간(Asia/Seoul) 표기
-import type { AttendanceRecord, AttendanceShift, LifeStatus } from '~/types/dbo'
+import type { Assignment, AttendanceRecord, AttendanceShift, LifeStatus } from '~/types/dbo'
 
 /**
  * 출결 목록 행에서 출결 기록을 꺼낸다.
@@ -162,6 +162,32 @@ export function assignmentPeriodErrors(
   if (!start) return { start: '시작일을 입력해 주세요.' }
   if (end && end < start) return { end: '종료일은 시작일보다 빠를 수 없습니다.' }
   return {}
+}
+
+/** 겹친 배정 한 건(409 assignment_overlap 의 conflicts). 칸 이름은 배정 목록과 같다 */
+type OverlapConflict = Pick<Assignment, 'weekdays' | 'start_time' | 'end_time' | 'period_start' | 'period_end'>
+
+/** 배정 표와 같은 표기 — 「월·화 09:00 – 11:00 · 2026-09-01 ~ 무기한」 */
+function assignmentLine(a: OverlapConflict): string {
+  return `${weekdaysLabel(a.weekdays)} ${hhmm(a.start_time)} – ${hhmm(a.end_time)} · ${a.period_start || '—'} ~ ${a.period_end || '무기한'}`
+}
+
+/**
+ * 배정 저장을 서버가 거절한 이유(서버 2026-11-04). 그 밖의 오류면 null — 공용 문구(dboErrorMessage)를 쓴다.
+ * 옛 서버는 둘 다 내지 않는다.
+ *
+ * - 400 `period_start_required`(QA 2026-11-02 ADM-05) — 시작일이 없다. 화면 검사가 먼저 막아 보통은 오지 않는다.
+ * - 409 `assignment_overlap`(APP-05 · 결정 D6) — 같은 사람·같은 근무지에 요일·시간·기간이 모두 겹치는 배정이 있다.
+ *   겹친 배정(`conflicts`)을 한 줄씩 준다.
+ */
+export function assignmentSaveError(e: any): { message: string; conflicts: string[] } | null {
+  const code: string | undefined = e?.data?.error
+  if (code === 'period_start_required') return { message: '시작일을 입력해 주세요.', conflicts: [] }
+  if (code === 'assignment_overlap') {
+    const list: OverlapConflict[] = Array.isArray(e.data.conflicts) ? e.data.conflicts : []
+    return { message: '같은 시간에 이미 배정이 있습니다.', conflicts: list.map(assignmentLine) }
+  }
+  return null
 }
 
 /**
