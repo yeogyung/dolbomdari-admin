@@ -32,6 +32,8 @@ const updating = ref(false)
 const messagesAt = ref<number | null>(null)
 /** 브라우저가 못 읽은 사진(만료 등)의 첨부 id. 대화를 다시 받으면 비운다 */
 const brokenAttachments = ref(new Set<string>())
+/** 같은 방의 대화를 다시 받는 중(새로고침) — 보던 대화는 그대로 둔다 */
+const reloading = ref(false)
 
 const lastPage = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
@@ -64,23 +66,33 @@ async function loadRooms() {
   }
 }
 
-async function openRoom(room: ChatRoom) {
+/**
+ * 방을 열어 대화를 받는다. `keep` 은 같은 방을 다시 받을 때다(첨부 주소 만료·새로고침) — 보던 대화를 비우지 않고
+ * 받은 뒤에 바꿔 끼운다. 비우면 스크롤이 맨 위로 튀고, 다시 받기가 실패하면 보던 대화가 사라진다
+ */
+async function openRoom(room: ChatRoom, keep = false) {
   selected.value = room
-  loadingMessages.value = true
-  messages.value = []
-  messagesAt.value = null
-  brokenAttachments.value = new Set()
+  if (keep) {
+    reloading.value = true
+  } else {
+    loadingMessages.value = true
+    messages.value = []
+    messagesAt.value = null
+    brokenAttachments.value = new Set()
+  }
   try {
     const res = await api.listRoomMessages(room.id)
     // 다른 방을 그새 눌렀으면 이 응답은 버린다 — 앞 방의 대화가 뒤 방 제목 아래 보이지 않게
     if (selected.value?.id !== room.id) return
     messages.value = res.items
     messagesAt.value = Date.now()
+    brokenAttachments.value = new Set()
   } catch (e: any) {
     if (selected.value?.id !== room.id) return
     toast.add({ title: '대화 조회 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
-    if (selected.value?.id === room.id) loadingMessages.value = false
+    if (keep) reloading.value = false
+    else if (selected.value?.id === room.id) loadingMessages.value = false
   }
 }
 
@@ -124,7 +136,7 @@ const senderName = (m: ChatMessage) =>
 const isAi = (m: ChatMessage) => m.sender_type === 'ai'
 
 /** 대화를 다시 받는다 — 첨부 주소가 1시간 뒤 만료되고, 그새 온 메시지도 보인다 */
-const reloadMessages = () => (selected.value ? openGuard.run(() => openRoom(selected.value!)) : undefined)
+const reloadMessages = () => (selected.value ? openGuard.run(() => openRoom(selected.value!, true)) : undefined)
 
 /** 만료된 주소를 열면 오류 쪽이 뜬다. 그 전에 막고 대화를 다시 받는다 — 다시 누르면 새 주소로 열린다 */
 function openAttachment(e: MouseEvent) {
@@ -224,8 +236,8 @@ onMounted(loadRooms)
             variant="outline"
             color="neutral"
             icon="i-lucide-refresh-cw"
-            :loading="loadingMessages"
-            :disabled="openGuard.pending.value"
+            :loading="reloading"
+            :disabled="loadingMessages || openGuard.pending.value"
             @click="reloadMessages"
           >
             새로고침
