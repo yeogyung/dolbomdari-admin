@@ -5,8 +5,13 @@ import {
   buildNoticeBody,
   canSubmitNotice,
   createNoticeErrorMessage,
+  excludedNote,
   NOTICE_IMAGE_BYTES,
+  NOTICE_PEOPLE_MAX,
   noticeImagePath,
+  peopleCountFailure,
+  peopleRecipientText,
+  PEOPLE_UNSUPPORTED,
   pickNoticeImage,
   isMissingRoute,
   RECIPIENT_TOTAL_MAX,
@@ -32,6 +37,18 @@ describe('buildNoticeBody', () => {
       imagePaths: ['u/notice-a.jpg'],
     })
     expect(buildNoticeBody({ ...base, level: 'simple', imagePaths: [] })).not.toHaveProperty('imagePaths')
+  })
+
+  // QA 2026-11-02 ANOTICE-03 — 한 공지는 근무지 공지이거나 개인 공지다
+  it('개인으로 고르면 directoryIds 만 싣고 근무지는 싣지 않는다', () => {
+    const b = buildNoticeBody({ ...base, level: 'simple', directoryIds: ['d1', 'd2'] })
+    expect(b).toMatchObject({ directoryIds: ['d1', 'd2'] })
+    // 옛 서버가 근무지로 보내지 않게 — 근무지 칸이 없으면 옛 서버는 400 으로 거절한다
+    expect(b).not.toHaveProperty('worksiteIds')
+  })
+
+  it('근무지 공지는 예전 모양 그대로다', () => {
+    expect(buildNoticeBody({ ...base, level: 'simple' })).not.toHaveProperty('directoryIds')
   })
 })
 
@@ -86,6 +103,17 @@ describe('canSubmitNotice', () => {
     expect(canSubmitNotice({ ...ok, body: '  ' })).toBe(false)
   })
 
+  it('개인이면 근무지 대신 고른 사람(1~100명)을 본다', () => {
+    const person = { ...ok, worksiteIds: [] }
+    expect(canSubmitNotice({ ...person, directoryIds: ['d1'] })).toBe(true)
+    expect(canSubmitNotice({ ...person, directoryIds: [] })).toBe(false)
+    const many = Array.from({ length: NOTICE_PEOPLE_MAX + 1 }, (_, i) => `d${i}`)
+    expect(canSubmitNotice({ ...person, directoryIds: many.slice(0, NOTICE_PEOPLE_MAX) })).toBe(true)
+    expect(canSubmitNotice({ ...person, directoryIds: many })).toBe(false)
+    // 근무지를 골라 둔 채 개인으로 바꿔도 근무지로는 보낼 수 없다
+    expect(canSubmitNotice({ ...ok, directoryIds: [] })).toBe(false)
+  })
+
   it('앱과 같은 길이 상한을 지킨다', () => {
     expect(canSubmitNotice({ ...ok, title: 'ㄱ'.repeat(TITLE_MAX) })).toBe(true)
     expect(canSubmitNotice({ ...ok, title: 'ㄱ'.repeat(TITLE_MAX + 1) })).toBe(false)
@@ -108,6 +136,61 @@ describe('createNoticeErrorMessage', () => {
   it('권한·세션', () => {
     expect(createNoticeErrorMessage({ status: 401 })).toContain('로그인')
     expect(createNoticeErrorMessage({ status: 403 })).toContain('권한')
+  })
+
+  // QA 2026-11-02 ANOTICE-03 — 개인 공지의 거절
+  it('맡지 않은 사람·받을 사람 없음', () => {
+    expect(createNoticeErrorMessage({ status: 400, data: { error: 'bad_recipient' } }, 'person')).toContain('담당하지 않는 분')
+    expect(createNoticeErrorMessage({ status: 400, data: { error: 'no_recipients', excluded: ['d1'] } }, 'person')).toContain(
+      '계약 종료',
+    )
+  })
+
+  // 옛 서버는 directoryIds 를 버리고 근무지가 없다고 400 bad_request — 「제목과 내용을 확인」이 아니다
+  it('개인 발송의 400 bad_request 는 서버 업데이트 안내다', () => {
+    const msg = createNoticeErrorMessage({ status: 400, data: { error: 'bad_request' } }, 'person')
+    expect(msg).toContain(PEOPLE_UNSUPPORTED)
+    expect(msg).toContain('보내지 않았습니다')
+    expect(createNoticeErrorMessage({ status: 400, data: { error: 'bad_request' } })).toContain('제목과 내용')
+  })
+})
+
+describe('peopleCountFailure', () => {
+  it('개인 선택을 모르는 서버 — 지금 운영(경로 없음 404)·1묶음 서버(근무지 칸 없음 400)', () => {
+    expect(peopleCountFailure({ status: 404, data: { error: 'not_found' } })).toBe('unsupported')
+    expect(peopleCountFailure({ status: 400, data: { error: 'bad_request' } })).toBe('unsupported')
+  })
+  it('맡지 않은 사람·그 밖의 실패', () => {
+    expect(peopleCountFailure({ status: 403, data: { error: 'bad_recipient' } })).toBe('bad_recipient')
+    expect(peopleCountFailure({ status: 403, data: { error: 'forbidden' } })).toBe('failed')
+    expect(peopleCountFailure({ status: 500 })).toBe('failed')
+    expect(peopleCountFailure(new Error('network'))).toBe('failed')
+  })
+})
+
+describe('peopleRecipientText', () => {
+  it('고른 사람이 없으면 적지 않는다', () => {
+    expect(peopleRecipientText(0, undefined, null)).toBeNull()
+  })
+  it('센 수·세는 중·못 셈', () => {
+    expect(peopleRecipientText(3, 2, null)).toBe('받는 사람 2명')
+    expect(peopleRecipientText(3, undefined, null)).toBe('받는 사람 세는 중…')
+    expect(peopleRecipientText(3, null, 'failed')).toBe('받는 사람 수를 세지 못했습니다')
+  })
+  it('옛 서버·맡지 않은 사람·상한 초과는 까닭을 적는다', () => {
+    expect(peopleRecipientText(3, null, 'unsupported')).toBe(PEOPLE_UNSUPPORTED)
+    expect(peopleRecipientText(3, null, 'bad_recipient')).toContain('담당하지 않는 분')
+    expect(peopleRecipientText(NOTICE_PEOPLE_MAX + 1, undefined, null)).toContain(`${NOTICE_PEOPLE_MAX}명까지`)
+  })
+})
+
+describe('excludedNote', () => {
+  it('받지 않은 분이 있으면 수를 적는다', () => {
+    expect(excludedNote(['d1', 'd2'])).toBe('2명은 계약 종료 등으로 받지 않았습니다.')
+  })
+  it('근무지 공지(칸 없음)·0명은 적지 않는다', () => {
+    expect(excludedNote(undefined)).toBeNull()
+    expect(excludedNote([])).toBeNull()
   })
 })
 

@@ -57,6 +57,58 @@ export function recipientTotalSummary(total: number | null | undefined): string 
   return `받는 사람 ${total}명`
 }
 
+/*
+ * 받는 사람을 개인으로 고르기(QA 2026-11-02 ANOTICE-03, 결정 S1 · 서버 2026-11-04 계약 3a묶음 3번).
+ * 한 공지는 근무지 공지이거나 개인 공지다 — 서버가 `worksiteIds` 와 `directoryIds` 중 하나만 받는다.
+ */
+export type RecipientMode = 'worksite' | 'person'
+
+/** 개인으로 한 번에 고를 수 있는 사람 수. 서버 `NOTICE_PEOPLE_MAX` 와 같다(발송·받는 사람 수 모두) */
+export const NOTICE_PEOPLE_MAX = 100
+
+/** 개인 공지를 받지 않는 서버에서 화면에 적는 안내. 받는 사람 칸과 발송 오류가 같이 쓴다 */
+export const PEOPLE_UNSUPPORTED = '개인 공지는 서버 업데이트 뒤에 보낼 수 있습니다.'
+
+export type PeopleCountFailure = 'unsupported' | 'bad_recipient' | 'failed'
+
+/**
+ * 개인 받는 사람 수(`GET /dbo/worksites/recipients?directoryIds=`)를 못 센 까닭.
+ *
+ * - 'unsupported' — 개인 선택을 모르는 서버. 지금 운영은 그 경로가 없어 404, 1묶음만 나간 서버는 `worksiteIds` 가
+ *   없다고 400 `bad_request` 다. 고른 id 는 화면이 1~100개 uuid 로만 보내므로 새 서버에서 이 400 은 나지 않는다.
+ * - 'bad_recipient' — 맡지 않은 사람이 섞였다(담당자만 받는다. master 는 누구나 고를 수 있다).
+ */
+export function peopleCountFailure(e: any): PeopleCountFailure {
+  if (isMissingRoute(e)) return 'unsupported'
+  const code: string | undefined = e?.data?.error
+  const status: number | undefined = e?.status ?? e?.statusCode
+  if (status === 400 && code === 'bad_request') return 'unsupported'
+  if (code === 'bad_recipient') return 'bad_recipient'
+  return 'failed'
+}
+
+/**
+ * 개인으로 고른 받는 사람 문구. 고른 사람이 없으면 null.
+ * @param total 서버가 센 수. 오는 중이면 undefined, 못 셌으면 null(까닭은 `failure`)
+ */
+export function peopleRecipientText(
+  selected: number,
+  total: number | null | undefined,
+  failure: PeopleCountFailure | null,
+): string | null {
+  if (selected === 0) return null
+  if (selected > NOTICE_PEOPLE_MAX) return `한 번에 ${NOTICE_PEOPLE_MAX}명까지 고를 수 있습니다. 지금 ${selected}명입니다.`
+  if (failure === 'unsupported') return PEOPLE_UNSUPPORTED
+  if (failure === 'bad_recipient') return '담당하지 않는 분이 섞여 있습니다. 받는 사람을 다시 골라 주세요.'
+  return recipientTotalSummary(failure ? null : total)
+}
+
+/** 개인 공지 201 의 `excluded`(고른 사람 중 받지 않은 명부 id — 계약 종료·비활성 등). 없거나 0명이면 null */
+export function excludedNote(excluded: string[] | undefined): string | null {
+  const n = excluded?.length ?? 0
+  return n > 0 ? `${n}명은 계약 종료 등으로 받지 않았습니다.` : null
+}
+
 /**
  * 공지 사진(QA 2026-11-02 ANOTICE-01, 결정 S6). 버킷은 서버 마이그레이션 `20261005020000` 의 `dbo-notice-images` 이고,
  * 앱 공지 쓰기(`db-operation-rn/lib/noticeImages.ts`)와 같은 길로 올린다 — 내 폴더에 먼저 올리고 발송 때 경로를 싣는다.
@@ -95,6 +147,11 @@ export function noticeImagePath(ownerId: string, mimeType: string, key: string):
 export function buildNoticeBody(d: {
   level: NoticeLevel
   worksiteIds: string[]
+  /**
+   * 개인으로 고른 사람(명부 id, QA ANOTICE-03). 주면 이것만 싣고 `worksiteIds` 는 **싣지 않는다** — 한 공지는 둘 중
+   * 하나다. 개인 선택을 모르는 옛 서버는 이 칸을 버리고 근무지가 없다고 400 을 낸다(아무에게도 가지 않는다)
+   */
+  directoryIds?: string[]
   title: string
   body: string
   requestId: string
@@ -102,7 +159,7 @@ export function buildNoticeBody(d: {
   imagePaths?: string[]
 }) {
   return {
-    worksiteIds: d.worksiteIds,
+    ...(d.directoryIds ? { directoryIds: d.directoryIds } : { worksiteIds: d.worksiteIds }),
     title: d.title.trim(),
     body: d.body.trim(),
     kind: d.level === 'urgent' ? 'urgent' : 'normal',
@@ -112,20 +169,36 @@ export function buildNoticeBody(d: {
   }
 }
 
-export function canSubmitNotice(d: { worksiteIds: string[]; title: string; body: string }): boolean {
+export function canSubmitNotice(d: {
+  worksiteIds: string[]
+  /** 개인으로 고른 사람. 주면 근무지 대신 이것을 본다(1~100명) */
+  directoryIds?: string[]
+  title: string
+  body: string
+}): boolean {
   const title = d.title.trim()
   const body = d.body.trim()
-  return d.worksiteIds.length > 0 && !!title && !!body && title.length <= TITLE_MAX && body.length <= BODY_MAX
+  const to = d.directoryIds
+    ? d.directoryIds.length > 0 && d.directoryIds.length <= NOTICE_PEOPLE_MAX
+    : d.worksiteIds.length > 0
+  return to && !!title && !!body && title.length <= TITLE_MAX && body.length <= BODY_MAX
 }
 
 /**
  * 발송 오류 문구. 응답을 못 받았거나 서버 오류면 이미 나갔을 수 있다 — 나간 문자는 회수할 수 없어서
  * 바로 다시 보내라고 하지 않는다(앱 `NoticeMaybeSentError` 와 같은 판단).
  */
-export function createNoticeErrorMessage(e: any): string {
+export function createNoticeErrorMessage(e: any, mode: RecipientMode = 'worksite'): string {
   const code: string | undefined = e?.data?.error
   const status: number | undefined = e?.status ?? e?.statusCode
   if (code === 'bad_worksite') return '그 근무지에 보낼 권한이 없습니다. 근무지를 다시 골라 주세요.'
+  if (code === 'bad_recipient') return '담당하지 않는 분이 섞여 있어 보내지 않았습니다. 받는 사람을 다시 골라 주세요.'
+  if (code === 'no_recipients') {
+    return '고른 분이 모두 계약 종료 등으로 받을 수 없어 보내지 않았습니다. 받는 사람을 다시 골라 주세요.'
+  }
+  // 개인 선택을 모르는 옛 서버는 `directoryIds` 를 버리고 근무지가 없다고 400 bad_request 를 낸다. 화면이 제목·내용·
+  // 받는 사람(1~100명)을 미리 걸러 보내므로 새 서버에서는 이 400 이 나지 않는다 — 「제목과 내용을 확인」으로 읽히지 않게
+  if (mode === 'person' && status === 400 && code === 'bad_request') return `${PEOPLE_UNSUPPORTED} 이 공지는 보내지 않았습니다.`
   if (code === 'request_conflict') return '이 화면에서 이미 보낸 공지가 있습니다. 공지 목록을 확인해 주세요.'
   if (status === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.'
   if (status === 403) return '공지를 보낼 권한이 없습니다.'

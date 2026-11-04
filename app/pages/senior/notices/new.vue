@@ -7,15 +7,22 @@ import {
   NOTICE_IMAGE_ACCEPT,
   NOTICE_IMAGE_BUCKET,
   NOTICE_LEVELS,
+  NOTICE_PEOPLE_MAX,
   TITLE_MAX,
+  excludedNote,
   noticeImagePath,
+  peopleCountFailure,
+  peopleRecipientText,
   pickNoticeImage,
   isMissingRoute,
   recipientCountPlan,
   recipientSummary,
   recipientTotalSummary,
   type NoticeLevel,
+  type PeopleCountFailure,
+  type RecipientMode,
 } from '~/utils/noticeCompose'
+import { noticePeople, type PickPerson } from '~/utils/personPick'
 
 const api = useDboAdmin()
 const app = useDboApp()
@@ -36,8 +43,29 @@ const error = ref('')
 // 화면이 열릴 때 한 번 만든다. 응답이 끊겨 다시 눌러도 서버가 같은 공지로 묶는다
 const requestId = crypto.randomUUID()
 
-const canSubmit = computed(() =>
-  canSubmitNotice({ worksiteIds: worksiteIds.value, title: title.value, body: body.value }),
+/*
+ * 받는 사람 「근무지/개인」(QA 2026-11-02 ANOTICE-03, 결정 S1). 한 공지는 둘 중 하나다 — 개인이면 근무지는 싣지 않는다.
+ * 두 쪽의 선택은 따로 남는다(바꿨다 돌아와도 그대로).
+ */
+const RECIPIENT_MODES: { value: RecipientMode; label: string }[] = [
+  { value: 'worksite', label: '근무지' },
+  { value: 'person', label: '개인' },
+]
+const mode = ref<RecipientMode>('worksite')
+const directoryIds = ref<string[]>([])
+const target = computed(() =>
+  mode.value === 'person' ? { worksiteIds: [], directoryIds: directoryIds.value } : { worksiteIds: worksiteIds.value },
+)
+/**
+ * 개인 공지를 모르는 서버다(받는 사람 수가 404·400 이었거나 발송이 400 bad_request). 이 화면에서는 개인 발송을 막는다 —
+ * 옛 서버는 개인 칸을 버리고 근무지가 없다고 거절하므로 아무에게도 가지 않지만, 누를 때마다 같은 실패를 보게 된다
+ */
+const peopleUnsupported = ref(false)
+
+const canSubmit = computed(
+  () =>
+    canSubmitNotice({ ...target.value, title: title.value, body: body.value }) &&
+    !(mode.value === 'person' && peopleUnsupported.value),
 )
 const levelLabel = computed(() => NOTICE_LEVELS.find((l) => l.value === level.value)!.label)
 
@@ -132,7 +160,78 @@ watch(
   },
   { deep: true },
 )
+
+/*
+ * 개인 받는 사람 명단 — 활성 시니어 전부(`/dbo-admin/directory`, 서버 상한 100건씩 이어 받는다). 「개인」을 처음 누를 때 읽는다.
+ */
+const people = ref<PickPerson[]>([])
+const peopleLoading = ref(false)
+const peopleError = ref('')
+let peopleLoaded = false
+async function loadPeople() {
+  if (peopleLoaded || peopleLoading.value) return
+  peopleLoading.value = true
+  peopleError.value = ''
+  try {
+    const rows = await fetchAllPages(
+      (page, size) => api.listDirectory({ role: 'senior', status: 'active', page, size, sort: 'name' }),
+      (d) => d.id,
+    )
+    people.value = noticePeople(rows)
+    peopleLoaded = true
+  } catch (e) {
+    peopleError.value = dboErrorMessage(e, '명부를 불러오지 못했습니다.')
+  } finally {
+    peopleLoading.value = false
+  }
+}
+watch(mode, (m) => {
+  if (m === 'person') loadPeople()
+})
+
+/** 개인으로 고른 받는 사람 수. undefined 면 오는 중, null 이면 못 셌다(까닭은 peopleFailure) */
+const peopleTotal = ref<number | null | undefined>(undefined)
+const peopleFailure = ref<PeopleCountFailure | null>(null)
+let peopleSequence = 0
+let peopleTimer: ReturnType<typeof setTimeout> | undefined
+onBeforeUnmount(() => clearTimeout(peopleTimer))
+watch(
+  [directoryIds, mode],
+  ([ids, m]) => {
+    // 앞 선택의 세기는 버린다
+    clearTimeout(peopleTimer)
+    const current = ++peopleSequence
+    peopleTotal.value = undefined
+    peopleFailure.value = null
+    if (m !== 'person' || peopleUnsupported.value || ids.length === 0 || ids.length > NOTICE_PEOPLE_MAX) return
+    const list = [...ids]
+    // 연달아 고르면 멈춘 뒤 한 번만 센다(근무지 세기와 같다)
+    peopleTimer = setTimeout(() => {
+      app
+        .recipientTotalPeople(list)
+        .then((r) => {
+          if (current === peopleSequence) peopleTotal.value = r.total
+        })
+        .catch((e) => {
+          if (current !== peopleSequence) return
+          const failure = peopleCountFailure(e)
+          if (failure === 'unsupported') peopleUnsupported.value = true
+          else peopleFailure.value = failure
+          peopleTotal.value = null
+        })
+    }, 250)
+  },
+  { deep: true },
+)
+
 const recipientText = computed(() => {
+  if (mode.value === 'person') {
+    return peopleRecipientText(
+      directoryIds.value.length,
+      peopleTotal.value,
+      peopleUnsupported.value ? 'unsupported' : peopleFailure.value,
+    )
+  }
   const ids = worksiteIds.value
   const plan = recipientCountPlan(ids.length, totalRouteMissing.value)
   if (plan === 'none') return null
@@ -213,7 +312,7 @@ async function send() {
     const res = await app.createNotice(
       buildNoticeBody({
         level: level.value,
-        worksiteIds: worksiteIds.value,
+        ...target.value,
         title: title.value,
         body: body.value,
         requestId,
@@ -221,9 +320,13 @@ async function send() {
       }),
     )
     toast.add({ title: res.duplicate ? '이미 발송된 공지입니다.' : '공지를 발송했습니다.', color: 'success' })
+    // 개인 공지에서 고른 사람 중 받지 않은 분(계약 종료 등) — 조용히 빠지지 않게 알린다
+    const excluded = excludedNote(res.excluded)
+    if (excluded) toast.add({ title: excluded, color: 'warning' })
     await navigateTo(`/senior/notices/${res.id}`)
   } catch (e) {
-    error.value = createNoticeErrorMessage(e)
+    error.value = createNoticeErrorMessage(e, mode.value)
+    if (mode.value === 'person' && peopleCountFailure(e) === 'unsupported') peopleUnsupported.value = true
     confirmOpen.value = false
   } finally {
     sending.value = false
@@ -244,9 +347,41 @@ async function send() {
 
     <AppCard padding="lg">
       <div class="space-y-5">
-        <FormField label="받는 근무지" required hint="고른 근무지에 배정된 시니어에게 갑니다.">
-          <AppSpinner v-if="refsLoading" label="근무지 불러오는 중…" />
-          <WorksitePicker v-else v-model="worksiteIds" :worksites="worksites" :programs="programs" multiple />
+        <FormField
+          label="받는 사람"
+          required
+          :hint="
+            mode === 'person'
+              ? `고른 분에게만 갑니다(${NOTICE_PEOPLE_MAX}명까지). 앱 미연결인 분은 긴급 공지만 문자로 받습니다.`
+              : '고른 근무지에 배정된 시니어에게 갑니다.'
+          "
+        >
+          <!-- 근무지/개인 전환 — 아래 「공지 유형」 알약 버튼 모양을 따른다 -->
+          <div class="mb-3 flex gap-2" role="group" aria-label="받는 사람 고르는 방법">
+            <button
+              v-for="m in RECIPIENT_MODES"
+              :key="m.value"
+              type="button"
+              class="rounded-full border px-4 py-1.5 text-sm font-medium transition-colors"
+              :class="mode === m.value ? 'border-brand-500 bg-brand-500 text-white' : 'border-hairline text-body hover:bg-surface-soft'"
+              :aria-pressed="mode === m.value"
+              @click="mode = m.value"
+            >
+              {{ m.label }}
+            </button>
+          </div>
+          <template v-if="mode === 'worksite'">
+            <AppSpinner v-if="refsLoading" label="근무지 불러오는 중…" />
+            <WorksitePicker v-else v-model="worksiteIds" :worksites="worksites" :programs="programs" multiple />
+          </template>
+          <template v-else>
+            <AppSpinner v-if="peopleLoading" label="명부 불러오는 중…" />
+            <div v-else-if="peopleError" class="flex items-center gap-3">
+              <p role="alert" class="text-sm text-red-600">{{ peopleError }}</p>
+              <AppButton size="sm" variant="outline" color="neutral" @click="loadPeople">다시 불러오기</AppButton>
+            </div>
+            <PersonPicker v-else v-model="directoryIds" :people="people" />
+          </template>
           <p v-if="recipientText" class="mt-2 text-sm text-body tabular-nums">{{ recipientText }}</p>
         </FormField>
         <FormField label="공지 유형" required>
@@ -298,7 +433,8 @@ async function send() {
 
     <AppModal v-model:open="confirmOpen" title="이대로 보낼까요?" width="max-w-md">
       <div class="space-y-2 text-sm text-body">
-        <p>근무지 {{ worksiteIds.length }}곳에 {{ levelLabel }} 공지를 보냅니다.</p>
+        <p v-if="mode === 'person'">고른 {{ directoryIds.length }}명에게 {{ levelLabel }} 공지를 보냅니다.</p>
+        <p v-else>근무지 {{ worksiteIds.length }}곳에 {{ levelLabel }} 공지를 보냅니다.</p>
         <p v-if="recipientText" class="tabular-nums">{{ recipientText }}</p>
         <p v-if="image">사진 한 장을 함께 붙입니다.</p>
         <p v-if="level === 'urgent'" class="font-medium text-brand-500">
