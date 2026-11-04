@@ -320,8 +320,11 @@ describe('예보 근무지 고르기', () => {
     expect(forecastSiteId(o, 'c')).toBe('b')
     expect(forecastSiteId(o, 'gone')).toBe('b')
   })
-  it('고를 근무지가 없으면 null', () => {
-    expect(forecastSiteId(overview([]), null)).toBeNull()
+  it('근무가 없는 날은 예보가 와도 고를 근무지가 없다 — 어느 근무지 예보인지 말할 수 없다', () => {
+    const empty = overview([])
+    expect(empty.weather.length).toBeGreaterThan(0)
+    expect(forecastSiteId(empty, null)).toBeNull()
+    expect(forecastOf(empty, forecastSiteId(empty, null))).toBeNull()
   })
   it('고른 근무지 격자의 예보를 준다', () => {
     expect(forecastOf(o, 'a')?.grid).toBe('60,127')

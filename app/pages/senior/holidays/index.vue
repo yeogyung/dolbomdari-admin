@@ -294,11 +294,13 @@ async function run() {
             <template v-if="forecastSite">
               <span class="font-medium text-ink">{{ forecastSite.label }}</span> 기준 예보
             </template>
-            <template v-else>예보를 볼 근무지가 없습니다.</template>
+            <!-- 서버는 근무가 없는 날에도 격자 예보를 준다. 어느 근무지 것인지 말할 수 없어 보이지 않는다 -->
+            <template v-else>이날 근무가 있고 위치가 등록된 근무지가 없어 보여 줄 예보가 없습니다.</template>
           </p>
           <SelectField v-if="sites.length > 1" v-model="forecastId" :options="siteOptions" class="w-56" />
         </div>
         <p
+          v-if="forecastSite"
           class="flex items-center gap-2 text-sm font-semibold"
           :class="weather?.kind ? TITLE_CLS[weather.kind] : 'text-body'"
         >
