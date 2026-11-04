@@ -195,10 +195,16 @@ export function assignmentSaveError(e: any): { message: string; conflicts: strin
  * 상태는 이미 바뀌었고, 오늘·내일 근무(종료면 기록 없는 근무를 지우고, 활동이면 다시 만든다)만 못 맞췄다.
  * 같은 상태로 다시 저장하면 서버가 다시 맞춘다. 그 밖의 오류면 null. 옛 서버는 이 오류를 내지 않는다.
  *
- * @param kind 'end' 는 「계약 종료」 버튼 — 종료 뒤에는 그 버튼이 없어 인적사항의 「저장」으로 다시 맞춘다
+ * @param kind 'end' 는 「계약 종료」 버튼 — 종료 뒤에는 그 버튼이 없어 인적사항의 「저장」으로 다시 맞춘다.
+ *             'assignment' 는 배정 등록·수정 — 옛 서버도 같은 오류를 낸다. 배정은 이미 저장됐고, 그 배정을 「수정」으로
+ *             다시 저장하면 맞춰진다(서버는 자기 자신과 겹침을 보지 않는다). 등록 창에서 다시 누르면 같은 배정이 하나 더 생기거나
+ *             (옛 서버) 방금 저장한 배정과 겹친다고 막힌다(새 서버)
  */
-export function shiftSyncFailedMessage(e: any, kind: 'save' | 'end'): string | null {
+export function shiftSyncFailedMessage(e: any, kind: 'save' | 'end' | 'assignment'): string | null {
   if (e?.data?.error !== 'shift_sync_failed') return null
+  if (kind === 'assignment') {
+    return '배정은 저장됐지만 오늘·내일 근무 정리만 실패했습니다. 목록에서 그 배정의 「수정」을 열어 저장을 한 번 더 누르면 맞춰집니다.'
+  }
   return kind === 'end'
     ? '계약은 종료됐지만 오늘·내일 근무 정리만 실패했습니다. 인적사항의 「저장」을 한 번 더 누르면 맞춰집니다.'
     : '상태는 바뀌었지만 오늘·내일 근무 정리만 실패했습니다. 「저장」을 한 번 더 누르면 맞춰집니다.'

@@ -359,6 +359,14 @@ async function submitAssign() {
     assignOpen.value = false
     loadAssignments()
   } catch (e: any) {
+    // 배정은 저장됐다 — 창을 닫고 목록을 다시 읽는다. 창에서 다시 누르면 같은 배정을 또 만든다(리뷰 반영)
+    const partial = shiftSyncFailedMessage(e, 'assignment')
+    if (partial) {
+      toast.add({ title: '근무 정리 실패', description: partial, color: 'warning' })
+      assignOpen.value = false
+      loadAssignments()
+      return
+    }
     // 겹친 배정은 여러 줄이라 알림 대신 창 안에 보인다. 창은 닫지 않는다 — 고쳐서 다시 저장한다
     assignError.value = assignmentSaveError(e)
     if (!assignError.value) toast.add({ title: '배정 저장 실패', description: dboErrorMessage(e), color: 'error' })
