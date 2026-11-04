@@ -1,6 +1,6 @@
 // 롤별 사이드바 메뉴 — 담당자는 출퇴근 기록·휴무 관리만 본다
 import { describe, expect, it } from 'vitest'
-import { getApps, managerAllows, worksiteAllows } from '../shared/nav'
+import { getApps, managerAllows, phoneAllows, phoneHome, worksiteAllows } from '../shared/nav'
 
 const paths = (role: Parameters<typeof getApps>[0]) =>
   getApps(role).flatMap((a) => a.sections.flatMap((s) => s.items.map((i) => i.to)))
@@ -57,5 +57,31 @@ describe('worksiteAllows', () => {
 
   it('메뉴에 있는 화면은 모두 들어갈 수 있다 — 메뉴와 가드가 어긋나지 않는다', () => {
     for (const p of paths('worksite')) expect(worksiteAllows(p)).toBe(true)
+  })
+})
+
+// QA 2026-11-02 MOBILE-02 · 결정 F7 — 휴대폰 폭에서는 출퇴근 기록만, 나머지는 「PC에서만 이용」
+describe('phoneAllows', () => {
+  it('휴대폰 폭에서는 출퇴근 기록만 연다', () => {
+    expect(phoneAllows('/senior/attendance')).toBe(true)
+    expect(phoneAllows('/senior/attendance/')).toBe(true)
+    for (const p of ['/', '/senior', '/senior/workers', '/senior/holidays', '/senior/worksites', '/users', '/senior/attendance-x']) {
+      expect(phoneAllows(p)).toBe(false)
+    }
+  })
+
+  it('롤 규칙을 넓히지 않는다 — 휴대폰에서 여는 화면은 그 롤에게도 열린 화면이다', () => {
+    expect(managerAllows('/senior/attendance')).toBe(true)
+    expect(worksiteAllows('/senior/attendance')).toBe(true)
+  })
+})
+
+describe('phoneHome', () => {
+  it('안내 화면의 바로가기는 그 롤 메뉴의 출퇴근 기록', () => {
+    for (const role of ['master', 'manager', 'worksite'] as const) expect(phoneHome(role)).toBe('/senior/attendance')
+  })
+
+  it('출퇴근 기록 메뉴가 없는 기관 관리자는 바로가기가 없다', () => {
+    expect(phoneHome('org')).toBeNull()
   })
 })

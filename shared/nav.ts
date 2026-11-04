@@ -154,6 +154,36 @@ export function worksiteAllows(path: string): boolean {
   return allows(WORKSITE_PATHS, path)
 }
 
+/**
+ * 휴대폰 폭에서 여는 화면(QA 2026-11-02 MOBILE-02, 결정 F7). 나머지 메뉴는 「PC에서만 이용」으로 두고,
+ * 주소로 들어오면 「PC에서 이용해 주세요」 안내를 그린다(`AdminShell`).
+ *
+ * **롤 규칙과 따로 본다.** 롤이 막은 화면은 라우트 가드가 먼저 돌려보낸다. 이 목록은 그 위에 폭 제한만 더한다.
+ */
+const PHONE_PATHS = ['/senior/attendance']
+
+/** 휴대폰 폭에서 이 경로를 열 수 있는가 */
+export function phoneAllows(path: string): boolean {
+  return allows(PHONE_PATHS, path)
+}
+
+/**
+ * 휴대폰 폭이 아닌 폭 — Tailwind `md`(48rem = 768px) 이상. 화면의 `md:` 클래스와 같은 경계다.
+ * 셸의 햄버거 전환(`lg`, 1024px)을 쓰지 않는다 — 태블릿과 반쪽 창 PC 까지 막힌다.
+ */
+export const PC_MEDIA = '(min-width: 48rem)'
+
+/** 휴대폰 폭 안내 화면의 바로가기 — 이 롤의 메뉴 가운데 휴대폰에서 열리는 첫 화면. 없으면 null(기관 관리자) */
+export function phoneHome(role: NavRole): string | null {
+  for (const app of getApps(role)) {
+    for (const section of app.sections) {
+      const item = section.items.find((i) => phoneAllows(i.to))
+      if (item) return item.to
+    }
+  }
+  return null
+}
+
 function allows(paths: string[], path: string): boolean {
   return paths.some((p) => path === p || path.startsWith(`${p}/`))
 }

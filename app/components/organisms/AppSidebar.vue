@@ -1,10 +1,12 @@
 <!-- 유기체: 좌측 사이드바 — 앱 스위처 + 앱별 네비게이션 (디자인 시안 기준) -->
 <script setup lang="ts">
-import { getApps, appKeyForPath } from '#shared/nav'
+import { getApps, appKeyForPath, phoneAllows } from '#shared/nav'
 
 const route = useRoute()
 const supabase = useSupabase()
 const { me, clear } = useAdminRole()
+/** 휴대폰 폭에서는 출퇴근 기록만 연다. 나머지 메뉴는 눌리지 않고 「PC에서만 이용」을 적는다(QA 2026-11-02 MOBILE-02) */
+const phone = usePhoneWidth()
 
 // 롤을 받기 전에는 메뉴를 그리지 않는다 — 잠깐이라도 권한 밖 메뉴를 보여 주면
 // 눌렀을 때 404 를 받고 고장난 것처럼 보인다.
@@ -69,7 +71,17 @@ function isActive(to: string): boolean {
         </p>
         <ul class="space-y-0.5">
           <li v-for="item in section.items" :key="item.to">
+            <span
+              v-if="phone && !phoneAllows(item.to)"
+              aria-disabled="true"
+              class="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-3 py-[11px] text-[15px] font-medium text-muted-soft"
+            >
+              <UIcon :name="item.icon" class="size-[18px] shrink-0" />
+              <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+              <span class="shrink-0 text-[11px] font-semibold">PC에서만 이용</span>
+            </span>
             <NuxtLink
+              v-else
               :to="item.to"
               class="flex items-center gap-2.5 rounded-lg px-3 py-[11px] text-[15px] transition-colors"
               :class="
