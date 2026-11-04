@@ -146,12 +146,28 @@ function openAttachment(e: MouseEvent) {
   reloadMessages()
 }
 
+/** 방 만들기 창(QA 2026-11-02 CHAT-01) */
+const createOpen = ref(false)
+/** 만들면 목록을 첫 쪽부터 다시 읽고, 새 방이 보이면 연다 */
+async function onRoomCreated(roomId: string) {
+  page.value = 1
+  await loadRooms()
+  const room = rooms.value.find((r) => r.id === roomId)
+  if (room) openGuard.run(() => openRoom(room))
+}
+
 onMounted(loadRooms)
 </script>
 
 <template>
   <!-- items-start: 두 카드가 서로의 높이를 따라 늘어나지 않게 한다 — 긴 대화가 방 목록 카드까지 키우던 문제 -->
   <div class="grid items-start gap-6 lg:grid-cols-[340px_1fr]">
+    <!-- 방 만들기 — 공지 목록의 「공지 작성」처럼 머리글 오른쪽 버튼 -->
+    <Teleport to="#admin-topbar-actions">
+      <AppButton icon="i-lucide-message-square-plus" @click="createOpen = true">방 만들기</AppButton>
+    </Teleport>
+    <RoomCreateModal v-model:open="createOpen" @created="onRoomCreated" />
+
     <!-- 방 목록 -->
     <AppCard padding="none">
       <template #header>

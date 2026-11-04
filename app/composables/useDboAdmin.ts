@@ -250,6 +250,12 @@ export function useDboAdmin() {
 
     /* 채팅방 열람 — master 전용 */
     listRooms: (q: ListQuery = {}) => req<Paged<ChatRoom>>('/rooms', { query: clean(q) }),
+    /**
+     * 단체방 만들기(서버 2026-11-04, QA CHAT-01). 참여자는 **프로필 id**. 만든 master 는 멤버로 들어가지 않는다.
+     * 넣을 수 없는 사람이 하나라도 있으면 아무것도 만들지 않고 400 bad_member(`invalid`). 옛 서버는 404
+     */
+    createRoom: (body: { title: string; profileIds: string[]; aiEnabled: boolean }) =>
+      req<{ roomId: string; members: number }>('/rooms', { method: 'POST', body }),
     updateRoom: (id: string, body: { status: 'active' | 'closed' }) =>
       req<{ ok: true }>(`/rooms/${id}`, { method: 'PATCH', body }),
     listRoomMessages: (id: string) => req<{ items: ChatMessage[] }>(`/rooms/${id}/messages`),

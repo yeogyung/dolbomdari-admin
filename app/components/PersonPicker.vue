@@ -113,7 +113,11 @@ const colspan = computed(() => (props.showRole ? 5 : 4))
             </td>
             <td v-if="showRole" class="truncate px-3 py-2 text-muted">{{ ROLE_LABELS[p.role ?? ''] ?? p.role ?? '—' }}</td>
             <td class="truncate px-3 py-2 text-muted tabular-nums">{{ p.phone ? fmtPhone(p.phone) : '—' }}</td>
-            <td class="truncate px-3 py-2 text-xs" :class="p.disabled ? 'text-muted' : 'text-body'" :title="p.note ?? undefined">
+            <td
+              class="truncate px-3 py-2 text-xs"
+              :class="p.alert ? 'font-medium text-down' : p.disabled ? 'text-muted' : 'text-body'"
+              :title="p.note ?? undefined"
+            >
               {{ p.note ?? '' }}
             </td>
           </tr>
