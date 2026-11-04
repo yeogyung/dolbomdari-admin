@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NoticeDetail, NoticeRecipient } from '~/types/dbo'
 import type { Column } from '~/types/table'
-import { deliveryLabel, noticeReadLabel } from '~/utils/notices'
+import { deliveryLabel, noticeReadLabel, pushDeliveryLine, pushSummaryHidden } from '~/utils/notices'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
@@ -41,12 +41,42 @@ async function load() {
     notice.value = detail
     rows.value = recipients.items
     total.value = recipients.total
+    loadPush(detail)
   } catch (e) {
     if (current === sequence) { error.value = dboErrorMessage(e); total.value = 0 }
   } finally {
     if (current === sequence) loading.value = false
   }
 }
+
+/*
+ * 앱 알림 실제 전달(QA 2026-11-02 PUSH-01). 표의 「발송 접수」는 알림 서버가 받았다는 뜻일 뿐이라 실제 전달·실패를 따로
+ * 센다(`GET /dbo-admin/push/summary`). 발행 시각부터 센다 — 서버 기본(지난 7일)이면 오래된 공지가 0으로 보인다.
+ * 옛 서버(404)·권한 없음(403)이면 숨긴다. 새로고침·필터를 바꿀 때마다 다시 받는다 — 결과가 15~45분 뒤에 채워진다.
+ */
+const pushLine = ref<string | null>(null)
+const pushFailed = ref(false)
+let pushSequence = 0
+function loadPush(detail: NoticeDetail) {
+  const current = ++pushSequence
+  api
+    .pushSummary({ kind: 'notice', linkId: detail.id, since: detail.published_at ?? undefined })
+    .then((s) => {
+      if (current !== pushSequence) return
+      pushLine.value = pushDeliveryLine(s)
+      pushFailed.value = false
+    })
+    .catch((e) => {
+      if (current !== pushSequence) return
+      pushLine.value = null
+      pushFailed.value = !pushSummaryHidden(e)
+    })
+}
+watch(() => route.params.id, () => {
+  pushLine.value = null
+  pushFailed.value = false
+})
+
 function search() { if (page.value !== 1) page.value = 1; else load() }
 watch([channel, read, () => route.params.id], search)
 watch(page, load)
@@ -119,6 +149,12 @@ async function exportExcel() {
       <p class="whitespace-pre-wrap break-words text-body">{{ notice.body }}</p>
       <p v-if="notice.trackedRecipients === 0" class="text-sm text-amber-700">저장된 수신자별 발송 이력이 없습니다 기존 공지의 발송 채널은 확인할 수 없습니다</p>
       <p v-if="notice.metadata.delivery?.status === 'pending' || notice.metadata.delivery?.historyFailed" class="text-sm text-amber-700">일부 발송 이력이 처리 중이거나 저장되지 않았습니다 아래 목록이 전체 발송 결과와 다를 수 있습니다</p>
+      <!-- 앱 알림 실제 전달(QA PUSH-01) — 리포트의 「푸시 접수 · 실패」 줄 모양을 따른다. 옛 서버는 숨긴다 -->
+      <div v-if="pushLine || pushFailed" class="space-y-1 border-t border-hairline-soft pt-3">
+        <p v-if="pushLine" class="text-sm text-body tabular-nums">{{ pushLine }}</p>
+        <p v-else class="text-sm text-muted">앱 알림 실제 전달 결과를 불러오지 못했습니다.</p>
+        <p class="text-xs text-muted">결과는 보낸 뒤 15~45분 뒤에 채워집니다. 아래 표의 「발송 접수」는 알림 서버가 받았다는 뜻이고 실제 전달과 다를 수 있습니다.</p>
+      </div>
       </div>
     </AppCard>
     <p class="text-sm text-muted">문자와 푸시는 발송 접수된 참여자를 표시합니다 둘 다 발송한 경우 양쪽 필터에 포함됩니다</p>

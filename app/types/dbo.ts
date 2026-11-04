@@ -24,6 +24,24 @@ export interface NoticeDetail extends NoticeSummary {
   metadata: { delivery?: { recipients?: number; historyFailed?: number; status?: string } }
   trackedRecipients: number
 }
+/**
+ * 앱 푸시 접수·실제 전달 집계 — GET /dbo-admin/push/summary(서버 2026-11-04, QA PUSH-01). 토큰 하나당 한 줄로 센다.
+ * `accepted` 는 Expo 접수(예전 「나갔음」), `delivered`·`failed` 는 15분 뒤 receipt 로 본 실제 결과, `rejected` 는 접수부터 거절.
+ * `errors` 는 거절·실패의 이유별 수
+ */
+export interface PushSummary {
+  kind: string | null
+  linkId: string | null
+  since: string
+  tickets: number
+  accepted: number
+  rejected: number
+  delivered: number
+  failed: number
+  pending: number
+  unknown: number
+  errors: Record<string, number>
+}
 export type DeliveryStatus = 'skipped' | 'pending' | 'accepted' | 'failed'
 export interface NoticeRecipient {
   notice_id: string

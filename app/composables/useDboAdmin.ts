@@ -18,6 +18,7 @@ import type {
   NoticeSummary,
   NoticeDetail,
   NoticeRecipient,
+  PushSummary,
   FaqStatus,
   DocumentListItem,
   DocumentDetail,
@@ -87,6 +88,12 @@ export function useDboAdmin() {
     getNotice: (id: string) => req<NoticeDetail>(`/notices/${id}`),
     listNoticeRecipients: (id: string, q: ListQuery & { channel?: string; read?: string } = {}) =>
       req<Paged<NoticeRecipient>>(`/notices/${id}/recipients`, { query: clean(q) }),
+    /**
+     * 앱 푸시 접수·실제 전달 집계(서버 2026-11-04, QA PUSH-01). 공지 하나는 `kind=notice&linkId=<공지 id>`.
+     * `since` 가 없으면 서버가 지난 7일만 센다. 옛 서버는 404
+     */
+    pushSummary: (q: { kind: string; linkId: string; since?: string }) =>
+      req<PushSummary>('/push/summary', { query: clean(q) }),
     /* AI 문서 — master 전용. 상태(state)는 서버가 날짜로 계산한다. 본문을 고친 경우에만 재색인(indexed) */
     listDocuments: (q: ListQuery = {}) => req<Paged<DocumentListItem>>('/documents', { query: clean(q) }),
     getDocument: (id: string) => req<DocumentDetail>(`/documents/${id}`),
