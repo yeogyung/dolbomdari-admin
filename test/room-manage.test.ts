@@ -40,6 +40,8 @@ describe('roomCreateErrorMessage', () => {
   // 되돌린 실패는 500 으로 온다. 응답이 없으면 만들어졌을 수 있다
   it('서버 실패와 응답 없음을 가른다', () => {
     expect(roomCreateErrorMessage({ status: 500, data: { error: 'internal' } })).toContain('만들지 못했습니다')
+    expect(roomCreateErrorMessage({ status: 502 })).toContain('만들어졌을 수 있으니')
+    expect(roomCreateErrorMessage({ status: 503, data: { error: 'internal' } })).toContain('만들지 못했습니다')
     expect(roomCreateErrorMessage(new Error('network'))).toContain('만들어졌을 수 있으니')
   })
 })
@@ -83,7 +85,12 @@ describe('roomMemberErrorMessage', () => {
     expect(roomMemberErrorMessage({ status: 403, data: { error: 'forbidden' } }, 'add')).toContain('권한')
     expect(roomMemberErrorMessage({ status: 401 }, 'remove')).toContain('로그인')
     expect(roomMemberErrorMessage(new Error('network'), 'remove')).toContain('응답을 확인하지 못했습니다')
-    expect(roomMemberErrorMessage({ status: 500 }, 'add')).toContain('넣지 못했습니다')
-    expect(roomMemberErrorMessage({ status: 500 }, 'remove')).toContain('내보내지 못했습니다')
+    expect(roomMemberErrorMessage({ status: 500, data: { error: 'internal' } }, 'add')).toContain('넣지 못했습니다')
+    expect(roomMemberErrorMessage({ status: 500, data: { error: 'internal' } }, 'remove')).toContain('내보내지 못했습니다')
+  })
+  // 앞단(게이트웨이)의 5xx 는 처리됐는지 모른다 — 처리기의 500 은 늘 internal 이다
+  it('게이트웨이 5xx 는 응답 없음과 같다', () => {
+    expect(roomMemberErrorMessage({ status: 502 }, 'add')).toContain('응답을 확인하지 못했습니다')
+    expect(roomMemberErrorMessage({ status: 504, data: 'Gateway Timeout' }, 'remove')).toContain('응답을 확인하지 못했습니다')
   })
 })

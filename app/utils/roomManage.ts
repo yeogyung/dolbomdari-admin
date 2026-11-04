@@ -28,6 +28,15 @@ const status = (e: any): number | undefined => e?.status ?? e?.statusCode
 const code = (e: any): string | undefined => (typeof e?.data?.error === 'string' ? e.data.error : undefined)
 
 /**
+ * 처리됐는지 모르는 실패 — 응답이 없거나, 서버 처리기가 아니라 앞단(게이트웨이)이 낸 5xx. 처리기가 내는 500 은 늘
+ * `{ error: 'internal' }` 이고 그때는 되돌렸거나 처음부터 하지 않았다(서버 `rooms.ts`·`roomMembers.ts`)
+ */
+const outcomeUnknown = (e: any): boolean => {
+  const s = status(e)
+  return !s || (s >= 500 && code(e) !== 'internal')
+}
+
+/**
  * 방 만들기(`POST /dbo-admin/rooms`) 오류 문구. 옛 서버는 그 경로가 없어 404 다 — 새 서버의 개설은 404 를 내지 않는다.
  * 응답을 못 받았으면 방이 만들어졌을 수 있다(되돌린 실패는 500 으로 온다).
  */
@@ -41,7 +50,7 @@ export function roomCreateErrorMessage(e: any): string {
   if (s === 400) return '방 이름(100자까지)과 참여자를 확인해 주세요.'
   if (s === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.'
   if (s === 403) return '방을 만들 권한이 없습니다. 운영관리자(master) 계정으로 로그인해 주세요.'
-  if (!s) return '응답을 확인하지 못했습니다. 방이 만들어졌을 수 있으니 목록을 새로고침해 확인해 주세요.'
+  if (outcomeUnknown(e)) return '응답을 확인하지 못했습니다. 방이 만들어졌을 수 있으니 목록을 새로고침해 확인해 주세요.'
   return '방을 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.'
 }
 
@@ -68,7 +77,7 @@ export function roomMemberErrorMessage(e: any, action: 'add' | 'remove'): string
   if (s === 400) return '참여자를 확인해 주세요.'
   if (s === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.'
   if (s === 403) return '참여자를 바꿀 권한이 없습니다. 운영관리자(master) 계정으로 로그인해 주세요.'
-  if (!s) return '응답을 확인하지 못했습니다. 다시 불러온 명단에서 바뀌었는지 확인해 주세요.'
+  if (outcomeUnknown(e)) return '응답을 확인하지 못했습니다. 다시 불러온 명단에서 바뀌었는지 확인해 주세요.'
   return action === 'add'
     ? '참여자를 넣지 못했습니다. 잠시 뒤 다시 시도해 주세요.'
     : '참여자를 내보내지 못했습니다. 잠시 뒤 다시 시도해 주세요.'

@@ -73,7 +73,8 @@ async function submit() {
 </script>
 
 <template>
-  <AppModal v-model:open="open" title="방 만들기" width="max-w-2xl">
+  <!-- 만드는 중에는 닫지 않는다 — 닫힌 창에 실패·「만들어졌을 수 있음」 안내가 묻히면 같은 방을 또 만든다 -->
+  <AppModal v-model:open="open" title="방 만들기" width="max-w-2xl" :before-close="() => !saving">
     <div class="space-y-4">
       <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
       <FormField label="방 이름" required :hint="`${title.trim().length}/${ROOM_TITLE_MAX}자`">
@@ -99,7 +100,7 @@ async function submit() {
       </FormField>
     </div>
     <template #footer>
-      <AppButton variant="outline" color="neutral" size="sm" @click="open = false">취소</AppButton>
+      <AppButton variant="outline" color="neutral" size="sm" :disabled="saving" @click="open = false">취소</AppButton>
       <AppButton size="sm" :loading="saving" :disabled="!canSubmit" @click="submit">만들기</AppButton>
     </template>
   </AppModal>

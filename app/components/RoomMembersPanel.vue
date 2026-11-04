@@ -19,10 +19,16 @@ const loading = ref(false)
 const loadError = ref('')
 /** 방을 빠르게 바꾸면 늦게 온 앞 방의 명단을 버린다 */
 let sequence = 0
+/** 지금 명단이 어느 방 것인가 — 다른 방을 읽는 동안 앞 방의 명단·「내보내기」를 남기지 않는다 */
+let shownRoomId: string | null = null
 
 async function load() {
   const current = ++sequence
   const roomId = props.room.id
+  if (shownRoomId !== roomId) {
+    members.value = []
+    shownRoomId = roomId
+  }
   loading.value = true
   loadError.value = ''
   try {
@@ -62,7 +68,8 @@ async function confirmRemove() {
     await api.removeRoomMember(props.room.id, m.profile_id)
     toast.add({ title: `${nameOf(m)} 님을 내보냈습니다.`, color: 'success' })
   } catch (e) {
-    toast.add({ title: '내보내지 못했습니다.', description: roomMemberErrorMessage(e, 'remove'), color: 'error' })
+    // 응답을 못 받은 경우도 있어 「못 했다」고 단정하지 않는다 — 문구가 까닭을 말한다
+    toast.add({ title: roomMemberErrorMessage(e, 'remove'), color: 'error' })
   } finally {
     removeBusy.value = false
     removing.value = null
@@ -125,9 +132,14 @@ async function submitAdd() {
     toast.add({ title: `참여자 ${res.added}명을 넣었습니다.`, color: 'success' })
     addOpen.value = false
   } catch (e) {
-    const found = badMemberProblems(e)
-    if (found) problems.value = found
-    addError.value = roomMemberErrorMessage(e, 'add')
+    const message = roomMemberErrorMessage(e, 'add')
+    if (addOpen.value && roomId === props.room.id) {
+      const found = badMemberProblems(e)
+      if (found) problems.value = found
+      addError.value = message
+    } else {
+      toast.add({ title: message, color: 'error' })
+    }
   } finally {
     addBusy.value = false
     if (roomId === props.room.id) load()
@@ -139,7 +151,8 @@ async function submitAdd() {
   <section class="border-b border-hairline-soft px-8 py-4" aria-label="참여자">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h3 class="text-sm font-semibold text-ink">
-        참여자 <span class="tabular-nums text-muted">{{ loading ? '…' : `${members.length}명` }}</span>
+        <!-- 못 읽었으면 수를 적지 않는다 — 「0명」으로 읽히지 않게 -->
+        참여자 <span class="tabular-nums text-muted">{{ loading ? '…' : loadError ? '—' : `${members.length}명` }}</span>
       </h3>
       <p v-if="block" class="text-xs text-muted">{{ block }}</p>
       <AppButton v-else size="sm" variant="outline" color="neutral" icon="i-lucide-user-plus" @click="openAdd">
@@ -179,7 +192,8 @@ async function submitAdd() {
       </template>
     </AppModal>
 
-    <AppModal v-model:open="addOpen" title="참여자 추가" width="max-w-2xl">
+    <!-- 넣는 중에는 닫지 않는다(방 만들기 창과 같다). 다른 방으로 옮겨 닫혔으면 실패를 알림으로 띄운다 -->
+    <AppModal v-model:open="addOpen" title="참여자 추가" width="max-w-2xl" :before-close="() => !addBusy">
       <div class="space-y-4">
         <p v-if="addError" role="alert" class="text-sm text-red-600">{{ addError }}</p>
         <FormField
@@ -196,7 +210,7 @@ async function submitAdd() {
         </FormField>
       </div>
       <template #footer>
-        <AppButton variant="outline" color="neutral" size="sm" @click="addOpen = false">취소</AppButton>
+        <AppButton variant="outline" color="neutral" size="sm" :disabled="addBusy" @click="addOpen = false">취소</AppButton>
         <AppButton size="sm" :loading="addBusy" :disabled="!canAdd" @click="submitAdd">추가</AppButton>
       </template>
     </AppModal>
