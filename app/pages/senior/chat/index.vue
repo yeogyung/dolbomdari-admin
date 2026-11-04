@@ -28,6 +28,10 @@ const selected = ref<ChatRoom | null>(null)
 const messages = ref<ChatMessage[]>([])
 const loadingMessages = ref(false)
 const updating = ref(false)
+/** 대화를 받은 시각 — 첨부 서명 주소(1시간)가 만료됐는지 본다(QA 2026-11-02 CHAT-04) */
+const messagesAt = ref<number | null>(null)
+/** 브라우저가 못 읽은 사진(만료 등)의 첨부 id. 대화를 다시 받으면 비운다 */
+const brokenAttachments = ref(new Set<string>())
 
 const lastPage = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
@@ -64,11 +68,14 @@ async function openRoom(room: ChatRoom) {
   selected.value = room
   loadingMessages.value = true
   messages.value = []
+  messagesAt.value = null
+  brokenAttachments.value = new Set()
   try {
     const res = await api.listRoomMessages(room.id)
     // 다른 방을 그새 눌렀으면 이 응답은 버린다 — 앞 방의 대화가 뒤 방 제목 아래 보이지 않게
     if (selected.value?.id !== room.id) return
     messages.value = res.items
+    messagesAt.value = Date.now()
   } catch (e: any) {
     if (selected.value?.id !== room.id) return
     toast.add({ title: '대화 조회 실패', description: dboErrorMessage(e), color: 'error' })
@@ -115,6 +122,17 @@ function goPage(p: number) {
 const senderName = (m: ChatMessage) =>
   (m.sender_name as string) || (m.sender_type === 'ai' ? 'AI 도움말' : '알 수 없음')
 const isAi = (m: ChatMessage) => m.sender_type === 'ai'
+
+/** 대화를 다시 받는다 — 첨부 주소가 1시간 뒤 만료되고, 그새 온 메시지도 보인다 */
+const reloadMessages = () => (selected.value ? openGuard.run(() => openRoom(selected.value!)) : undefined)
+
+/** 만료된 주소를 열면 오류 쪽이 뜬다. 그 전에 막고 대화를 다시 받는다 — 다시 누르면 새 주소로 열린다 */
+function openAttachment(e: MouseEvent) {
+  if (!attachmentUrlsExpired(messagesAt.value, Date.now())) return
+  e.preventDefault()
+  toast.add({ title: '사진·파일 주소가 만료되어 대화를 다시 불러옵니다.', description: '다시 눌러 주세요.', color: 'warning' })
+  reloadMessages()
+}
 
 onMounted(loadRooms)
 </script>
@@ -199,16 +217,29 @@ onMounted(loadRooms)
           </p>
         </div>
         <h2 v-else class="text-[18px] font-semibold text-ink">대화</h2>
-        <AppButton
-          v-if="selected"
-          size="sm"
-          :variant="selected.status === 'active' ? 'soft' : 'solid'"
-          :color="selected.status === 'active' ? 'down' : 'primary'"
-          :loading="updating"
-          @click="toggleStatus"
-        >
-          {{ selected.status === 'active' ? '방 종료' : '방 다시 열기' }}
-        </AppButton>
+        <div v-if="selected" class="flex items-center gap-2">
+          <!-- 새로고침은 리포트 화면의 버튼 모양을 따른다 -->
+          <AppButton
+            size="sm"
+            variant="outline"
+            color="neutral"
+            icon="i-lucide-refresh-cw"
+            :loading="loadingMessages"
+            :disabled="openGuard.pending.value"
+            @click="reloadMessages"
+          >
+            새로고침
+          </AppButton>
+          <AppButton
+            size="sm"
+            :variant="selected.status === 'active' ? 'soft' : 'solid'"
+            :color="selected.status === 'active' ? 'down' : 'primary'"
+            :loading="updating"
+            @click="toggleStatus"
+          >
+            {{ selected.status === 'active' ? '방 종료' : '방 다시 열기' }}
+          </AppButton>
+        </div>
       </template>
 
       <!-- 대화는 길어질 수 있어 높이를 묶고 안에서 스크롤한다 -->
@@ -236,6 +267,44 @@ onMounted(loadRooms)
             >
               {{ m.body }}
             </p>
+            <!-- 첨부(QA CHAT-04). 사진은 썸네일, 누르면 새 탭에 원본 — 수요처 가입 서류(OrgReviewPanel)와 같은 모양 -->
+            <div v-if="messageAttachments(m).length" class="flex max-w-[70ch] flex-wrap items-start gap-2">
+              <template v-for="a in messageAttachments(m)" :key="a.id">
+                <a
+                  v-if="attachmentView(a, brokenAttachments.has(a.id)) === 'image'"
+                  :href="a.url!"
+                  target="_blank"
+                  rel="noopener"
+                  @click="openAttachment"
+                >
+                  <img
+                    :src="a.url!"
+                    :alt="a.filename"
+                    class="max-h-48 max-w-full rounded-lg border border-hairline object-contain"
+                    @error="brokenAttachments.add(a.id)"
+                  />
+                </a>
+                <a
+                  v-else-if="attachmentView(a, brokenAttachments.has(a.id)) === 'file'"
+                  :href="a.url!"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-2 text-sm text-brand-500 hover:underline"
+                  @click="openAttachment"
+                >
+                  <UIcon name="i-lucide-file-down" class="size-4 shrink-0" />
+                  <span class="truncate">{{ a.filename }}</span>
+                  <span class="shrink-0 text-xs text-muted tabular-nums">{{ fmtBytes(a.byte_size) }}</span>
+                </a>
+                <span
+                  v-else
+                  class="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-2 text-sm text-muted"
+                >
+                  <UIcon name="i-lucide-triangle-alert" class="size-4 shrink-0" />
+                  {{ attachmentUnavailableText(a) }}
+                </span>
+              </template>
+            </div>
           </li>
         </ul>
       </div>

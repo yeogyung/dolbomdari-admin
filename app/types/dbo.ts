@@ -220,11 +220,23 @@ export interface ChatRoom {
   last_message_at?: string | null
 }
 
+/** 대화 보기 메시지의 첨부(서버 2026-11-04, QA CHAT-04). `url` 은 1시간짜리 서명 주소, 못 만들었으면 null */
+export interface ChatAttachment {
+  id: string
+  kind: 'image' | 'file'
+  filename: string
+  byte_size: number
+  created_at: string
+  url: string | null
+}
+
 export interface ChatMessage {
   id: string
   room_id: string
   body: string
   created_at: string
+  /** 올린 순서, 없으면 []. 옛 서버는 칸이 없다 */
+  attachments?: ChatAttachment[]
   [key: string]: unknown
 }
 
