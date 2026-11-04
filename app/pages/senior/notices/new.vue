@@ -298,6 +298,9 @@ async function send() {
   if (sending.value || !canSubmit.value) return
   sending.value = true
   error.value = ''
+  // 확인 창에서 본 값으로 보낸다 — 사진을 올리는 사이 받는 사람·유형을 바꿔도 보낼 공지는 바뀌지 않게
+  const sentMode = mode.value
+  const draft = { level: level.value, ...target.value, title: title.value, body: body.value, requestId }
   try {
     let imagePaths: string[]
     try {
@@ -309,24 +312,15 @@ async function send() {
       confirmOpen.value = false
       return
     }
-    const res = await app.createNotice(
-      buildNoticeBody({
-        level: level.value,
-        ...target.value,
-        title: title.value,
-        body: body.value,
-        requestId,
-        imagePaths,
-      }),
-    )
+    const res = await app.createNotice(buildNoticeBody({ ...draft, imagePaths }))
     toast.add({ title: res.duplicate ? '이미 발송된 공지입니다.' : '공지를 발송했습니다.', color: 'success' })
     // 개인 공지에서 고른 사람 중 받지 않은 분(계약 종료 등) — 조용히 빠지지 않게 알린다
     const excluded = excludedNote(res.excluded)
     if (excluded) toast.add({ title: excluded, color: 'warning' })
     await navigateTo(`/senior/notices/${res.id}`)
   } catch (e) {
-    error.value = createNoticeErrorMessage(e, mode.value)
-    if (mode.value === 'person' && peopleCountFailure(e) === 'unsupported') peopleUnsupported.value = true
+    error.value = createNoticeErrorMessage(e, sentMode)
+    if (sentMode === 'person' && peopleCountFailure(e) === 'unsupported') peopleUnsupported.value = true
     confirmOpen.value = false
   } finally {
     sending.value = false
@@ -431,7 +425,8 @@ async function send() {
       </div>
     </AppCard>
 
-    <AppModal v-model:open="confirmOpen" title="이대로 보낼까요?" width="max-w-md">
+    <!-- 보내는 중에는 닫지 않는다 — 닫혀도 발송은 계속되어 「취소했다」고 믿게 된다 -->
+    <AppModal v-model:open="confirmOpen" title="이대로 보낼까요?" width="max-w-md" :before-close="() => !sending">
       <div class="space-y-2 text-sm text-body">
         <p v-if="mode === 'person'">고른 {{ directoryIds.length }}명에게 {{ levelLabel }} 공지를 보냅니다.</p>
         <p v-else>근무지 {{ worksiteIds.length }}곳에 {{ levelLabel }} 공지를 보냅니다.</p>
@@ -443,7 +438,7 @@ async function send() {
         <p v-else class="text-muted">문자는 나가지 않고 앱 알림으로만 갑니다.</p>
       </div>
       <template #footer>
-        <AppButton variant="outline" color="neutral" size="sm" @click="confirmOpen = false">취소</AppButton>
+        <AppButton variant="outline" color="neutral" size="sm" :disabled="sending" @click="confirmOpen = false">취소</AppButton>
         <AppButton size="sm" :loading="sending" @click="send">보내기</AppButton>
       </template>
     </AppModal>
