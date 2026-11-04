@@ -216,6 +216,8 @@ export interface ChatRoom {
   ai_enabled: boolean
   created_by: string | null
   created_at: string
+  /** 마지막 메시지 시각, 없으면 null(서버 2026-11-04, QA CHAT-02). 옛 서버는 칸이 없다 */
+  last_message_at?: string | null
 }
 
 export interface ChatMessage {

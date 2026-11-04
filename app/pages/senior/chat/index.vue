@@ -44,7 +44,7 @@ async function loadRooms() {
     if (!selected.value && res.items.length) openRoom(res.items[0]!)
     // 덧붙이는 정보다. 실패해도 목록은 그대로 두고 알린다 — 조용히 비우면 「인원 0」처럼 읽힌다
     stats.value = new Map()
-    statsFor(res.items.map((r) => r.id))
+    statsFor(res.items)
       .then((m) => {
         if (current === sequence) stats.value = m
       })
