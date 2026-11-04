@@ -64,7 +64,20 @@ export type PushOutcome = { pushed: number; failed: number; aborted: boolean }
  */
 export type Channel = 'none' | 'noPush' | 'push'
 
-export type ContactPerson = { directoryId: string; name: string; phone: string | null; channel: Channel }
+/**
+ * 받는 방법을 더 가른 값(서버 2026-11-04, QA PUSH-05). noPush 를 로그인된 기기가 없음(loggedOut)과
+ * 앱 알림 꺼짐(noPush)으로 나눈다. 서버가 로그인 상태를 못 읽으면 예전처럼 noPush 다
+ */
+export type ChannelDetail = Channel | 'loggedOut'
+
+export type ContactPerson = {
+  directoryId: string
+  name: string
+  phone: string | null
+  channel: Channel
+  /** 옛 서버는 칸이 없다 — 그때는 channel 로 적는다 */
+  channelDetail?: ChannelDetail
+}
 
 /**
  * 직접 알릴 분 — 앱 알림을 못 받는 시니어를 근무지별로(알림 단계가 통째로 실패했으면 전원).
@@ -214,13 +227,16 @@ export function rainLabel(mm: number): string {
   return String(mm)
 }
 
-const CHANNEL_LABEL: Record<Channel, string> = {
+const CHANNEL_LABEL: Record<ChannelDetail, string> = {
   none: '앱 미설치',
+  loggedOut: '로그아웃(기기 없음)',
   noPush: '앱 알림 꺼짐',
   push: '앱 알림 실패',
 }
 
-export const channelLabel = (channel: Channel) => CHANNEL_LABEL[channel]
+/** 직접 알릴 분의 받는 방법. 더 가른 값(channelDetail)이 있으면 그것을, 없으면(옛 서버) channel 을 적는다 */
+export const channelLabel = (p: Pick<ContactPerson, 'channel' | 'channelDetail'>) =>
+  CHANNEL_LABEL[p.channelDetail ?? p.channel]
 
 /** 직접 알릴 분 수 — 근무지를 가로질러 센다 */
 export function contactCount(contacts: HolidayContacts | null | undefined): number {

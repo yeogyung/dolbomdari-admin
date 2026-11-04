@@ -251,10 +251,17 @@ describe('결과 문구', () => {
 
 describe('직접 알릴 분 · 특보 · 강수량 칸(앱과 같다)', () => {
   it('받는 방법을 사람 말로', () => {
-    expect(channelLabel('none')).toBe('앱 미설치')
-    expect(channelLabel('noPush')).toBe('앱 알림 꺼짐')
+    expect(channelLabel({ channel: 'none' })).toBe('앱 미설치')
+    expect(channelLabel({ channel: 'noPush' })).toBe('앱 알림 꺼짐')
     // 명단에 push 가 섞이는 것은 이번 알림이 실패했을 때다
-    expect(channelLabel('push')).toBe('앱 알림 실패')
+    expect(channelLabel({ channel: 'push' })).toBe('앱 알림 실패')
+  })
+  // QA 2026-11-02 PUSH-05 — 로그아웃과 알림 꺼짐을 가른다(서버 2026-11-04 channelDetail)
+  it('더 가른 값이 있으면 그것으로 적는다', () => {
+    expect(channelLabel({ channel: 'noPush', channelDetail: 'loggedOut' })).toBe('로그아웃(기기 없음)')
+    expect(channelLabel({ channel: 'noPush', channelDetail: 'noPush' })).toBe('앱 알림 꺼짐')
+    expect(channelLabel({ channel: 'none', channelDetail: 'none' })).toBe('앱 미설치')
+    expect(channelLabel({ channel: 'push', channelDetail: 'push' })).toBe('앱 알림 실패')
   })
   it('근무지를 가로질러 사람 수를 센다', () => {
     const p = (id: string) => ({ directoryId: id, name: id, phone: null, channel: 'none' as const })
