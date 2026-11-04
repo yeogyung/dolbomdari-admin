@@ -1,4 +1,4 @@
-// 휴대폰 폭(Tailwind md 아래)인지 — 첫 그림부터 맞게 바로 읽고, 폭이 바뀌면 따라간다(QA 2026-11-02 MOBILE-02)
+// 휴대폰 폭(Tailwind sm 아래)인지 — 첫 그림부터 맞게 바로 읽고, 폭이 바뀌면 따라간다(QA 2026-11-02 MOBILE-02)
 import { ref, type Ref } from 'vue'
 import { PC_MEDIA } from '#shared/nav'
 

@@ -168,10 +168,11 @@ export function phoneAllows(path: string): boolean {
 }
 
 /**
- * 휴대폰 폭이 아닌 폭 — Tailwind `md`(48rem = 768px) 이상. 화면의 `md:` 클래스와 같은 경계다.
- * 셸의 햄버거 전환(`lg`, 1024px)을 쓰지 않는다 — 태블릿과 반쪽 창 PC 까지 막힌다.
+ * 휴대폰 폭이 아닌 폭 — Tailwind `sm`(40rem = 640px) 이상. 휴대폰 카드(`DataTable` 의 `sm:` 클래스)와 같은 경계다.
+ * 세로 휴대폰은 430px 안팎이다. 셸의 햄버거 전환(`lg` 1024px)이나 `md`(768px)를 쓰면 1366px 노트북 반쪽 창(683px)과
+ * 아이패드 미니 세로(744px)까지 「PC에서 이용해 주세요」가 된다.
  */
-export const PC_MEDIA = '(min-width: 48rem)'
+export const PC_MEDIA = '(min-width: 40rem)'
 
 /** 휴대폰 폭 안내 화면의 바로가기 — 이 롤의 메뉴 가운데 휴대폰에서 열리는 첫 화면. 없으면 null(기관 관리자) */
 export function phoneHome(role: NavRole): string | null {

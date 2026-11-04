@@ -656,7 +656,7 @@ onMounted(() => {
           <SelectField v-model="form.status" :options="statusOptions" />
         </FormField>
         <!-- 휴대폰 폭에서는 날짜·시각 칸이 좁아 한 줄에 하나씩 -->
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField label="출근 시각">
             <DateField v-model="form.startedAt" type="datetime-local" />
           </FormField>
