@@ -191,6 +191,20 @@ export function assignmentSaveError(e: any): { message: string; conflicts: strin
 }
 
 /**
+ * 명부 상태를 저장했는데 근무 정리만 실패했다(서버 2026-11-04, QA 2026-11-02 ADM-04 · 결정 D4). 500 `shift_sync_failed`.
+ * 상태는 이미 바뀌었고, 오늘·내일 근무(종료면 기록 없는 근무를 지우고, 활동이면 다시 만든다)만 못 맞췄다.
+ * 같은 상태로 다시 저장하면 서버가 다시 맞춘다. 그 밖의 오류면 null. 옛 서버는 이 오류를 내지 않는다.
+ *
+ * @param kind 'end' 는 「계약 종료」 버튼 — 종료 뒤에는 그 버튼이 없어 인적사항의 「저장」으로 다시 맞춘다
+ */
+export function shiftSyncFailedMessage(e: any, kind: 'save' | 'end'): string | null {
+  if (e?.data?.error !== 'shift_sync_failed') return null
+  return kind === 'end'
+    ? '계약은 종료됐지만 오늘·내일 근무 정리만 실패했습니다. 인적사항의 「저장」을 한 번 더 누르면 맞춰집니다.'
+    : '상태는 바뀌었지만 오늘·내일 근무 정리만 실패했습니다. 「저장」을 한 번 더 누르면 맞춰집니다.'
+}
+
+/**
  * 근무지 목록의 담당자 이름(QA 2026-11-02 PARTNER-05). 서버(2026-11-04)가 목록에 싣는 이름(`care_manager`·`manager`)을
  * 먼저 쓴다 — 수요처 계정은 명부 API(마스터 전용)를 못 불러 이름 대신 긴 id 가 보였다.
  * 칸이 없거나(옛 서버·서버가 이름을 못 읽음) 이름이 비면 예전처럼 명부 목록에서 찾고, 거기도 없으면 id 다.

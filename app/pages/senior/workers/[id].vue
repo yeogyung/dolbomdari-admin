@@ -199,6 +199,13 @@ async function save() {
     toast.add({ title: '저장되었습니다.', color: 'success' })
     loadEntry()
   } catch (e: any) {
+    // 상태는 저장됐다 — 화면을 서버 값으로 맞추고 다시 저장하게 한다
+    const partial = shiftSyncFailedMessage(e, 'save')
+    if (partial) {
+      toast.add({ title: '근무 정리 실패', description: partial, color: 'warning' })
+      loadEntry()
+      return
+    }
     toast.add({ title: '저장 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
     saving.value = false
@@ -212,6 +219,13 @@ async function endContract() {
     toast.add({ title: '계약이 종료되었습니다.', color: 'success' })
     loadEntry()
   } catch (e: any) {
+    // 종료는 됐다 — 화면을 서버 값(종료)으로 맞춘다
+    const partial = shiftSyncFailedMessage(e, 'end')
+    if (partial) {
+      toast.add({ title: '근무 정리 실패', description: partial, color: 'warning' })
+      loadEntry()
+      return
+    }
     toast.add({ title: '종료 실패', description: dboErrorMessage(e), color: 'error' })
   }
 }
