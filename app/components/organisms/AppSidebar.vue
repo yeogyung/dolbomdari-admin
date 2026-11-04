@@ -1,10 +1,24 @@
 <!-- 유기체: 좌측 사이드바 — 앱 스위처 + 앱별 네비게이션 (디자인 시안 기준) -->
 <script setup lang="ts">
-import { getApps, appKeyForPath, phoneAllows } from '#shared/nav'
+import { getApps, appKeyForPath, phoneAllows, ATTENDANCE_REQUESTS_PATH } from '#shared/nav'
 
 const route = useRoute()
 const supabase = useSupabase()
 const { me, clear } = useAdminRole()
+
+/* 「조정 요청」 메뉴의 기다림 수(QA 2026-11-02 PARTNER-02). 확정하는 담당자·master 만 센다. 옛 서버(404)·실패면 숨는다 */
+const pendingRequests = useAttendanceRequestCount()
+watch(
+  () => me.value?.role,
+  (role) => {
+    if (role === 'master' || role === 'manager') pendingRequests.refresh()
+    else pendingRequests.count.value = null
+  },
+  { immediate: true },
+)
+function badgeOf(to: string): string | null {
+  return to === ATTENDANCE_REQUESTS_PATH ? pendingBadge(pendingRequests.count.value) : null
+}
 /** 휴대폰 폭에서는 출퇴근 기록만 연다. 나머지 메뉴는 눌리지 않고 「PC에서만 이용」을 적는다(QA 2026-11-02 MOBILE-02) */
 const phone = usePhoneWidth()
 
@@ -96,6 +110,14 @@ function isActive(to: string): boolean {
                 :class="isActive(item.to) ? 'text-brand-500' : 'text-body'"
               />
               <span class="truncate">{{ item.label }}</span>
+              <!-- 색은 상태 배지(StatusBadge red), 크기는 「PC에서만 이용」 표시를 따른다 -->
+              <span
+                v-if="badgeOf(item.to)"
+                class="ml-auto shrink-0 rounded-full bg-down-soft px-2 py-0.5 text-[11px] font-semibold text-down tabular-nums"
+                :aria-label="`기다리는 요청 ${badgeOf(item.to)}건`"
+              >
+                {{ badgeOf(item.to) }}
+              </span>
             </NuxtLink>
           </li>
         </ul>

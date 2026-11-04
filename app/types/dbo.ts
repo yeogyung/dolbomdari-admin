@@ -182,6 +182,44 @@ export interface AttendanceSummary {
   missing: number
 }
 
+/**
+ * 출결 조정 요청(서버 2026-11-04, QA PARTNER-01 · PARTNER-02). 수요처가 내고 담당자·master 가 확정·반려한다.
+ * `requested_*` 가 null 이면 그 칸은 그대로 두길 바란 것이다. `base_*` 는 요청할 때 본 출결(모두 null 이면 기록 없음)
+ */
+export type AttendanceRequestStatus = 'pending' | 'approved' | 'rejected'
+export interface AttendanceRequest {
+  id: string
+  status: AttendanceRequestStatus
+  /** 기록 없는 근무가 정리되면 null */
+  shift_id: string | null
+  directory_id: string
+  worksite_id: string
+  work_date: string
+  requested_status: string | null
+  requested_started_at: string | null
+  requested_ended_at: string | null
+  reason: string
+  base_status: string | null
+  base_started_at: string | null
+  base_ended_at: string | null
+  base_updated_at: string | null
+  requested_by: string | null
+  requested_by_name: string | null
+  decided_by: string | null
+  decided_by_name: string | null
+  decided_at: string | null
+  decision_memo: string | null
+  created_at: string
+}
+/** 목록·상세 한 줄. `current` 는 지금 출결, `stale` 은 기다리는 요청인데 요청 뒤 출결이 바뀜(확정하면 409) */
+export interface AttendanceRequestItem extends AttendanceRequest {
+  senior: { name: string } | null
+  worksite: { name: string } | null
+  shift: { planned_start: string | null; planned_end: string | null } | null
+  current: { status: string; started_at: string | null; ended_at: string | null; updated_at: string } | null
+  stale: boolean
+}
+
 /** 출결 변경 전·후. 서버 트리거(dbo_attendance_changes)가 떠 둔다. 키 이름은 DB 칸 그대로다 */
 export interface AttendanceSnapshot {
   status: string | null

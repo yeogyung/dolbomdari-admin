@@ -13,8 +13,11 @@ const { setHeader } = useAdminHeader()
 const { me } = useAdminRole()
 setHeader('출퇴근 기록')
 
-/** 「삭제 기록」 탭은 master 만 본다. 서버도 master 가 아니면 403 이다 */
-const tab = ref<'records' | 'deletions'>('records')
+/**
+ * 「삭제 기록」 탭은 master 만 본다. 서버도 master 가 아니면 403 이다.
+ * 「내 요청」 탭은 수요처만 본다 — 보낸 조정 요청과 처리 결과(QA 2026-11-02 PARTNER-01)
+ */
+const tab = ref<'records' | 'deletions' | 'requests'>('records')
 
 const rows = ref<AttendanceShift[]>([])
 const total = ref(0)
@@ -369,6 +372,32 @@ async function submitDelete() {
   }
 }
 
+/*
+ * 조정 요청(QA 2026-11-02 PARTNER-01) — 수요처는 기록을 고치지 못하고(D9) 「기록 수정」 자리의 「조정 요청」으로 담당자에게 보낸다.
+ * 조정 요청 목록을 한 번 읽어 서버가 경로를 아는지 본다. 옛 서버(404)면 창을 열지 않고 안내만 한다.
+ */
+const requestOpen = ref(false)
+const requestTarget = ref<AttendanceShift | null>(null)
+/** 조정 요청을 받는 서버인가. 모르면(확인 중·다른 오류) null — 열어 보고 서버 답을 따른다 */
+const requestsSupported = ref<boolean | null>(null)
+
+function probeRequests() {
+  api
+    .listAttendanceRequests({ size: 1 })
+    .then(() => (requestsSupported.value = true))
+    .catch((e) => (requestsSupported.value = requestsUnsupported(e) ? false : null))
+}
+
+function openRequest(row: AttendanceShift) {
+  if (!canRequestAdjustment(me.value?.role, row.work_date, todaySeoul())) return
+  if (requestsSupported.value === false) {
+    toast.add({ title: REQUESTS_UNSUPPORTED, color: 'warning' })
+    return
+  }
+  requestTarget.value = row
+  requestOpen.value = true
+}
+
 /* 엑셀 — 조회 조건 전체를 100건씩 순회해 모은다 */
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'work_date', label: '근무일' },
@@ -449,12 +478,13 @@ async function exportExcel() {
 onMounted(() => {
   load()
   loadWorksites()
+  if (me.value?.role === 'worksite') probeRequests()
 })
 </script>
 
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col gap-6">
-    <div v-if="me?.role === 'master'" class="flex gap-2" role="tablist">
+    <div v-if="me?.role === 'master' || me?.role === 'worksite'" class="flex gap-2" role="tablist">
       <AppButton
         size="sm"
         role="tab"
@@ -466,6 +496,7 @@ onMounted(() => {
         출결
       </AppButton>
       <AppButton
+        v-if="me?.role === 'master'"
         size="sm"
         role="tab"
         :aria-selected="tab === 'deletions'"
@@ -475,9 +506,21 @@ onMounted(() => {
       >
         삭제 기록
       </AppButton>
+      <AppButton
+        v-else
+        size="sm"
+        role="tab"
+        :aria-selected="tab === 'requests'"
+        :variant="tab === 'requests' ? 'solid' : 'outline'"
+        :color="tab === 'requests' ? 'primary' : 'neutral'"
+        @click="tab = 'requests'"
+      >
+        내 요청
+      </AppButton>
     </div>
 
     <AttendanceDeletionsPanel v-if="tab === 'deletions' && me?.role === 'master'" />
+    <AttendanceRequestsPanel v-else-if="tab === 'requests' && me?.role === 'worksite'" />
 
     <template v-else>
     <Teleport to="#admin-topbar-actions">
@@ -662,6 +705,15 @@ onMounted(() => {
           >
             기록 수정
           </button>
+          <!-- 수요처는 고치지 못하고 조정을 요청한다(QA PARTNER-01) -->
+          <button
+            v-else-if="canRequestAdjustment(me?.role, row.work_date, todaySeoul())"
+            type="button"
+            class="text-sm font-medium text-brand-500 hover:underline"
+            @click="openRequest(row as AttendanceShift)"
+          >
+            조정 요청
+          </button>
           <span v-else-if="row.work_date > todaySeoul()" class="text-sm text-muted">예정</span>
           <button
             v-if="canDelete(row as AttendanceShift)"
@@ -719,6 +771,9 @@ onMounted(() => {
         <AppButton size="sm" :loading="saving" @click="submitEdit">저장</AppButton>
       </template>
     </AppModal>
+
+    <!-- 수요처의 조정 요청(QA PARTNER-01) -->
+    <AttendanceRequestModal v-model:open="requestOpen" :shift="requestTarget" :route-known="requestsSupported === true" />
 
     <!-- 저장하지 않고 닫기 확인(결정 F8). 수정 창 위에 뜨도록 뒤에 둔다. 모양은 휴무 관리·공지 발송의 확인 창을 따른다 -->
     <AppModal v-model:open="discardOpen" title="저장하지 않고 닫을까요?" width="max-w-md">

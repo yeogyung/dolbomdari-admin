@@ -58,6 +58,12 @@ function jobsApp(): AppNav {
   }
 }
 
+/**
+ * 출결 조정 요청(QA 2026-11-02 PARTNER-02) — 담당자·master 가 확정·반려한다. 메뉴에 기다림 수를 붙인다(`AppSidebar`).
+ * 수요처는 이 메뉴 없이 출퇴근 기록의 「내 요청」 탭으로 본다
+ */
+export const ATTENDANCE_REQUESTS_PATH = '/senior/attendance-requests'
+
 // 시니어 출퇴근·채팅 앱 — dbo-admin API 연동
 const seniorApp: AppNav = {
   key: 'senior',
@@ -72,6 +78,7 @@ const seniorApp: AppNav = {
         { label: '명부 관리', icon: 'i-lucide-users', to: '/senior/workers' },
         { label: '근무지·수요처', icon: 'i-lucide-building-2', to: '/senior/worksites' },
         { label: '출퇴근 기록', icon: 'i-lucide-clock', to: '/senior/attendance' },
+        { label: '조정 요청', icon: 'i-lucide-clipboard-check', to: ATTENDANCE_REQUESTS_PATH },
         { label: '휴무 관리', icon: 'i-lucide-calendar-off', to: '/senior/holidays' },
         { label: '리포트', icon: 'i-lucide-chart-column', to: '/senior/reports' },
       ],
@@ -122,7 +129,7 @@ export function getApps(role: NavRole = 'master'): AppNav[] {
     ]
   }
 
-  // 담당자(사회복지사) — 맡은 수요처의 출퇴근 기록과 휴무 관리
+  // 담당자(사회복지사) — 맡은 수요처의 출퇴근 기록·조정 요청과 휴무 관리
   if (role === 'manager') return [seniorOnly(MANAGER_PATHS, '/senior/attendance')]
 
   // 수요처 담당자 — 시니어의 출퇴근 기록·근무지만. 첫 화면은 오늘 출결이다(QA 2026-11-02 PARTNER-04)
@@ -131,9 +138,9 @@ export function getApps(role: NavRole = 'master'): AppNav[] {
 
 /**
  * 담당자에게 연 화면. 메뉴와 라우트 가드(`middleware/auth.global.ts`)가 같은 목록을 쓴다.
- * 휴무 관리(2026-10-27)는 서버가 맡은 근무지로 범위를 좁힌다.
+ * 휴무 관리(2026-10-27)·조정 요청(2026-11-04, QA PARTNER-02)은 서버가 맡은 근무지로 범위를 좁힌다.
  */
-const MANAGER_PATHS = ['/senior/attendance', '/senior/holidays']
+const MANAGER_PATHS = ['/senior/attendance', ATTENDANCE_REQUESTS_PATH, '/senior/holidays']
 
 /** 담당자가 이 경로에 들어갈 수 있는가. 접두만 같은 다른 경로(`/senior/holidays-x`)는 막는다 */
 export function managerAllows(path: string): boolean {

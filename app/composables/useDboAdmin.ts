@@ -4,6 +4,9 @@ import type {
   AdminRole,
   Assignment,
   AttendanceDeletion,
+  AttendanceRequest,
+  AttendanceRequestItem,
+  AttendanceRequestStatus,
   AttendanceShift,
   AttendanceSummary,
   ChatMessage,
@@ -263,6 +266,21 @@ export function useDboAdmin() {
     /* 출결 삭제 기록 — master 전용 */
     listAttendanceDeletions: (q: ListQuery & { from?: string; to?: string } = {}) =>
       req<Paged<AttendanceDeletion>>('/attendance-deletions', { query: clean(q) }),
+    /**
+     * 출결 조정 요청(서버 2026-11-04, QA PARTNER-01 · PARTNER-02). 요청은 수요처만(자기 근무지), 목록은 수요처·담당자·master 가
+     * 각자 범위로, 확정·반려는 출결 수정과 같은 권한(담당자는 맡은 근무지, master 전체). 옛 서버는 모두 404
+     */
+    createAttendanceRequest: (
+      shiftId: string,
+      body: { status?: string; startedAt?: string; endedAt?: string; reason: string },
+    ) => req<AttendanceRequest>(`/attendance/${shiftId}/requests`, { method: 'POST', body }),
+    listAttendanceRequests: (
+      q: { status?: AttendanceRequestStatus; worksiteId?: string; from?: string; to?: string; page?: number; size?: number } = {},
+    ) => req<Paged<AttendanceRequestItem>>('/attendance-requests', { query: clean(q) }),
+    approveAttendanceRequest: (id: string, memo: string | null) =>
+      req<{ ok: true; request: AttendanceRequest }>(`/attendance-requests/${id}/approve`, { method: 'POST', body: { memo } }),
+    rejectAttendanceRequest: (id: string, memo: string | null) =>
+      req<{ ok: true; request: AttendanceRequest }>(`/attendance-requests/${id}/reject`, { method: 'POST', body: { memo } }),
 
     /* 채팅방 열람 — master 전용 */
     listRooms: (q: ListQuery = {}) => req<Paged<ChatRoom>>('/rooms', { query: clean(q) }),

@@ -1,4 +1,4 @@
-// 롤별 사이드바 메뉴 — 담당자는 출퇴근 기록·휴무 관리만 본다
+// 롤별 사이드바 메뉴 — 담당자는 출퇴근 기록·조정 요청·휴무 관리만 본다
 import { describe, expect, it } from 'vitest'
 import { getApps, managerAllows, phoneAllows, phoneHome, worksiteAllows } from '../shared/nav'
 
@@ -6,11 +6,18 @@ const paths = (role: Parameters<typeof getApps>[0]) =>
   getApps(role).flatMap((a) => a.sections.flatMap((s) => s.items.map((i) => i.to)))
 
 describe('getApps', () => {
-  it('담당자는 시니어 앱의 출퇴근 기록과 휴무 관리만 본다', () => {
+  it('담당자는 시니어 앱의 출퇴근 기록·조정 요청과 휴무 관리만 본다', () => {
     const apps = getApps('manager')
     expect(apps.map((a) => a.key)).toEqual(['senior'])
     expect(apps[0]!.home).toBe('/senior/attendance')
-    expect(paths('manager')).toEqual(['/senior/attendance', '/senior/holidays'])
+    expect(paths('manager')).toEqual(['/senior/attendance', '/senior/attendance-requests', '/senior/holidays'])
+  })
+
+  // QA 2026-11-02 PARTNER-02 — 조정 요청은 확정하는 담당자·master 메뉴에만. 수요처는 출퇴근 기록의 「내 요청」 탭으로 본다
+  it('조정 요청 메뉴는 master·담당자에게만 있다', () => {
+    expect(paths('master')).toContain('/senior/attendance-requests')
+    expect(paths('worksite')).not.toContain('/senior/attendance-requests')
+    expect(paths('org')).not.toContain('/senior/attendance-requests')
   })
 
   it('휴무 관리는 master 운영 메뉴에도 있다', () => {
@@ -37,6 +44,7 @@ describe('managerAllows', () => {
     expect(managerAllows('/senior/attendance')).toBe(true)
     expect(managerAllows('/senior/holidays')).toBe(true)
     expect(managerAllows('/senior/holidays/')).toBe(true)
+    expect(managerAllows('/senior/attendance-requests')).toBe(true)
     expect(managerAllows('/senior/workers')).toBe(false)
     // 접두만 같은 다른 경로는 막는다
     expect(managerAllows('/senior/holidays-admin')).toBe(false)
@@ -57,6 +65,12 @@ describe('worksiteAllows', () => {
 
   it('메뉴에 있는 화면은 모두 들어갈 수 있다 — 메뉴와 가드가 어긋나지 않는다', () => {
     for (const p of paths('worksite')) expect(worksiteAllows(p)).toBe(true)
+    for (const p of paths('manager')) expect(managerAllows(p)).toBe(true)
+  })
+
+  // 확정·반려는 담당자·master 몫이다. 주소를 쳐도 조정 요청 메뉴 화면에는 들어가지 못한다
+  it('수요처는 조정 요청 메뉴 화면에 들어가지 못한다', () => {
+    expect(worksiteAllows('/senior/attendance-requests')).toBe(false)
   })
 })
 
@@ -65,7 +79,7 @@ describe('phoneAllows', () => {
   it('휴대폰 폭에서는 출퇴근 기록만 연다', () => {
     expect(phoneAllows('/senior/attendance')).toBe(true)
     expect(phoneAllows('/senior/attendance/')).toBe(true)
-    for (const p of ['/', '/senior', '/senior/workers', '/senior/holidays', '/senior/worksites', '/users', '/senior/attendance-x']) {
+    for (const p of ['/', '/senior', '/senior/workers', '/senior/holidays', '/senior/worksites', '/users', '/senior/attendance-x', '/senior/attendance-requests']) {
       expect(phoneAllows(p)).toBe(false)
     }
   })

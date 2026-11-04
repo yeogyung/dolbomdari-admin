@@ -66,7 +66,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo(home)
   }
 
-  // 담당자에게 연 화면은 출퇴근 기록과 휴무 관리다(`managerAllows`). 다른 화면은 열어도 데이터가
+  // 담당자에게 연 화면은 출퇴근 기록·조정 요청과 휴무 관리다(`managerAllows`). 다른 화면은 열어도 데이터가
   // 403 이라 빈 화면이 된다.
   if (me.value?.role === 'manager' && !managerAllows(to.path)) {
     return navigateTo(home)
