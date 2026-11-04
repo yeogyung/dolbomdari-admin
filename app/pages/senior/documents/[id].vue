@@ -1,7 +1,7 @@
-<!-- AI 문서 상세 — 버전·발효일·종료일·본문 수정 + 색인 상태 + 근거에서 빼기 (GET·PATCH /dbo-admin/documents/{id}) -->
+<!-- AI 문서 상세 — 버전·발효일·종료일·본문 수정 + 색인 상태 + 근거에서 빼기 + 새 판 올리기·판 이력 (GET·PATCH /dbo-admin/documents/{id}) -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import type { DocumentDetail, Worksite } from '~/types/dbo'
+import type { DocumentDetail, DocumentVersions, Worksite } from '~/types/dbo'
 import type { DocumentFormValues } from '~/utils/documents'
 
 const route = useRoute()
@@ -49,6 +49,7 @@ async function loadDoc() {
     original.value = values
     form.value = { ...values }
     setHeader(res.filename, [{ label: 'AI 문서 관리', to: '/senior/documents' }])
+    loadVersions(res)
   } catch (e: any) {
     // 다시 불러오다 실패하면 이전 카드가 남아 저장 전 값을 보여 준다 — 비운다
     doc.value = null
@@ -135,6 +136,47 @@ function resetForm() {
   form.value = { ...original.value }
 }
 
+/*
+ * 판 이력(QA 2026-11-02 DOC-02). 이어 올린 판이 없으면(`lineage_id` null) 자기 한 줄뿐이라 숨긴다. 옛 서버는 칸이 없어 숨는다.
+ */
+const versions = ref<DocumentVersions | null>(null)
+const versionsError = ref('')
+let versionsSequence = 0
+function loadVersions(d: DocumentDetail) {
+  const current = ++versionsSequence
+  if (typeof d.lineage_id !== 'string') {
+    versions.value = null
+    versionsError.value = ''
+    return
+  }
+  api
+    .listDocumentVersions(d.id)
+    .then((res) => {
+      if (current !== versionsSequence) return
+      versions.value = res
+      versionsError.value = ''
+    })
+    .catch((e) => {
+      if (current !== versionsSequence) return
+      versions.value = null
+      versionsError.value = dboErrorMessage(e, '판 이력을 불러오지 못했습니다.')
+    })
+}
+
+/** 「새 판 올리기」 — 등록 화면을 이 판을 잇는 모드로 연다. 옛 서버는 경로가 없어 안내만 한다 */
+function startNewVersion() {
+  if (!doc.value) return
+  if (dirty.value) {
+    toast.add({ title: '저장하지 않은 수정이 있습니다.', description: '먼저 저장하거나 되돌려 주세요.', color: 'warning' })
+    return
+  }
+  if (!versionUploadSupported(doc.value)) {
+    toast.add({ title: VERSION_UNSUPPORTED, color: 'warning' })
+    return
+  }
+  navigateTo({ path: '/senior/documents/new', query: { from: doc.value.id } })
+}
+
 setHeader('AI 문서 상세', [{ label: 'AI 문서 관리', to: '/senior/documents' }])
 onMounted(() => {
   loadDoc()
@@ -147,6 +189,16 @@ onMounted(() => {
     <Teleport to="#admin-topbar-actions">
       <AppButton variant="outline" color="neutral" icon="i-lucide-arrow-left" @click="backToList">
         목록
+      </AppButton>
+      <AppButton
+        v-if="doc"
+        variant="outline"
+        color="neutral"
+        icon="i-lucide-file-stack"
+        :disabled="saving || excluding"
+        @click="startNewVersion"
+      >
+        새 판 올리기
       </AppButton>
       <AppButton
         v-if="doc && canExclude"
@@ -171,6 +223,10 @@ onMounted(() => {
             <h2 class="text-[18px] font-semibold text-ink">문서 정보</h2>
             <Tag>{{ doc.kind || '—' }}</Tag>
             <StatusBadge :tone="docStateTone(doc.state)">{{ doc.state }}</StatusBadge>
+            <!-- 날짜로는 현행인데 AI 는 같은 계보의 새 판을 쓴다(QA DOC-02). 누르면 그 판으로 -->
+            <NuxtLink v-if="supersededLabel(doc)" :to="`/senior/documents/${doc.superseded_by!.id}`">
+              <StatusBadge tone="amber">{{ supersededLabel(doc) }}</StatusBadge>
+            </NuxtLink>
           </div>
           <!-- 고친 사람은 그때 이름이다(QA DOC-03). 모르면(옛 서버·예전 문서) 시각만 -->
           <span class="text-sm text-muted">
@@ -220,6 +276,30 @@ onMounted(() => {
             <div class="flex min-h-10 items-center text-[15px] text-body">{{ doc.created_by_name || '—' }}</div>
           </FormField>
         </div>
+      </AppCard>
+
+      <!-- 판 이력(QA DOC-02) — 오래된 판부터. 모양은 리포트의 「열람률 낮은 공지」 목록을 따른다 -->
+      <AppCard v-if="versions || versionsError" padding="lg">
+        <template #header>
+          <div>
+            <h2 class="text-[18px] font-semibold text-ink">판 이력</h2>
+            <p class="mt-0.5 text-sm text-muted">같은 문서의 판을 발효일 순으로 보입니다. AI는 오늘 유효한 판 중 가장 늦게 발효한 판 하나만 씁니다.</p>
+          </div>
+        </template>
+        <p v-if="versionsError" role="alert" class="text-sm text-red-600">{{ versionsError }}</p>
+        <ul v-else-if="versions" class="divide-y divide-hairline">
+          <li v-for="v in versions.items" :key="v.id" class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
+            <span class="w-12 shrink-0 font-medium text-ink">{{ v.version || '—' }}</span>
+            <span v-if="v.id === doc.id" class="truncate font-medium text-ink">{{ v.filename }}</span>
+            <NuxtLink v-else :to="`/senior/documents/${v.id}`" class="truncate text-brand-500 hover:underline">{{ v.filename }}</NuxtLink>
+            <StatusBadge :tone="docStateTone(v.state)">{{ v.state }}</StatusBadge>
+            <StatusBadge v-if="v.in_use" tone="blue">AI 사용 중</StatusBadge>
+            <Tag v-if="v.id === doc.id">지금 보는 판</Tag>
+            <span class="ml-auto shrink-0 tabular-nums text-muted">
+              {{ v.effective_date || '—' }} ~ {{ v.expiry_date || '무기한' }}<template v-if="v.created_by_name"> · {{ v.created_by_name }}</template>
+            </span>
+          </li>
+        </ul>
       </AppCard>
 
       <!-- 본문 -->

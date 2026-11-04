@@ -24,6 +24,8 @@ import type {
   DocumentDetail,
   DocumentPatch,
   DocumentState,
+  DocumentVersions,
+  DocumentVersionCreated,
   MonthlyReport,
 } from '~/types/dbo'
 import type { DocumentCreateBody } from '~/utils/documentImport'
@@ -101,6 +103,13 @@ export function useDboAdmin() {
       req<{ id: string; indexed: boolean }>('/documents', { method: 'POST', body: { ...body } }),
     updateDocument: (id: string, body: DocumentPatch) =>
       req<{ ok: true; state: DocumentState; indexed?: boolean }>(`/documents/${id}`, { method: 'PATCH', body }),
+    /**
+     * 새 판 올리기·판 이력(서버 2026-11-04, QA DOC-02). `{id}` 는 이을 이전 판이고 본문은 등록과 같다. 서버가 이전 판의
+     * 적용 범위를 잇고 종료일을 새 판 발효 전날로 적는다. 옛 서버는 404
+     */
+    createDocumentVersion: (id: string, body: DocumentCreateBody) =>
+      req<DocumentVersionCreated>(`/documents/${id}/versions`, { method: 'POST', body: { ...body } }),
+    listDocumentVersions: (id: string) => req<DocumentVersions>(`/documents/${id}/versions`),
     /* FAQ 승인·반려 — master 전용. 조회는 useFaqs(PostgREST 직접). enabled 는 서버가 status 에 맞춰 켜고 끈다 */
     updateFaqStatus: (id: string, status: FaqStatus) =>
       req<{ ok: true }>(`/faqs/${id}`, { method: 'PATCH', body: { status } }),

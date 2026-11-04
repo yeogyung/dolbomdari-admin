@@ -301,6 +301,39 @@ export interface DocumentListItem {
   updated_by?: string | null
   updated_by_name?: string | null
   dbo_document_worksites: { worksite_id: string }[]
+  /**
+   * 판 계보(서버 2026-11-04, QA DOC-02) — 첫 판의 id. 이어 올린 판이 없으면 null, 옛 서버는 칸이 없다.
+   * `superseded_by` 는 날짜로는 현행인데 같은 계보의 더 늦은 판 때문에 AI 가 쓰지 않는 문서의 그 새 판. 보통 null
+   */
+  lineage_id?: string | null
+  superseded_by?: { id: string; filename: string; version: string | null } | null
+}
+
+/** GET /dbo-admin/documents/{id}/versions 한 줄(오래된 판부터). `in_use` = 지금 AI 가 쓰는 판 */
+export interface DocumentVersionItem {
+  id: string
+  filename: string
+  kind: string
+  version: string | null
+  effective_date: string | null
+  expiry_date: string | null
+  excluded_at: string | null
+  updated_at: string
+  created_by_name: string | null
+  state: DocumentState
+  in_use: boolean
+}
+export interface DocumentVersions {
+  lineageId: string
+  inUseId: string | null
+  items: DocumentVersionItem[]
+}
+/** POST /dbo-admin/documents/{id}/versions 201. `previous.expiry_date` 는 고친 뒤 이전 판의 종료일 */
+export interface DocumentVersionCreated {
+  id: string
+  indexed: boolean
+  lineageId: string
+  previous: { id: string; expiry_date: string | null }
 }
 
 /** GET /dbo-admin/documents/{id} — 본문과 색인 청크 수(0 이면 색인 전) */

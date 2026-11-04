@@ -1,5 +1,6 @@
 // AI 문서 관리 화면의 상태 톤·적용 범위·용량 표기·수정 본문 계산 순수 유틸
 import type { DocumentListItem, DocumentPatch, DocumentState } from '../types/dbo'
+import { throughLabel } from './reports'
 
 export function docStateTone(state: DocumentState): 'green' | 'blue' | 'gray' | 'amber' | 'red' {
   return {
@@ -68,4 +69,105 @@ export function buildDocumentPatch(original: DocumentFormValues, form: DocumentF
  */
 export function utcYesterday(now: Date = new Date()): string {
   return new Date(now.getTime() - 86400000).toISOString().slice(0, 10)
+}
+
+/*
+ * 문서 판(QA 2026-11-02 DOC-02 · 서버 2026-11-04 계약 3b묶음 1번). 판은 계보(첫 판의 id)로 잇고, 「새 판 올리기」가 이전 판의
+ * 종료일을 새 판 발효 전날로 적는다. 날짜는 서버와 같은 서울 날짜 문자열이다.
+ */
+
+/** 새 판 올리기를 쓸 수 있는 서버인가 — 새 서버는 목록·상세에 `lineage_id` 칸(null 포함)을 늘 싣는다. 옛 서버는 칸이 없다 */
+export function versionUploadSupported(doc: Pick<DocumentListItem, 'lineage_id'>): boolean {
+  return doc.lineage_id !== undefined
+}
+
+/** 새 판 올리기가 옛 서버(경로 없음)에서 막혔을 때의 안내 */
+export const VERSION_UNSUPPORTED = '새 판 올리기는 서버 업데이트 뒤에 쓸 수 있습니다.'
+
+/** 'YYYY-MM-DD' 의 전날. 서버 `dayBefore` 와 같다 — 날짜만 다뤄 UTC 로 센다(시간대와 무관) */
+export function dayBefore(date: string): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10)
+}
+
+/**
+ * 새 판을 올리면 이전 판이 끝나는 날 — 새 판 발효 전날. 이전 판이 이미 그보다 먼저 끝났으면 그 날 그대로다
+ * (서버 `decideNewVersion` 과 같다. 늦추면 끝난 판이 되살아난다)
+ */
+export function previousVersionEnd(previousExpiry: string | null, effectiveDate: string): string {
+  const end = dayBefore(effectiveDate)
+  return previousExpiry && previousExpiry <= end ? previousExpiry : end
+}
+
+const prevName = (version: string | null) => `이전 판${version ? `(${version})` : ''}`
+
+/** 새 판 올리기 확인 창 문구 — 「이전 판(v4)은 11월 9일에 끝납니다.」 */
+export function previousEndNote(
+  prev: { version: string | null; expiry_date: string | null },
+  effectiveDate: string,
+): string {
+  const end = previousVersionEnd(prev.expiry_date, effectiveDate)
+  if (end !== dayBefore(effectiveDate)) {
+    return `${prevName(prev.version)}은 이미 ${throughLabel(end)}에 끝나 종료일을 바꾸지 않습니다.`
+  }
+  return `${prevName(prev.version)}은 ${throughLabel(end)}에 끝납니다.`
+}
+
+const notAfterPrevious = (prevEffective: string | null) =>
+  prevEffective
+    ? `새 판 발효일은 이전 판(${throughLabel(prevEffective)})보다 늦어야 합니다.`
+    : '새 판 발효일은 이전 판보다 늦어야 합니다.'
+
+/** 새 판 발효일이 이전 판보다 늦은가. 아니면 문구 — 서버 400 `effective_not_after_previous` 와 같은 조건(같은 날도 막는다) */
+export function versionEffectiveError(prevEffective: string | null, effectiveDate: string): string | null {
+  return prevEffective && effectiveDate <= prevEffective ? notAfterPrevious(prevEffective) : null
+}
+
+/**
+ * 새 판 올리기(`POST /documents/{id}/versions`) 실패 문구와, 가야 할 문서가 있으면 그 길.
+ *
+ * 404 는 옛 서버(경로 없음)로 읽는다 — 이전 판은 방금 상세로 읽어 온 문서이고 어드민은 문서를 지우지 않는다.
+ * 처리기의 500 은 늘 `internal`(새 판을 지워 되돌림) 또는 `version_incomplete`(되돌리기도 실패해 새 판이 남음)다.
+ */
+export function documentVersionError(
+  e: any,
+  prev: { id: string; effective_date: string | null },
+): { message: string; link: { to: string; label: string } | null } {
+  const status: number | undefined = e?.status ?? e?.statusCode
+  const code: string | undefined = typeof e?.data?.error === 'string' ? e.data.error : undefined
+  const plain = (message: string) => ({ message, link: null })
+  if (code === 'effective_not_after_previous') return plain(notAfterPrevious(prev.effective_date))
+  if (code === 'not_latest_version') {
+    const latestId = typeof e.data.latestId === 'string' ? e.data.latestId : null
+    return {
+      message: '이 판 뒤에 올린 판이 있습니다. 최신 판에서 새 판을 올려 주세요.',
+      link: latestId ? { to: `/senior/documents/${latestId}`, label: '최신 판 열기' } : null,
+    }
+  }
+  if (code === 'duplicate_filename') return plain('같은 파일명의 문서가 이미 있습니다. 파일명을 바꿔 주세요.')
+  if (code === 'previous_changed') {
+    return {
+      message: '그사이 이전 판이 바뀌었습니다. 이전 판을 다시 열고 올려 주세요.',
+      link: { to: `/senior/documents/${prev.id}`, label: '이전 판 다시 열기' },
+    }
+  }
+  if (code === 'version_incomplete') {
+    const documentId = typeof e.data.documentId === 'string' ? e.data.documentId : null
+    return {
+      message: '새 판 일부가 남았습니다. 남은 문서를 열어 확인한 뒤 정리해 주세요.',
+      link: documentId ? { to: `/senior/documents/${documentId}`, label: '남은 새 판 열기' } : null,
+    }
+  }
+  if (status === 404 || status === 405) return plain(VERSION_UNSUPPORTED)
+  if (status === 400) return plain('입력값을 확인해 주세요. 종료일은 발효일보다 앞설 수 없습니다.')
+  if (status === 401) return plain('로그인이 만료되었습니다. 다시 로그인해 주세요.')
+  if (status === 403) return plain('새 판을 올릴 권한이 없습니다. 운영관리자(master) 계정으로 로그인해 주세요.')
+  if (code === 'internal') return plain('새 판을 저장하지 못했습니다. 새 판은 남지 않았으니 잠시 뒤 다시 올려 주세요.')
+  return plain('응답을 확인하지 못했습니다. 새 판이 올라갔을 수 있으니 목록에서 확인해 주세요.')
+}
+
+/** 목록·상세 상태 옆 「새 판(v5)으로 대체됨」. 날짜로는 현행인데 AI 가 새 판을 쓰는 문서만 — 아니면(옛 서버 포함) null */
+export function supersededLabel(doc: Pick<DocumentListItem, 'superseded_by'>): string | null {
+  const s = doc.superseded_by
+  if (!s) return null
+  return `새 판${s.version ? `(${s.version})` : ''}으로 대체됨`
 }
