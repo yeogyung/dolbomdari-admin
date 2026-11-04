@@ -561,6 +561,51 @@ onMounted(() => {
         <span class="text-muted">{{ attendanceOf(row)?.memo ?? '—' }}</span>
       </template>
 
+      <!-- 휴대폰 폭 카드(QA 2026-11-02 MOBILE-01, 결정 F6). 칸은 표와 같고, 모양은 이 화면 창들의 기록 상자를 따른다.
+           기록 수정·삭제 버튼은 DataTable 이 카드 아래에 붙인다 -->
+      <template #card="{ row }">
+        <div class="space-y-1.5 text-sm">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="truncate">
+                <span class="font-medium text-ink">{{ row.directory?.name ?? '—' }}</span>
+                <span class="ml-1.5 text-muted">{{ fmtPhone(row.directory?.phone) }}</span>
+              </p>
+              <p class="mt-0.5 truncate text-body">{{ row.worksite?.name ?? '—' }}</p>
+            </div>
+            <StatusBadge :tone="attendanceDisplayTone(attendanceDisplay(row as AttendanceShift))">
+              {{ attendanceDisplayLabel(attendanceDisplay(row as AttendanceShift)) }}
+            </StatusBadge>
+          </div>
+          <p class="text-muted tabular-nums">
+            {{ row.work_date }} · 예정 {{ hhmm(row.planned_start) }} – {{ hhmm(row.planned_end) }}
+          </p>
+          <p class="text-body tabular-nums">
+            출근 {{ fmtClock(attendanceOf(row as AttendanceShift)?.started_at) }} · 퇴근
+            {{ fmtClock(attendanceOf(row as AttendanceShift)?.ended_at) }} · 근무
+            {{ workedDuration(attendanceOf(row as AttendanceShift)?.started_at, attendanceOf(row as AttendanceShift)?.ended_at) }}
+            <span v-if="attendanceOf(row as AttendanceShift)?.method" class="text-muted">
+              · {{ attendanceOf(row as AttendanceShift)?.method }}
+            </span>
+          </p>
+          <button
+            v-if="editedOf(row as AttendanceShift).kind"
+            type="button"
+            class="text-left text-brand-500 hover:underline"
+            @click="openHistory(row as AttendanceShift)"
+          >
+            <template v-if="editedOf(row as AttendanceShift).last">
+              수정됨 · {{ editedOf(row as AttendanceShift).last!.changed_by_name ?? '알 수 없음' }} ·
+              {{ fmtStamp(editedOf(row as AttendanceShift).last!.created_at) }}
+            </template>
+            <template v-else>수정됨 (이력 없음)</template>
+          </button>
+          <p v-if="attendanceOf(row as AttendanceShift)?.memo" class="text-muted">
+            메모: {{ attendanceOf(row as AttendanceShift)?.memo }}
+          </p>
+        </div>
+      </template>
+
       <template #actions="{ row }">
         <div class="flex items-center gap-3">
           <button
@@ -599,7 +644,8 @@ onMounted(() => {
         <FormField label="상태" required>
           <SelectField v-model="form.status" :options="statusOptions" />
         </FormField>
-        <div class="grid grid-cols-2 gap-4">
+        <!-- 휴대폰 폭에서는 날짜·시각 칸이 좁아 한 줄에 하나씩 -->
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField label="출근 시각">
             <DateField v-model="form.startedAt" type="datetime-local" />
           </FormField>

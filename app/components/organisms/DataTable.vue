@@ -96,9 +96,24 @@ function fmt(v: unknown): string {
     </div>
 
     <!-- 카드 -->
-    <div class="flex flex-1 flex-col overflow-hidden rounded-[24px] border border-hairline bg-white px-8 pt-2 pb-6 shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
+    <div
+      class="flex flex-1 flex-col overflow-hidden rounded-[24px] border border-hairline bg-white pt-2 pb-6 shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+      :class="$slots.card ? 'px-4 md:px-8' : 'px-8'"
+    >
       <div class="min-h-0 flex-1 overflow-x-auto">
-        <table class="w-full border-collapse">
+        <!--
+          `card` 슬롯을 주면 휴대폰 폭(md 아래)에서 표 대신 행마다 카드로 그린다(QA 2026-11-02 MOBILE-01).
+          관리 버튼(`actions`)은 카드 아래에 그대로 붙는다. 카드에는 정렬 머리글과 행 선택이 없다
+        -->
+        <ul v-if="$slots.card" class="divide-y divide-hairline md:hidden">
+          <li v-for="row in rows" :key="row[rowKey]" class="py-4">
+            <slot name="card" :row="row" />
+            <div v-if="$slots.actions" class="mt-3 flex justify-end">
+              <slot name="actions" :row="row" />
+            </div>
+          </li>
+        </ul>
+        <table class="w-full border-collapse" :class="$slots.card ? 'hidden md:table' : ''">
           <thead>
             <tr>
               <th v-if="selectable" class="w-8 pr-3 pb-3 text-left">
@@ -181,12 +196,13 @@ function fmt(v: unknown): string {
       </div>
 
       <!-- 페이지네이션 -->
-      <div v-else-if="total > 0" class="mt-auto flex items-center justify-between pt-5">
+      <!-- 좁은 폭(휴대폰 카드)에서는 줄을 넘겨 화면 안에 둔다 -->
+      <div v-else-if="total > 0" class="mt-auto flex flex-wrap items-center justify-between gap-3 pt-5">
         <span class="text-sm text-muted tabular-nums">
           {{ total.toLocaleString() }}건 중 {{ rangeStart }}–{{ rangeEnd }}
         </span>
 
-        <div class="flex items-center gap-1.5">
+        <div class="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             class="flex size-9 items-center justify-center rounded-full border border-hairline text-muted transition-colors hover:bg-surface-soft disabled:opacity-40"
