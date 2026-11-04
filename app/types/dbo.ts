@@ -348,4 +348,16 @@ export interface MonthlyReport {
     delivery: { sms: { accepted: number; failed: number }; push: { accepted: number; failed: number } }
     lowest: { id: string; title: string; publishedAt: string; readable: number; read: number; recipients?: number }[]
   }
+  /**
+   * 그달 AI 자동응답(서버 2026-11-04, QA REPORT-01). `questions = autoAnswered + handedOver`. 옛 서버는 칸이 없다
+   */
+  ai?: AiReplyStats
+}
+export interface AiReplyStats {
+  /** AI 가 받은 질문 수 — 자동응답률의 분모 */
+  questions: number
+  /** 승인 FAQ·문서 근거로 AI 가 답한 수 — 분자 */
+  autoAnswered: number
+  /** 「담당자에게 연결해 드릴게요.」로 넘긴 수 */
+  handedOver: number
 }

@@ -33,6 +33,21 @@ export function unconnectedNote(s: { recipients?: number; readable: number }): s
   return n > 0 ? `앱 미연결 ${n.toLocaleString()}명 제외` : null
 }
 
+/**
+ * AI 자동응답률 항목(QA 2026-11-02 REPORT-01, 결정 S9) — 자동 처리 ÷ 받은 질문과 그 분자·분모, 담당자 전환 수.
+ * 질문이 0건이면 비율은 「—」(`pct`). 옛 서버는 `ai` 칸이 없어 null — 화면이 항목을 숨긴다.
+ */
+export function aiReplySummary(
+  ai: { questions: number; autoAnswered: number; handedOver: number } | undefined,
+): { rate: string; ratio: string; handedOver: string } | null {
+  if (!ai) return null
+  return {
+    rate: pct(ai.autoAnswered, ai.questions),
+    ratio: `${ai.autoAnswered.toLocaleString()} / ${ai.questions.toLocaleString()}건`,
+    handedOver: `${ai.handedOver.toLocaleString()}건`,
+  }
+}
+
 /** 분 → 「N시간 M분」 */
 export function fmtMinutes(min: number): string {
   const h = Math.floor(min / 60)

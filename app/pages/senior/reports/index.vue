@@ -3,7 +3,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { MonthlyReport } from '~/types/dbo'
-import { fmtMinutes, pct, recentMonths, throughLabel, unconnectedNote } from '~/utils/reports'
+import { aiReplySummary, fmtMinutes, pct, recentMonths, throughLabel, unconnectedNote } from '~/utils/reports'
 
 const api = useDboAdmin()
 const { setHeader } = useAdminHeader()
@@ -107,6 +107,9 @@ const NOTICE_CATEGORIES = [
   { key: 'urgent', label: '긴급' },
 ] as const
 const avgRead = (sec: number | null) => (sec === null ? '—' : fmtMinutes(Math.round(sec / 60)))
+
+/** ⑨ AI 자동응답(QA REPORT-01). 옛 서버는 칸이 없어 null — 카드를 숨긴다 */
+const aiSummary = computed(() => aiReplySummary(report.value?.ai))
 </script>
 
 <template>
@@ -272,6 +275,22 @@ const avgRead = (sec: number | null) => (sec === null ? '—' : fmtMinutes(Math.
             </li>
           </ul>
         </div>
+      </AppCard>
+
+      <!-- ⑨ AI 자동응답 — 「인력·운영 규모」의 앱 가입률(큰 비율 + 분자/분모) 모양을 따른다 -->
+      <AppCard v-if="aiSummary">
+        <h2 class="mb-1 text-[15px] font-semibold text-ink">AI 자동응답</h2>
+        <p class="mb-4 text-xs text-muted">
+          시니어가 AI 를 켠 방에 남긴 질문 중 승인된 FAQ·문서로 AI 가 바로 답한 비율입니다. 나머지는 담당자에게 넘겼습니다.
+        </p>
+        <dl class="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <div>
+            <dt class="text-sm text-muted">AI 자동응답률</dt>
+            <dd class="text-2xl font-medium tabular-nums">{{ aiSummary.rate }}</dd>
+            <dd class="text-xs text-muted tabular-nums">{{ aiSummary.ratio }}</dd>
+          </div>
+          <div><dt class="text-sm text-muted">담당자 전환</dt><dd class="text-2xl font-medium tabular-nums">{{ aiSummary.handedOver }}</dd></div>
+        </dl>
       </AppCard>
     </template>
   </div>

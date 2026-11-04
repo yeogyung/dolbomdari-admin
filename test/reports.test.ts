@@ -1,6 +1,6 @@
 // 리포트 화면 표기 유틸 — 월 목록·비율·근무시간·집계 기준일
 import { describe, expect, it } from 'vitest'
-import { fmtMinutes, pct, recentMonths, throughLabel, unconnectedNote } from '../app/utils/reports'
+import { aiReplySummary, fmtMinutes, pct, recentMonths, throughLabel, unconnectedNote } from '../app/utils/reports'
 
 describe('recentMonths', () => {
   it('이번 달부터 거꾸로 12개월, 해를 넘긴다', () => {
@@ -41,5 +41,29 @@ describe('unconnectedNote', () => {
   it('뺀 사람이 없으면 붙이지 않는다', () => {
     expect(unconnectedNote({ recipients: 6, readable: 6 })).toBeNull()
     expect(unconnectedNote({ recipients: 0, readable: 0 })).toBeNull()
+  })
+})
+
+// QA 2026-11-02 REPORT-01 — AI 자동응답률 = 자동 처리 / 받은 질문
+describe('aiReplySummary', () => {
+  it('비율과 분자·분모, 담당자 전환 수', () => {
+    expect(aiReplySummary({ questions: 78, autoAnswered: 36, handedOver: 42 })).toEqual({
+      rate: '46.2%',
+      ratio: '36 / 78건',
+      handedOver: '42건',
+    })
+  })
+  it('질문이 0건이면 비율은 —', () => {
+    expect(aiReplySummary({ questions: 0, autoAnswered: 0, handedOver: 0 })).toEqual({
+      rate: '—',
+      ratio: '0 / 0건',
+      handedOver: '0건',
+    })
+  })
+  it('천 단위 구분', () => {
+    expect(aiReplySummary({ questions: 1200, autoAnswered: 1000, handedOver: 200 })?.ratio).toBe('1,000 / 1,200건')
+  })
+  it('옛 서버(ai 칸 없음)는 null — 항목을 숨긴다', () => {
+    expect(aiReplySummary(undefined)).toBeNull()
   })
 })
