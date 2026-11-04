@@ -301,6 +301,8 @@ export interface NoticeCategoryStats {
   readable: number
   read: number
   avgReadSeconds: number | null
+  /** 받은 사람 전체(서버 2026-11-04, QA REPORT-02). `recipients - readable` = 앱 미연결. 옛 서버는 칸이 없다 */
+  recipients?: number
 }
 export interface MonthlyReport {
   month: string
@@ -332,6 +334,6 @@ export interface MonthlyReport {
     special: NoticeCategoryStats
     urgent: NoticeCategoryStats
     delivery: { sms: { accepted: number; failed: number }; push: { accepted: number; failed: number } }
-    lowest: { id: string; title: string; publishedAt: string; readable: number; read: number }[]
+    lowest: { id: string; title: string; publishedAt: string; readable: number; read: number; recipients?: number }[]
   }
 }

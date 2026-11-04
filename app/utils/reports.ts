@@ -23,6 +23,16 @@ export function pct(n: number, d: number): string {
   return `${v}%`
 }
 
+/**
+ * 열람률 분모에서 뺀 사람 — 「앱 미연결 n명 제외」(QA 2026-11-02 REPORT-02). 받은 사람(recipients) 중 앱으로
+ * 읽을 수 없는 사람(readable 밖)이다. 옛 서버는 recipients 가 없어 붙이지 않고, 뺀 사람이 없어도 붙이지 않는다.
+ */
+export function unconnectedNote(s: { recipients?: number; readable: number }): string | null {
+  if (typeof s.recipients !== 'number') return null
+  const n = s.recipients - s.readable
+  return n > 0 ? `앱 미연결 ${n.toLocaleString()}명 제외` : null
+}
+
 /** 분 → 「N시간 M분」 */
 export function fmtMinutes(min: number): string {
   const h = Math.floor(min / 60)

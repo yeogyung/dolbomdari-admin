@@ -3,7 +3,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { MonthlyReport } from '~/types/dbo'
-import { fmtMinutes, pct, recentMonths, throughLabel } from '~/utils/reports'
+import { fmtMinutes, pct, recentMonths, throughLabel, unconnectedNote } from '~/utils/reports'
 
 const api = useDboAdmin()
 const { setHeader } = useAdminHeader()
@@ -252,8 +252,10 @@ const avgRead = (sec: number | null) => (sec === null ? '—' : fmtMinutes(Math.
           <div v-for="c in NOTICE_CATEGORIES" :key="c.key" class="rounded-2xl border border-hairline p-4">
             <p class="text-sm font-medium text-body">{{ c.label }} 공지 {{ report.notices[c.key].noticeCount }}건</p>
             <p class="mt-2 text-2xl font-medium tabular-nums">{{ pct(report.notices[c.key].read, report.notices[c.key].readable) }}</p>
+            <!-- 분모 옆에 앱 미연결로 뺀 사람(QA REPORT-02). 옛 서버는 받은 사람 수가 없어 붙지 않는다 -->
             <p class="text-xs text-muted tabular-nums">
-              {{ report.notices[c.key].read }} / {{ report.notices[c.key].readable }}명 · 평균 열람 {{ avgRead(report.notices[c.key].avgReadSeconds) }}
+              {{ report.notices[c.key].read }} / {{ report.notices[c.key].readable }}명<template v-if="unconnectedNote(report.notices[c.key])"> · {{ unconnectedNote(report.notices[c.key]) }}</template>
+              · 평균 열람 {{ avgRead(report.notices[c.key].avgReadSeconds) }}
             </p>
           </div>
         </div>
@@ -266,7 +268,7 @@ const avgRead = (sec: number | null) => (sec === null ? '—' : fmtMinutes(Math.
           <ul class="divide-y divide-hairline">
             <li v-for="n in report.notices.lowest" :key="n.id" class="flex items-center justify-between gap-4 py-2 text-sm">
               <NuxtLink :to="`/senior/notices/${n.id}`" class="truncate text-brand-500 hover:underline">{{ n.title }}</NuxtLink>
-              <span class="shrink-0 tabular-nums text-muted">{{ fmtStamp(n.publishedAt) }} · {{ n.read }}/{{ n.readable }} · {{ pct(n.read, n.readable) }}</span>
+              <span class="shrink-0 tabular-nums text-muted">{{ fmtStamp(n.publishedAt) }} · {{ n.read }}/{{ n.readable }} · {{ pct(n.read, n.readable) }}<template v-if="unconnectedNote(n)"> · {{ unconnectedNote(n) }}</template></span>
             </li>
           </ul>
         </div>
