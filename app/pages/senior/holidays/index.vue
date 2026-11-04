@@ -7,6 +7,9 @@ import {
   contactCount,
   createNotice,
   filterWorksites,
+  forecastOf,
+  forecastSiteId,
+  forecastSites,
   holidayErrorOf,
   hoursLabel,
   hitHours,
@@ -73,6 +76,7 @@ async function load(keepSelection = false) {
     const o = await app.holidayOverview(date.value)
     if (current !== sequence) return
     overview.value = o
+    forecastId.value = forecastSiteId(o, forecastId.value)
     // 조건이 있는 날은 조건 근무지를 미리 고른다. 조건이 없는 날은 직접 고른다
     if (!keepSelection) {
       selected.value = new Set(o.worksites.filter((s) => !s.holiday && s.alert).map((s) => s.id))
@@ -99,7 +103,15 @@ watch(date, (d) => {
 })
 onMounted(() => load())
 
-const weather = computed(() => overview.value?.weather[0] ?? null)
+/**
+ * 예보는 근무지 격자마다 온다. 고른 근무지 것을 보이고 어느 근무지 기준인지 적는다(QA 2026-11-02 ADM-06, 결정 D5).
+ * 전에는 첫 격자(`weather[0]`)만 보여 맡은 근무지가 둘이면 어느 곳 예보인지 알 수 없었다
+ */
+const forecastId = ref<string | null>(null)
+const sites = computed(() => (overview.value ? forecastSites(overview.value) : []))
+const forecastSite = computed(() => sites.value.find((s) => s.id === forecastId.value) ?? null)
+const siteOptions = computed(() => sites.value.map((s) => ({ label: s.label, value: s.id })))
+const weather = computed(() => (overview.value ? forecastOf(overview.value, forecastId.value) : null))
 /** 특보를 싣기 전 서버(2026-10-27 이전 배포)는 `warnings` 가 없다 */
 const warnings = computed(() => weather.value?.warnings ?? [])
 const KIND_NAME: Record<HolidayKind, string> = { heat: '폭염', cold: '한파', rain: '비' }
@@ -276,6 +288,16 @@ async function run() {
     <template v-else-if="overview">
       <!-- 판정 — 기준을 넘은 시각을 칠한다(폭염 빨강 · 한파 파랑 · 비 노랑) -->
       <AppCard>
+        <!-- 기준 근무지 — 대시보드 날씨(WeatherCard)처럼 고를 곳이 둘 이상일 때만 셀렉트, 하나면 이름만 -->
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm text-muted">
+            <template v-if="forecastSite">
+              <span class="font-medium text-ink">{{ forecastSite.label }}</span> 기준 예보
+            </template>
+            <template v-else>예보를 볼 근무지가 없습니다.</template>
+          </p>
+          <SelectField v-if="sites.length > 1" v-model="forecastId" :options="siteOptions" class="w-56" />
+        </div>
         <p
           class="flex items-center gap-2 text-sm font-semibold"
           :class="weather?.kind ? TITLE_CLS[weather.kind] : 'text-body'"

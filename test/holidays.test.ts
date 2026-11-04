@@ -7,6 +7,9 @@ import {
   contactCount,
   createNotice,
   filterWorksites,
+  forecastOf,
+  forecastSiteId,
+  forecastSites,
   hitHours,
   holidayErrorMessage,
   holidayErrorOf,
@@ -272,5 +275,58 @@ describe('직접 알릴 분 · 특보 · 강수량 칸(앱과 같다)', () => {
     expect(rainLabel(0)).toBe('–')
     expect(rainLabel(0.5)).toBe('<1')
     expect(rainLabel(12)).toBe('12')
+  })
+})
+
+// QA 2026-11-02 ADM-06 · 결정 D5 — 예보에 근무지 고르기와 기준 근무지 표시(어드민만)
+describe('예보 근무지 고르기', () => {
+  const weather = (grid: string, kind: HolidayOverview['weather'][number]['kind']) => ({
+    grid,
+    kind,
+    days: [],
+    warnings: [],
+  })
+  const o = overview(
+    [
+      site('a', { name: '늘봄어린이집', grid: '60,127', alert: null }),
+      site('b', { name: '테스트2', grid: '59,127', alert: 'heat' }),
+      site('c', { name: '위치 없음', grid: null, alert: null }),
+    ],
+    { weather: [weather('60,127', null), weather('59,127', 'heat')] },
+  )
+
+  it('격자가 없는 근무지는 고를 수 없다 — 예보가 없다', () => {
+    expect(forecastSites(o).map((s) => s.id)).toEqual(['a', 'b'])
+  })
+  it('같은 이름이 둘 이상이면 사업 이름을 붙인다', () => {
+    const dup = overview([
+      site('a', { name: '경로당', program: '공익형' }),
+      site('b', { name: '경로당', program: '사회서비스형' }),
+      site('c', { name: '복지관', program: '공익형' }),
+    ])
+    expect(forecastSites(dup).map((s) => s.label)).toEqual(['경로당 (공익형)', '경로당 (사회서비스형)', '복지관'])
+  })
+  it('처음에는 조건이 남은 근무지를 고른다', () => {
+    expect(forecastSiteId(o, null)).toBe('b')
+  })
+  it('휴무로 정한 곳은 조건이 남은 곳이 아니다 — 첫 근무지', () => {
+    const done = overview(
+      [site('a', { alert: null }), site('b', { alert: 'heat', holiday: { id: 'h', reason: 'heat', createdAt: '' } })],
+    )
+    expect(forecastSiteId(done, null)).toBe('a')
+  })
+  it('고르던 곳이 새 목록에도 있으면 그대로, 없으면 다시 고른다', () => {
+    expect(forecastSiteId(o, 'a')).toBe('a')
+    expect(forecastSiteId(o, 'c')).toBe('b')
+    expect(forecastSiteId(o, 'gone')).toBe('b')
+  })
+  it('고를 근무지가 없으면 null', () => {
+    expect(forecastSiteId(overview([]), null)).toBeNull()
+  })
+  it('고른 근무지 격자의 예보를 준다', () => {
+    expect(forecastOf(o, 'a')?.grid).toBe('60,127')
+    expect(forecastOf(o, 'b')?.kind).toBe('heat')
+    expect(forecastOf(o, 'c')).toBeNull()
+    expect(forecastOf(o, null)).toBeNull()
   })
 })

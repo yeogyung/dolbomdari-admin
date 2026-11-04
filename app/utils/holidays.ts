@@ -166,6 +166,38 @@ export function alertHeadline(
   )
 }
 
+/** 예보를 볼 근무지 — 어드민 휴무 관리 화면 전용이다(QA 2026-11-02 ADM-06, 결정 D5). 앱에는 없다 */
+export type ForecastSite = { id: string; label: string; grid: string }
+
+/**
+ * 예보를 고를 수 있는 근무지 — 받은 목록(근무가 있거나 휴무인 곳) 가운데 격자가 있는 곳. 격자가 없으면 예보도 없다.
+ * 같은 이름이 둘 이상이면 사업 이름을 붙인다(대시보드 날씨 `WeatherCard` 와 같은 구별).
+ */
+export function forecastSites(o: HolidayOverview): ForecastSite[] {
+  const withGrid = o.worksites.filter((s): s is HolidayWorksite & { grid: string } => s.grid !== null)
+  const names = new Map<string, number>()
+  for (const s of withGrid) names.set(s.name, (names.get(s.name) ?? 0) + 1)
+  return withGrid.map((s) => ({
+    id: s.id,
+    label: (names.get(s.name) ?? 0) > 1 && s.program ? `${s.name} (${s.program})` : s.name,
+    grid: s.grid,
+  }))
+}
+
+/** 예보를 볼 근무지. 고르던 곳이 새 목록에도 있으면 그대로, 없으면 조건이 남은 첫 근무지, 그것도 없으면 첫 근무지 */
+export function forecastSiteId(o: HolidayOverview, current: string | null): string | null {
+  const sites = forecastSites(o)
+  if (current && sites.some((s) => s.id === current)) return current
+  const alerted = pendingAlerts(o).find((s) => sites.some((x) => x.id === s.id))
+  return alerted?.id ?? sites[0]?.id ?? null
+}
+
+/** 고른 근무지 격자의 예보. 근무지나 그 격자의 예보가 없으면 null */
+export function forecastOf(o: HolidayOverview, siteId: string | null): HolidayOverview['weather'][number] | null {
+  const grid = o.worksites.find((s) => s.id === siteId)?.grid
+  return grid ? (o.weather.find((w) => w.grid === grid) ?? null) : null
+}
+
 /** 특보 발효 시각 → '10/27 11시'(분이 있으면 '11시 30분'). 읽지 못하면 빈 글자 */
 export function sinceLabel(iso: string): string {
   const at = Date.parse(iso)
