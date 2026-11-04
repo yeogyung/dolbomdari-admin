@@ -27,6 +27,14 @@ export function fmtBytes(n: number | null | undefined): string {
   return kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(1)} MB`
 }
 
+/**
+ * 마지막으로 고친 사람의 이름(QA 2026-11-02 DOC-03). 고친 적이 없으면 올린 사람이다 — 그때 수정 시각은 등록 시각이다.
+ * 이름을 모르면(옛 서버·예전 문서) null 이고 화면은 비운다.
+ */
+export function docEditorName(doc: Pick<DocumentListItem, 'created_by_name' | 'updated_by_name'>): string | null {
+  return doc.updated_by_name ?? doc.created_by_name ?? null
+}
+
 /** 상세 수정 폼 값. 날짜는 <input type="date"> 값(YYYY-MM-DD 또는 빈 문자열) */
 export interface DocumentFormValues {
   body: string

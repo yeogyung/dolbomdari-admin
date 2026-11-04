@@ -36,6 +36,8 @@ export interface DocumentCreateForm {
   body: string
   effectiveDate: string
   expiryDate: string
+  /** 고른 원본 파일의 크기(바이트, `file.size`). 목록의 「크기」 칸이 쓴다(QA 2026-11-02 DOC-03) */
+  byteSize: number | null
 }
 
 export interface DocumentCreateBody {
@@ -45,6 +47,8 @@ export interface DocumentCreateBody {
   effectiveDate: string
   version?: string
   expiryDate?: string
+  /** 옛 서버(2026-11-04 전)는 모르는 칸이라 받고 버린다(zod 기본 strip, 핸들러가 아는 칸만 읽음) — 등록은 된다 */
+  byteSize?: number
 }
 
 /** 서버 parseDocumentPayload 와 같은 조건을 먼저 본다 — 400 대신 무엇이 틀렸는지 알린다 */
@@ -64,5 +68,7 @@ export function buildCreatePayload(
   const version = form.version.trim()
   if (version) value.version = version
   if (form.expiryDate) value.expiryDate = form.expiryDate
+  // 크기를 모르면 보내지 않는다 — 서버는 없으면 null 로 둔다(0 은 「0바이트」라는 거짓이 된다)
+  if (form.byteSize != null) value.byteSize = form.byteSize
   return { ok: true, value }
 }

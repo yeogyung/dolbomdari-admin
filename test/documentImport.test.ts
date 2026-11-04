@@ -42,6 +42,7 @@ describe('등록 본문 검증', () => {
     body: '활동비는 매월 10일 지급한다.',
     effectiveDate: '2026-10-01',
     expiryDate: '',
+    byteSize: null,
   }
 
   it('선택 항목은 비어 있으면 보내지 않는다', () => {
@@ -53,6 +54,11 @@ describe('등록 본문 검증', () => {
   it('버전·종료일이 있으면 다듬어 담는다', () => {
     const r = buildCreatePayload({ ...form, version: ' v4 ', expiryDate: '2026-12-31' })
     expect(r.ok && r.value).toMatchObject({ version: 'v4', expiryDate: '2026-12-31' })
+  })
+  // QA DOC-03 — 목록 「크기」 칸이 쓴다. 옛 서버는 모르는 칸을 버리므로 함께 보내도 등록된다
+  it('원본 파일 크기를 byteSize 로 싣는다', () => {
+    const r = buildCreatePayload({ ...form, byteSize: 4404019 })
+    expect(r.ok && r.value.byteSize).toBe(4404019)
   })
   it('파일명·본문·발효일이 비면 이유를 낸다', () => {
     expect(buildCreatePayload({ ...form, filename: '  ' })).toEqual({ ok: false, reason: '파일명을 입력해 주세요.' })

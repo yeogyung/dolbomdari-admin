@@ -37,6 +37,7 @@ const columns: Column[] = [
   { key: 'expiry_date', label: '종료일' },
   { key: 'scope', label: '적용 범위' },
   { key: 'byte_size', label: '크기', align: 'right' },
+  { key: 'created_by_name', label: '올린 사람' },
   { key: 'updated_at', label: '수정일', sortable: true },
 ]
 
@@ -95,7 +96,9 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'expiry_date', label: '종료일' },
   { key: 'scope', label: '적용 범위' },
   { key: 'byte_size', label: '크기' },
+  { key: 'created_by_name', label: '올린 사람' },
   { key: 'updated_at', label: '수정일' },
+  { key: 'updated_by_name', label: '수정한 사람' },
 ]
 
 async function exportExcel() {
@@ -120,7 +123,10 @@ async function exportExcel() {
         ? d.dbo_document_worksites.map((w) => worksiteName(w.worksite_id)).join(', ')
         : '기관 전체',
       byte_size: fmtBytes(d.byte_size),
+      // 이름을 모르면(옛 서버·예전 문서) 다른 칸처럼 빈 칸으로 둔다
+      created_by_name: d.created_by_name ?? '',
       updated_at: excelStamp(d.updated_at),
+      updated_by_name: docEditorName(d) ?? '',
     }))
     downloadExcel('AI문서', data, EXCEL_COLUMNS)
   } catch (e: any) {
@@ -187,7 +193,11 @@ onMounted(() => {
       <template #cell-byte_size="{ row }">
         <span class="tabular-nums">{{ fmtBytes(row.byte_size) }}</span>
       </template>
-      <template #cell-updated_at="{ row }">{{ fmtStamp(row.updated_at) }}</template>
+      <!-- 올린 사람·고친 사람은 그때 이름이다(QA DOC-03). 모르면(옛 서버·예전 문서) 비운다 -->
+      <template #cell-created_by_name="{ row }">{{ row.created_by_name || '—' }}</template>
+      <template #cell-updated_at="{ row }">
+        {{ fmtStamp(row.updated_at) }}<span v-if="docEditorName(row)" class="text-muted"> · {{ docEditorName(row) }}</span>
+      </template>
 
       <template #actions="{ row }">
         <NuxtLink :to="`/senior/documents/${row.id}`" class="text-sm font-medium text-brand-500 hover:underline">

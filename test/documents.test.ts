@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import {
   docStateTone,
   docScopeLabel,
+  docEditorName,
   fmtBytes,
   buildDocumentPatch,
   utcYesterday,
@@ -40,6 +41,20 @@ describe('파일 크기 표기', () => {
     expect(fmtBytes(512)).toBe('512 B')
     expect(fmtBytes(2048)).toBe('2.0 KB')
     expect(fmtBytes(3 * 1024 * 1024)).toBe('3.0 MB')
+  })
+})
+
+describe('마지막으로 고친 사람(QA DOC-03)', () => {
+  it('고친 사람이 있으면 그 이름이다', () => {
+    expect(docEditorName({ created_by_name: '김미영', updated_by_name: '홍길동' })).toBe('홍길동')
+  })
+  it('고친 적이 없으면 올린 사람이다', () => {
+    expect(docEditorName({ created_by_name: '김미영', updated_by_name: null })).toBe('김미영')
+  })
+  // 옛 서버는 칸이 없고, 시드·예전 어드민 등록은 이름이 비어 있다 — 화면은 비운다
+  it('칸이 없거나 이름을 모르면 null', () => {
+    expect(docEditorName({})).toBeNull()
+    expect(docEditorName({ created_by_name: null, updated_by_name: null })).toBeNull()
   })
 })
 

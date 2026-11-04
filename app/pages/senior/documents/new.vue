@@ -43,7 +43,7 @@ async function onPick(e: Event) {
     }
     sourceName.value = file.name
     sourceSize.value = file.size
-    form.value = { filename: file.name, kind, version: '', body, effectiveDate: todaySeoul(), expiryDate: '' }
+    form.value = { filename: file.name, kind, version: '', body, effectiveDate: todaySeoul(), expiryDate: '', byteSize: file.size }
   } catch (err: any) {
     const description = err instanceof ExtractError ? err.message : '파일을 읽는 중 오류가 났습니다.'
     toast.add({ title: '추출 실패', description, color: 'error' })

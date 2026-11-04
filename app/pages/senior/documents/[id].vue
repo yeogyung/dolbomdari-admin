@@ -172,7 +172,10 @@ onMounted(() => {
             <Tag>{{ doc.kind || '—' }}</Tag>
             <StatusBadge :tone="docStateTone(doc.state)">{{ doc.state }}</StatusBadge>
           </div>
-          <span class="text-sm text-muted">수정 {{ fmtStamp(doc.updated_at) }}</span>
+          <!-- 고친 사람은 그때 이름이다(QA DOC-03). 모르면(옛 서버·예전 문서) 시각만 -->
+          <span class="text-sm text-muted">
+            수정 {{ fmtStamp(doc.updated_at) }}<template v-if="docEditorName(doc)"> · {{ docEditorName(doc) }}</template>
+          </span>
         </template>
 
         <p v-if="doc.state === '제외함'" class="mb-5 rounded-lg bg-down-soft px-4 py-3 text-sm text-down">
@@ -212,6 +215,9 @@ onMounted(() => {
               </StatusBadge>
               <span class="text-body tabular-nums">{{ doc.chunks }}개 청크 · 원본 {{ fmtBytes(doc.byte_size) }}</span>
             </div>
+          </FormField>
+          <FormField label="올린 사람">
+            <div class="flex min-h-10 items-center text-[15px] text-body">{{ doc.created_by_name || '—' }}</div>
           </FormField>
         </div>
       </AppCard>

@@ -263,6 +263,13 @@ export interface DocumentListItem {
   excluded_at: string | null
   byte_size: number | null
   created_by: string | null
+  /**
+   * 올린 사람·마지막으로 고친 사람의 그때 이름과 고친 사람 id(서버 2026-11-04, QA DOC-03).
+   * 모르면 null(시드·예전 어드민 등록), 옛 서버는 칸이 없다. 고친 시각은 `updated_at`
+   */
+  created_by_name?: string | null
+  updated_by?: string | null
+  updated_by_name?: string | null
   dbo_document_worksites: { worksite_id: string }[]
 }
 
