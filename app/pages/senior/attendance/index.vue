@@ -55,7 +55,8 @@ const columns: Column[] = [
 
 /** 조회 순번 — 조건을 빠르게 바꾸면 늦게 온 이전 응답이 새 결과를 덮지 않게 마지막 요청만 반영한다 */
 let sequence = 0
-async function load() {
+/** 목록과 이력을 이 조회로 바꿨으면 true. 실패했거나 더 새 조회에 밀렸으면 false — 목록이 낡은 채다 */
+async function load(): Promise<boolean> {
   const current = ++sequence
   loading.value = true
   try {
@@ -70,7 +71,7 @@ async function load() {
       display: (display.value || undefined) as AttendanceDisplay | undefined,
       summary: '1',
     })
-    if (current !== sequence) return
+    if (current !== sequence) return false
     rows.value = res.items
     total.value = res.total
     // 집계를 모르는 서버(배포 순서가 어긋남)여도 화면이 깨지지 않게 0 으로 둔다
@@ -79,12 +80,13 @@ async function load() {
     // 옛 이력을 기준으로 삼으면 방금 내가 저장한 것을 「다른 곳에서 고쳤다」로 본다(ADM-02 리뷰)
     changesKnown = new Set()
     const changes = await fetchChanges(res.items)
-    if (current !== sequence) return
+    if (current !== sequence) return false
     changesByShift.value = changes ?? new Map()
     changesKnown = changes ? new Set(res.items.map((r) => r.id)) : new Set()
+    return true
   } catch (e: any) {
-    if (current !== sequence) return
-    toast.add({ title: '출결 조회 실패', description: dboErrorMessage(e), color: 'error' })
+    if (current === sequence) toast.add({ title: '출결 조회 실패', description: dboErrorMessage(e), color: 'error' })
+    return false
   } finally {
     if (current === sequence) loading.value = false
   }
@@ -250,7 +252,16 @@ const statusOptions = computed(() => {
  */
 async function reopenAfterConflict(shiftId: string, latest: AttendanceChange[] | null) {
   const memo = form.value.memo
-  await load()
+  // 다시 읽지 못했으면 목록이 낡았다. 그 행으로 다시 열면 기준도 낡아 저장이 매번 다시 막힌다(리뷰 반영).
+  // 창과 입력·기준은 그대로 둔다 — 다시 저장하면 같은 충돌로 이리 와서 다시 읽는다
+  if (!(await load())) {
+    toast.add({
+      title: '다른 곳에서 먼저 고친 기록입니다',
+      description: '최신 기록을 불러오지 못했습니다. 잠시 뒤 다시 저장하면 다시 불러옵니다.',
+      color: 'warning',
+    })
+    return
+  }
   const fresh = rows.value.find((r) => r.id === shiftId)
   if (fresh) {
     toast.add({
