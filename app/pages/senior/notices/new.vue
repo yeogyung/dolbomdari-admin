@@ -10,7 +10,10 @@ import {
   TITLE_MAX,
   noticeImagePath,
   pickNoticeImage,
+  isMissingRoute,
+  recipientCountPlan,
   recipientSummary,
+  recipientTotalSummary,
   type NoticeLevel,
 } from '~/utils/noticeCompose'
 
@@ -38,8 +41,44 @@ const canSubmit = computed(() =>
 )
 const levelLabel = computed(() => NOTICE_LEVELS.find((l) => l.value === level.value)!.label)
 
+/*
+ * 받는 사람 수(QA 2026-11-02 ANOTICE-02). 고른 근무지를 **한 번에** 센다(`recipientTotal`, 서버 2026-11-04) — 두 곳
+ * 이상에 배정된 분은 한 번만 센다(발송과 같다). 그 길이 없는 옛 서버(404)거나 100곳을 넘으면 예전처럼 근무지마다
+ * 세어 「최대」로 적는다(`recipientCountPlan`).
+ */
+/** 한 번에 세는 길이 없는 서버다. 한 번 404 를 받으면 이 화면에서는 근무지마다 센다 */
+const totalRouteMissing = ref(false)
+/** 한 번에 센 수. undefined 면 오는 중, null 이면 못 셌다 */
+const recipientTotal = ref<number | null | undefined>(undefined)
+/** 선택이 바뀔 때마다 올린다 — 늦게 온 앞 선택의 응답이 지금 수를 덮지 않게 */
+let totalSequence = 0
+let totalTimer: ReturnType<typeof setTimeout> | undefined
+onBeforeUnmount(() => clearTimeout(totalTimer))
+function countTotal(ids: string[]) {
+  const current = totalSequence
+  const list = [...ids]
+  recipientTotal.value = undefined
+  // 근무지를 연달아 누르면 멈춘 뒤 한 번만 센다
+  totalTimer = setTimeout(() => {
+    app
+      .recipientTotal(list)
+      .then((r) => {
+        if (current === totalSequence) recipientTotal.value = r.total
+      })
+      .catch((e) => {
+        if (current !== totalSequence) return
+        if (!isMissingRoute(e)) {
+          recipientTotal.value = null
+          return
+        }
+        totalRouteMissing.value = true
+        countEach(worksiteIds.value)
+      })
+  }, 250)
+}
+
 /**
- * 근무지별 받는 사람 수(QA 2026-11-02 ANOTICE-02). 한 번 센 근무지는 기억해 두고, 새로 고른 곳만 센다.
+ * 근무지별 받는 사람 수(옛 서버·100곳 초과). 한 번 센 근무지는 기억해 두고, 새로 고른 곳만 센다.
  * 값이 undefined 면 오는 중, null 이면 못 셌다.
  */
 const recipientCounts = ref(new Map<string, number | null | undefined>())
@@ -69,23 +108,37 @@ function pumpCounts() {
       })
   }
 }
+function countEach(ids: string[]) {
+  // 선택을 푼 근무지의 실패는 지운다 — 다시 고르면 다시 센다
+  for (const id of [...recipientCounts.value.keys()]) {
+    if (!ids.includes(id) && recipientCounts.value.get(id) === null) recipientCounts.value.delete(id)
+  }
+  for (const id of ids) {
+    if (recipientCounts.value.has(id)) continue
+    recipientCounts.value.set(id, undefined)
+    countQueue.push(id)
+  }
+  pumpCounts()
+}
 watch(
   worksiteIds,
-  (ids, prev) => {
-    // 선택을 푼 근무지의 실패는 지운다 — 다시 고르면 다시 센다
-    for (const id of prev ?? []) {
-      if (!ids.includes(id) && recipientCounts.value.get(id) === null) recipientCounts.value.delete(id)
-    }
-    for (const id of ids) {
-      if (recipientCounts.value.has(id)) continue
-      recipientCounts.value.set(id, undefined)
-      countQueue.push(id)
-    }
-    pumpCounts()
+  (ids) => {
+    // 앞 선택의 한 번에 세기는 버린다
+    clearTimeout(totalTimer)
+    totalSequence++
+    const plan = recipientCountPlan(ids.length, totalRouteMissing.value)
+    if (plan === 'total') countTotal(ids)
+    else if (plan === 'each') countEach(ids)
   },
   { deep: true },
 )
-const recipientText = computed(() => recipientSummary(worksiteIds.value.map((id) => recipientCounts.value.get(id))))
+const recipientText = computed(() => {
+  const ids = worksiteIds.value
+  const plan = recipientCountPlan(ids.length, totalRouteMissing.value)
+  if (plan === 'none') return null
+  if (plan === 'total') return recipientTotalSummary(recipientTotal.value)
+  return recipientSummary(ids.map((id) => recipientCounts.value.get(id)))
+})
 
 onMounted(async () => {
   try {

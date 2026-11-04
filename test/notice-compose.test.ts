@@ -8,7 +8,11 @@ import {
   NOTICE_IMAGE_BYTES,
   noticeImagePath,
   pickNoticeImage,
+  isMissingRoute,
+  RECIPIENT_TOTAL_MAX,
+  recipientCountPlan,
   recipientSummary,
+  recipientTotalSummary,
   TITLE_MAX,
 } from '../app/utils/noticeCompose'
 
@@ -120,5 +124,55 @@ describe('recipientSummary', () => {
     expect(recipientSummary([12, undefined])).toBe('받는 사람 세는 중…')
     expect(recipientSummary([12, null])).toBe('받는 사람 수를 세지 못했습니다')
     expect(recipientSummary([])).toBeNull()
+  })
+})
+
+// 서버 2026-11-04 — 여러 근무지를 한 번에 세는 길(GET /dbo/worksites/recipients)
+describe('recipientCountPlan', () => {
+  it('고른 곳이 없으면 세지 않는다', () => {
+    expect(recipientCountPlan(0, false)).toBe('none')
+    expect(recipientCountPlan(0, true)).toBe('none')
+  })
+
+  it('100곳까지는 한 번에 센다', () => {
+    expect(recipientCountPlan(1, false)).toBe('total')
+    expect(recipientCountPlan(RECIPIENT_TOTAL_MAX, false)).toBe('total')
+  })
+
+  // 서버가 100곳을 넘으면 400 이다. 「전체 선택」(300곳 가까이)은 예전처럼 「최대」로 적는다
+  it('100곳을 넘으면 근무지마다 센다', () => {
+    expect(recipientCountPlan(RECIPIENT_TOTAL_MAX + 1, false)).toBe('each')
+  })
+
+  it('그 길이 없는 옛 서버면 근무지마다 센다', () => {
+    expect(recipientCountPlan(2, true)).toBe('each')
+  })
+})
+
+describe('isMissingRoute', () => {
+  it('404·405 는 길이 없는 서버다', () => {
+    expect(isMissingRoute({ status: 404, data: { error: 'not_found' } })).toBe(true)
+    expect(isMissingRoute({ statusCode: 405 })).toBe(true)
+  })
+
+  // 권한·형식 오류는 새 서버의 답이다 — 근무지마다 세어도 같은 이유로 막힌다
+  it('다른 오류는 길이 있는 서버의 실패다', () => {
+    expect(isMissingRoute({ status: 403, data: { error: 'bad_worksite' } })).toBe(false)
+    expect(isMissingRoute({ status: 400, data: { error: 'bad_request' } })).toBe(false)
+    expect(isMissingRoute({ status: 500 })).toBe(false)
+    expect(isMissingRoute(new Error('network'))).toBe(false)
+  })
+})
+
+describe('recipientTotalSummary', () => {
+  // 겹친 분을 서버가 한 번만 센 수라 「최대」를 붙이지 않는다
+  it('한 번에 센 수는 정확한 수로 적는다', () => {
+    expect(recipientTotalSummary(15)).toBe('받는 사람 15명')
+    expect(recipientTotalSummary(0)).toBe('받는 사람 0명')
+  })
+
+  it('세는 중·실패를 가른다', () => {
+    expect(recipientTotalSummary(undefined)).toBe('받는 사람 세는 중…')
+    expect(recipientTotalSummary(null)).toBe('받는 사람 수를 세지 못했습니다')
   })
 })

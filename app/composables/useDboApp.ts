@@ -37,10 +37,16 @@ export function useDboApp() {
       post<{ id: string; duplicate?: boolean }>('/notices', body),
     /**
      * 그 근무지 공지의 받는 사람 수. 발송과 같은 함수로 센다(서버 `noticeRecipients`).
-     * 근무지 하나씩만 받는다 — 여러 곳을 한 번에 세는 길은 아직 없다.
+     * 근무지 하나씩만 받는다 — 여러 곳은 `recipientTotal` 을 먼저 쓰고, 그 길이 없는 옛 서버에서만 이것으로 센다.
      */
     recipientCount: (worksiteId: string) =>
       call<{ total: number; withoutPush: number }>('GET', `/worksites/${worksiteId}/recipients`),
+    /**
+     * 여러 근무지의 받는 사람 수를 한 번에(서버 2026-11-04). 두 곳 이상에 배정된 분은 한 번만 센다 — 발송과 같다.
+     * 1~100곳. 옛 서버에는 없는 길이라 404 다.
+     */
+    recipientTotal: (worksiteIds: string[]) =>
+      call<{ total: number; withoutPush: number }>('GET', `/worksites/recipients?worksiteIds=${worksiteIds.join(',')}`),
     /** 그 날짜(없으면 내일)의 날씨 판정·근무지별 인원·휴무. master 는 전부, 담당자는 맡은 곳 */
     holidayOverview: (date?: string) =>
       call<HolidayOverview>('GET', date ? `/holidays?date=${date}` : '/holidays'),

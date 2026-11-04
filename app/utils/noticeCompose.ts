@@ -18,6 +18,7 @@ export const NOTICE_LEVELS: { value: NoticeLevel; label: string }[] = [
  *
  * **여러 곳이면 「최대」다.** 서버는 두 곳에 모두 배정된 분에게 한 번만 보내는데, 수는 근무지 하나씩만
  * 받을 수 있어 그 겹침을 뺄 수 없다. 합계를 정확한 수처럼 적으면 「12명」이라 해 놓고 10명에게 간다.
+ * 한 번에 세는 길이 없는 옛 서버거나 100곳을 넘을 때만 쓴다(`recipientCountPlan`).
  *
  * @param counts 고른 근무지마다 센 수. 아직 오는 중이면 undefined, 못 셌으면 null
  */
@@ -27,6 +28,33 @@ export function recipientSummary(counts: (number | null | undefined)[]): string 
   if (counts.some((n) => n === null)) return '받는 사람 수를 세지 못했습니다'
   const sum = (counts as number[]).reduce((a, b) => a + b, 0)
   return counts.length === 1 ? `받는 사람 ${sum}명` : `받는 사람 최대 ${sum}명 · 여러 곳에 배정된 분은 한 번만 받습니다`
+}
+
+/** 한 번에 세는 길(`GET /dbo/worksites/recipients`, 서버 2026-11-04)이 받는 근무지 수 상한. 넘으면 400 이다 */
+export const RECIPIENT_TOTAL_MAX = 100
+
+/**
+ * 받는 사람 수를 어떻게 셀지(QA 2026-11-02 ANOTICE-02).
+ *
+ * - 'total' — 고른 근무지를 한 번에 센다. 두 곳 이상에 배정된 분은 한 번만 센다(발송과 같다). 정확한 수다.
+ * - 'each' — 근무지마다 세어 더한다(「최대」, `recipientSummary`). 그 길이 없는 옛 서버거나 100곳을 넘을 때.
+ */
+export function recipientCountPlan(selected: number, totalRouteMissing: boolean): 'none' | 'total' | 'each' {
+  if (selected === 0) return 'none'
+  return !totalRouteMissing && selected <= RECIPIENT_TOTAL_MAX ? 'total' : 'each'
+}
+
+/** 한 번에 세는 길이 없는 서버인가 — 옛 서버는 그 주소를 몰라 404 다 */
+export function isMissingRoute(e: any): boolean {
+  const status: number | undefined = e?.status ?? e?.statusCode
+  return status === 404 || status === 405
+}
+
+/** 한 번에 센 받는 사람 문구. 오는 중이면 undefined, 못 셌으면 null */
+export function recipientTotalSummary(total: number | null | undefined): string {
+  if (total === undefined) return '받는 사람 세는 중…'
+  if (total === null) return '받는 사람 수를 세지 못했습니다'
+  return `받는 사람 ${total}명`
 }
 
 /**
