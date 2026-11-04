@@ -256,6 +256,14 @@ export function useDboAdmin() {
      */
     createRoom: (body: { title: string; profileIds: string[]; aiEnabled: boolean }) =>
       req<{ roomId: string; members: number }>('/rooms', { method: 'POST', body }),
+    /**
+     * 참여자 추가·내보내기(서버 2026-11-04, QA CHAT-03). 이미 멤버인 사람은 건너뛰고 `added` 에 세지 않는다.
+     * 종료된 방·1:1 방은 409, 마지막 한 사람은 내보낼 수 없다(409 last_member). 옛 서버는 404
+     */
+    addRoomMembers: (id: string, profileIds: string[]) =>
+      req<{ ok: true; added: number }>(`/rooms/${id}/members`, { method: 'POST', body: { profileIds } }),
+    removeRoomMember: (id: string, profileId: string) =>
+      req<{ ok: true }>(`/rooms/${id}/members/${profileId}`, { method: 'DELETE' }),
     updateRoom: (id: string, body: { status: 'active' | 'closed' }) =>
       req<{ ok: true }>(`/rooms/${id}`, { method: 'PATCH', body }),
     listRoomMessages: (id: string) => req<{ items: ChatMessage[] }>(`/rooms/${id}/messages`),

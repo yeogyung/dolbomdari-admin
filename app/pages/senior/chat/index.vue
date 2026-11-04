@@ -146,6 +146,12 @@ function openAttachment(e: MouseEvent) {
   reloadMessages()
 }
 
+/** 참여자 명단을 다시 읽을 때마다 목록·머리글의 「참여 n명」을 맞춘다(QA 2026-11-02 CHAT-03 — 넣고 뺀 뒤) */
+function onMembersCounted(roomId: string, members: number) {
+  const s = stats.value.get(roomId)
+  if (s && s.members !== members) stats.value.set(roomId, { ...s, members })
+}
+
 /** 방 만들기 창(QA 2026-11-02 CHAT-01) */
 const createOpen = ref(false)
 /** 만들면 목록을 첫 쪽부터 다시 읽고, 새 방이 보이면 연다 */
@@ -269,6 +275,9 @@ onMounted(loadRooms)
           </AppButton>
         </div>
       </template>
+
+      <!-- 참여자 명단·추가·내보내기(QA CHAT-03) -->
+      <RoomMembersPanel v-if="selected" :room="selected" @counted="onMembersCounted" />
 
       <!-- 대화는 길어질 수 있어 높이를 묶고 안에서 스크롤한다 -->
       <div class="max-h-[65vh] min-h-[420px] overflow-y-auto px-8 py-6">
