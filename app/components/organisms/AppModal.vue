@@ -6,15 +6,16 @@ const props = defineProps<{
   title?: string
   width?: string
   /**
-   * 사용자가 닫으려 할 때(X·바깥 누르기·Esc) 묻는다. false 면 닫지 않는다.
+   * 사용자가 닫으려 할 때(X·바깥 누르기·Esc) 묻는다. false 면 닫지 않는다. 어드민 확인 창(AppModal)으로
+   * 묻도록 답을 기다릴 수 있다(Promise).
    * 저장 뒤 화면이 `open` 을 직접 내리는 것은 묻지 않는다 — 그건 닫기 요청이 아니다.
    */
-  beforeClose?: () => boolean
+  beforeClose?: () => boolean | Promise<boolean>
 }>()
 const open = defineModel<boolean>('open', { default: false })
 
-function requestClose() {
-  if (props.beforeClose && !props.beforeClose()) return
+async function requestClose() {
+  if (props.beforeClose && !(await props.beforeClose())) return
   open.value = false
 }
 
@@ -24,7 +25,11 @@ const panel = useTemplateRef<HTMLElement>('panel')
 let lastFocus: HTMLElement | null = null
 
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape') requestClose()
+  if (e.key !== 'Escape') return
+  // 창이 겹치면(수정 창 위의 확인 창) 맨 위 창만 닫는다. 모두 body 끝에 붙어 뒤에 붙은 창이 위다
+  const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]')
+  if (dialogs[dialogs.length - 1] !== panel.value) return
+  requestClose()
 }
 
 watch(open, async (v) => {

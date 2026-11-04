@@ -188,14 +188,25 @@ const editBaseline = ref<string | null | undefined>(undefined)
 
 /**
  * 저장하지 않고 닫을 때 묻는다(QA 2026-11-02 ADM-01). 사유를 적고 X 로 닫으면 말없이 사라졌다.
- * 확인은 QR 재발급과 같은 브라우저 확인 창이다.
+ * 확인은 브라우저 기본 창이 아니라 어드민 확인 창(AppModal)이다(결정 F8). X·바깥 누르기·Esc·메뉴 이동이 모두 같은 창을 본다.
  */
 const editInitial = ref<typeof form.value | null>(null)
-const COPY_DISCARD = '저장하지 않고 닫을까요? 입력한 내용이 사라집니다.'
-function confirmDiscardEdit(): boolean {
+const discardOpen = ref(false)
+const discard = createPendingAnswer()
+function confirmDiscardEdit(): boolean | Promise<boolean> {
   if (!editInitial.value || !formChanged(editInitial.value, form.value)) return true
-  return confirm(COPY_DISCARD)
+  discardOpen.value = true
+  return discard.ask()
 }
+/** 확인 창을 먼저 내리고 답한다 — 확인 창이 포커스를 수정 창에 돌려준 뒤에 수정 창이 닫힌다 */
+function answerDiscard(ok: boolean) {
+  discardOpen.value = false
+  discard.answer(ok)
+}
+// 확인 창을 X·바깥 누르기·Esc 로 닫으면 「계속 수정」이다
+watch(discardOpen, (v) => {
+  if (!v) discard.answer(false)
+})
 // 창이 열린 채 메뉴로 다른 화면에 갈 때도 같다
 onBeforeRouteLeave(() => (editOpen.value ? confirmDiscardEdit() : true))
 
@@ -671,6 +682,15 @@ onMounted(() => {
           취소
         </AppButton>
         <AppButton size="sm" :loading="saving" @click="submitEdit">저장</AppButton>
+      </template>
+    </AppModal>
+
+    <!-- 저장하지 않고 닫기 확인(결정 F8). 수정 창 위에 뜨도록 뒤에 둔다. 모양은 휴무 관리·공지 발송의 확인 창을 따른다 -->
+    <AppModal v-model:open="discardOpen" title="저장하지 않고 닫을까요?" width="max-w-md">
+      <p class="text-sm text-body">입력한 내용이 사라집니다.</p>
+      <template #footer>
+        <AppButton variant="outline" color="neutral" size="sm" @click="answerDiscard(false)">계속 수정</AppButton>
+        <AppButton color="down" size="sm" @click="answerDiscard(true)">저장하지 않고 닫기</AppButton>
       </template>
     </AppModal>
 
