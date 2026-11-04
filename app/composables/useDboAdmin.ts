@@ -233,6 +233,8 @@ export function useDboAdmin() {
         endedAt?: string | null
         method?: string
         memo?: string | null
+        /** 창을 열 때 본 출결의 updated_at(기록이 없었으면 null). 그사이 고쳤으면 409 attendance_conflict. 옛 서버는 버린다 */
+        expectedUpdatedAt?: string | null
       },
     ) => req<{ id: string }>(`/attendance/${shiftId}`, { method: 'PATCH', body }),
     /* 출결 삭제 — master·담당자, 오늘 활동만. 지운 내용·삭제자·사유가 삭제 기록에 남는다 */

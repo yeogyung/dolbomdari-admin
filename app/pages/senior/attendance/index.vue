@@ -183,8 +183,13 @@ const form = ref({
 
 const editErrors = ref<{ memo?: string; endedAt?: string }>({})
 
-/** 창을 열 때 본 가장 최근 이력 id. 저장 직전에 다시 읽어 비교한다(QA 2026-11-02 ADM-02) */
+/**
+ * 창을 열 때 본 가장 최근 이력 id. 저장 직전에 다시 읽어 비교한다(QA 2026-11-02 ADM-02).
+ * 서버 검사(`editVersion`)가 배포되기 전의 방어다 — 옛 서버는 그 칸을 버리고 덮어쓴다.
+ */
 const editBaseline = ref<string | null | undefined>(undefined)
+/** 창을 열 때 본 출결의 갱신 시각. 저장 본문의 `expectedUpdatedAt` 으로 보낸다(`attendanceVersion`) */
+const editVersion = ref<string | null | undefined>(undefined)
 
 /**
  * 저장하지 않고 닫을 때 묻는다(QA 2026-11-02 ADM-01). 사유를 적고 X 로 닫으면 말없이 사라졌다.
@@ -215,6 +220,7 @@ function openEdit(row: AttendanceShift) {
   const rec = attendanceOf(row)
   target.value = row
   editBaseline.value = changesKnown.has(row.id) ? (changesByShift.value.get(row.id)?.[0]?.id ?? null) : undefined
+  editVersion.value = attendanceVersion(row)
   // 사유는 빈칸으로 시작한다. 이전 메모를 채워 두면 그대로 저장해도 필수 검사를
   // 통과하고, 수정 이력에도 옛 사유가 이번 변경의 사유처럼 남는다(QA 2026-10-14 6번).
   form.value = {
@@ -236,53 +242,71 @@ const statusOptions = computed(() => {
   return base
 })
 
+/**
+ * 다른 곳에서 먼저 고친 기록이다 — 저장하지 않았다. 최신 기록으로 창을 다시 열고 적던 사유는 남긴다.
+ * 화면 검사(이력 비교)와 서버의 409 `attendance_conflict` 가 같은 길을 탄다.
+ *
+ * @param latest 그 근무의 최신 이력(최근 것부터). 못 읽었으면 null
+ */
+async function reopenAfterConflict(shiftId: string, latest: AttendanceChange[] | null) {
+  const memo = form.value.memo
+  await load()
+  const fresh = rows.value.find((r) => r.id === shiftId)
+  if (fresh) {
+    toast.add({
+      title: '다른 곳에서 먼저 고친 기록입니다',
+      description: '최신 기록을 다시 불러왔습니다. 확인한 뒤 다시 저장해 주세요.',
+      color: 'warning',
+    })
+    openEdit(fresh)
+    form.value.memo = memo
+    return
+  }
+  // 바뀐 기록이 지금 조회 조건에서 빠졌다(예: 「미출근」을 보는데 그새 QR 출근). 창을 닫으면 적던 사유가
+  // 사라진다 — 창과 입력은 그대로 두고, 바뀐 내용을 알린 뒤 기준을 새 이력으로 옮긴다. 다시 저장하면 지금
+  // 입력한 내용으로 고친다(알고 덮는 것이라 조용히 덮는 것이 아니다).
+  const last = latest?.[0] ? describeChange(latest[0]) : null
+  toast.add({
+    title: '다른 곳에서 먼저 고친 기록입니다',
+    description: `${last ? `${last.who} · ${last.what}. ` : ''}이 기록은 지금 조회 조건에서 빠졌습니다. 다시 저장하면 지금 입력한 내용으로 바뀝니다.`,
+    color: 'warning',
+  })
+  editBaseline.value = latest ? (latest[0]?.id ?? null) : undefined
+  // 새 기록의 갱신 시각은 목록에서 빠져 알 수 없다. 다음 저장은 서버 검사 없이 보낸다(알고 덮는 것)
+  editVersion.value = undefined
+}
+
 async function submitEdit() {
   if (!target.value) return
   editErrors.value = attendanceEditErrors(form.value)
   if (Object.keys(editErrors.value).length > 0) return
   saving.value = true
+  const shiftId = target.value.id
   try {
     // **조용히 덮어쓰지 않는다.** 창을 연 뒤 다른 곳에서 고쳤으면 저장하지 않고 최신 기록으로 다시 연다.
-    // 적던 사유는 남긴다. 다시 읽기가 실패하면 저장을 막지 않는다 — 검사 때문에 저장을 못 하는 쪽이 더 나쁘다.
-    const shiftId = target.value.id
+    // 다시 읽기가 실패하면 저장을 막지 않는다 — 검사 때문에 저장을 못 하는 쪽이 더 나쁘다.
     const latest = await listChangesByShifts([shiftId]).catch(() => null)
     if (latest && changedSince(editBaseline.value, latest)) {
-      const memo = form.value.memo
-      await load()
-      const fresh = rows.value.find((r) => r.id === shiftId)
-      if (fresh) {
-        toast.add({
-          title: '다른 곳에서 먼저 고친 기록입니다',
-          description: '최신 기록을 다시 불러왔습니다. 확인한 뒤 다시 저장해 주세요.',
-          color: 'warning',
-        })
-        openEdit(fresh)
-        form.value.memo = memo
-        return
-      }
-      // 바뀐 기록이 지금 조회 조건에서 빠졌다(예: 「미출근」을 보는데 그새 QR 출근). 창을 닫으면 적던 사유가
-      // 사라진다 — 창과 입력은 그대로 두고, 바뀐 내용을 알린 뒤 기준을 새 이력으로 옮긴다. 다시 저장하면 지금
-      // 입력한 내용으로 고친다(알고 덮는 것이라 조용히 덮는 것이 아니다).
-      const last = latest[0] ? describeChange(latest[0]) : null
-      toast.add({
-        title: '다른 곳에서 먼저 고친 기록입니다',
-        description: `${last ? `${last.who} · ${last.what}. ` : ''}이 기록은 지금 조회 조건에서 빠졌습니다. 다시 저장하면 지금 입력한 내용으로 바뀝니다.`,
-        color: 'warning',
-      })
-      editBaseline.value = latest[0]?.id ?? null
+      await reopenAfterConflict(shiftId, latest)
       return
     }
-    await api.patchAttendance(target.value.id, {
+    await api.patchAttendance(shiftId, {
       status: form.value.status,
       startedAt: fromLocalInput(form.value.startedAt),
       endedAt: fromLocalInput(form.value.endedAt),
       method: 'manual',
       memo: form.value.memo.trim(),
+      // 다시 읽기와 저장 사이의 틈은 서버가 막는다. undefined 면 JSON 에서 빠져 예전처럼 검사 없이 저장된다
+      expectedUpdatedAt: editVersion.value,
     })
     toast.add({ title: '출결 기록을 저장했습니다.', color: 'success' })
     editOpen.value = false
     load()
   } catch (e: any) {
+    if (isAttendanceConflict(e)) {
+      await reopenAfterConflict(shiftId, await listChangesByShifts([shiftId]).catch(() => null))
+      return
+    }
     toast.add({ title: '저장 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
     saving.value = false

@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest'
 import {
   ATTENDANCE_DISPLAY_OPTIONS,
   attendanceDisplay,
+  attendanceVersion,
   attentionRank,
   changedSince,
   describeChange,
   editDefaultStatus,
   groupChangesByShift,
+  isAttendanceConflict,
   isHumanEdited,
   tallyDay,
 } from '../app/utils/attendanceState'
@@ -218,6 +220,37 @@ describe('changedSince', () => {
   // 목록의 이력 조회가 실패했으면 기준이 없다. 그때 비교하면 매번 충돌로 막힌다.
   it('기준을 모르면 판정하지 않는다', () => {
     expect(changedSince(undefined, [{ id: 'c9' }])).toBe(false)
+  })
+})
+
+// QA 2026-11-02 ADM-02 · 서버 2026-11-04 — 저장 본문의 expectedUpdatedAt
+describe('attendanceVersion', () => {
+  // 서버가 밀리초까지 비교한다. Date 로 바꿨다 보내면 마이크로초가 잘려 표기가 달라진다 — 받은 그대로 보낸다
+  it('목록에서 받은 updated_at 을 그대로 준다', () => {
+    const stamp = '2026-10-24T00:10:00.123456+00:00'
+    expect(attendanceVersion(shift('2026-10-24', { updated_at: stamp }))).toBe(stamp)
+  })
+
+  it('기록이 없던 근무는 null 이다', () => {
+    expect(attendanceVersion(shift('2026-10-24', null))).toBeNull()
+  })
+
+  // null 로 보내면 서버가 「기록 없음」으로 읽어 매번 충돌로 막는다
+  it('기록은 있는데 시각 칸이 없으면 싣지 않는다', () => {
+    expect(attendanceVersion(shift('2026-10-24', {}))).toBeUndefined()
+  })
+})
+
+describe('isAttendanceConflict', () => {
+  it('409 attendance_conflict 만 동시 수정이다', () => {
+    expect(isAttendanceConflict({ status: 409, data: { error: 'attendance_conflict' } })).toBe(true)
+    expect(isAttendanceConflict({ statusCode: 409, data: { error: 'attendance_conflict' } })).toBe(true)
+  })
+
+  it('다른 오류는 동시 수정이 아니다', () => {
+    expect(isAttendanceConflict({ status: 409, data: { error: 'duplicate' } })).toBe(false)
+    expect(isAttendanceConflict({ status: 400, data: { error: 'bad_request' } })).toBe(false)
+    expect(isAttendanceConflict(new Error('network'))).toBe(false)
   })
 })
 

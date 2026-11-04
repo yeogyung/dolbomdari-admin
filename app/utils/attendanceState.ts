@@ -1,6 +1,6 @@
 // 출퇴근 표시 상태와 「수정됨」 판정, 변경 이력 한 줄 문구(QA 2026-10-14 11·12·13번)
 import type { AttendanceChange, AttendanceRecord, AttendanceShift } from '~/types/dbo'
-import { attendanceLabel, fmtClock, fmtStamp, ROLE_LABELS } from './dbo'
+import { attendanceLabel, attendanceOf, fmtClock, fmtStamp, ROLE_LABELS } from './dbo'
 
 export type AttendanceDisplay =
   | 'normal'
@@ -166,9 +166,12 @@ export function isHumanEdited(
 /**
  * 수정 창을 연 뒤 다른 곳에서 그 근무를 고쳤는가(QA 2026-11-02 ADM-02).
  *
- * 서버 수정 API 는 나중 저장이 앞 저장을 그대로 덮는다. 변경 이력(`dbo_attendance_changes`)은 모든
+ * 옛 서버 수정 API 는 나중 저장이 앞 저장을 그대로 덮는다. 변경 이력(`dbo_attendance_changes`)은 모든
  * 저장마다 한 줄씩 쌓이므로, 창을 열 때 본 「가장 최근 이력」과 저장 직전에 다시 읽은 것이 다르면
  * 그 사이 누군가 고친 것이다(다른 관리자든 시니어의 QR 이든).
+ *
+ * 새 서버(2026-11-04)는 `expectedUpdatedAt`(`attendanceVersion`)으로 직접 막는다. 이 검사는 서버가
+ * 배포되기 전의 방어로 남긴다 — 배포 뒤에는 겹쳐 막을 뿐이라 걷어도 된다.
  *
  * @param baseline 창을 열 때 본 가장 최근 이력 id. 이력이 없었으면 null, **모르면 undefined** —
  *                 목록의 이력 조회가 실패했으면 비교하지 않는다(매번 충돌로 오판하지 않게)
@@ -180,6 +183,25 @@ export function changedSince(
 ): boolean {
   if (baseline === undefined) return false
   return (latest[0]?.id ?? null) !== baseline
+}
+
+/**
+ * 저장 본문의 `expectedUpdatedAt`(QA 2026-11-02 ADM-02, 서버 2026-11-04). 창을 열 때 본 출결의 `updated_at` 을
+ * **받은 그대로** 보낸다 — 서버가 밀리초까지 비교하고, 그사이 누가 고쳤으면 저장하지 않고 409 다.
+ *
+ * - 기록이 없던 근무면 null — 그사이 기록이 생겼으면 충돌이다.
+ * - 기록은 있는데 시각 칸이 없으면 undefined(칸을 싣지 않는다). null 로 보내면 「기록 없음」으로 읽혀 매번 막힌다.
+ * - 옛 서버는 모르는 칸이라 버린다 — 예전처럼 덮어쓴다.
+ */
+export function attendanceVersion(row: Pick<AttendanceShift, 'attendance'>): string | null | undefined {
+  const rec = attendanceOf(row)
+  if (!rec) return null
+  return rec.updated_at || undefined
+}
+
+/** 서버가 동시 수정을 잡았는가 — 409 `attendance_conflict`. 저장하지 않았다 */
+export function isAttendanceConflict(e: any): boolean {
+  return (e?.status ?? e?.statusCode) === 409 && e?.data?.error === 'attendance_conflict'
 }
 
 /** 근무별로 묶는다. 들어온 순서(최근 것부터)를 지킨다 */
