@@ -41,8 +41,9 @@ export function pushErrorLabel(code: string): string {
  * (`errors` 의 합과 같다). 결과를 기다리는 줄·24시간 안에 못 받은 줄이 있으면 덧붙인다.
  */
 export function pushDeliveryLine(s: PushSummary): string {
+  // 서버는 기록을 못 남겨도 푸시는 보낸다 — 「받을 분이 없었다」고 단정하지 않는다
   if (s.tickets === 0) {
-    return '앱 알림 전달 기록이 없습니다. 기록을 남기기 전(서버 업데이트 전)에 보냈거나 앱 알림을 받을 분이 없었습니다.'
+    return '앱 알림 전달 기록이 없습니다. 서버 업데이트 전에 보냈거나, 앱 알림을 받을 분이 없었거나, 기록이 저장되지 않았습니다.'
   }
   const reasons = Object.entries(s.errors)
     .sort((a, b) => b[1] - a[1])

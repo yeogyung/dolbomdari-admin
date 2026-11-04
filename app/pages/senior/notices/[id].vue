@@ -73,6 +73,8 @@ function loadPush(detail: NoticeDetail) {
     })
 }
 watch(() => route.params.id, () => {
+  // 앞 공지의 늦은 집계가 새 공지에 붙지 않게 버린다
+  pushSequence++
   pushLine.value = null
   pushFailed.value = false
 })
