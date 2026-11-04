@@ -5,6 +5,9 @@ import {
   buildNoticeBody,
   canSubmitNotice,
   createNoticeErrorMessage,
+  NOTICE_IMAGE_BYTES,
+  noticeImagePath,
+  pickNoticeImage,
   recipientSummary,
   TITLE_MAX,
 } from '../app/utils/noticeCompose'
@@ -18,6 +21,51 @@ describe('buildNoticeBody', () => {
     })
     expect(buildNoticeBody({ ...base, level: 'special' })).toMatchObject({ kind: 'normal', isSpecial: true })
     expect(buildNoticeBody({ ...base, level: 'urgent' })).toMatchObject({ kind: 'urgent', isSpecial: false })
+  })
+
+  it('사진 경로가 있을 때만 imagePaths 를 싣는다', () => {
+    expect(buildNoticeBody({ ...base, level: 'simple', imagePaths: ['u/notice-a.jpg'] })).toMatchObject({
+      imagePaths: ['u/notice-a.jpg'],
+    })
+    expect(buildNoticeBody({ ...base, level: 'simple', imagePaths: [] })).not.toHaveProperty('imagePaths')
+  })
+})
+
+// QA 2026-11-02 ANOTICE-01 · 결정 S6 — 한 장 넣으면 미리보기, 두 장을 한 번에 넣으면 한 장만
+describe('pickNoticeImage', () => {
+  const f = (type: string, size = 1000) => ({ type, size })
+
+  it('한 장이면 그대로 넣는다', () => {
+    const one = f('image/jpeg')
+    expect(pickNoticeImage([one])).toEqual({ file: one, notice: null })
+  })
+  it('두 장을 한 번에 넣으면 첫 장만 넣고 알린다', () => {
+    const first = f('image/png')
+    const r = pickNoticeImage([first, f('image/jpeg')])
+    expect(r.file).toBe(first)
+    expect(r.notice).toBe('사진은 한 장만 넣을 수 있어 첫 장만 넣었습니다.')
+  })
+  it('버킷이 거절할 종류·크기는 넣지 않는다', () => {
+    expect(pickNoticeImage([f('image/gif')])).toEqual({ file: null, notice: '사진은 JPG·PNG·WEBP 만 넣을 수 있습니다.' })
+    expect(pickNoticeImage([f('image/webp', NOTICE_IMAGE_BYTES + 1)]).file).toBeNull()
+    expect(pickNoticeImage([f('image/webp', NOTICE_IMAGE_BYTES)]).file).not.toBeNull()
+  })
+  it('고른 것이 없으면 아무것도 넣지 않는다', () => {
+    expect(pickNoticeImage([])).toEqual({ file: null, notice: null })
+  })
+})
+
+describe('noticeImagePath', () => {
+  it('내 폴더 아래 서버가 받는 모양으로 만든다', () => {
+    const key = crypto.randomUUID()
+    const path = noticeImagePath('owner-1', 'image/jpeg', key)
+    expect(path).toBe(`owner-1/notice-${key}.jpg`)
+    // 서버 `noticeImagePaths` 의 판정과 같다 — 어긋나면 발송이 400 이다
+    expect(/^[0-9a-f-]+\.(jpg|png|webp)$/.test(path!.slice('owner-1/notice-'.length))).toBe(true)
+  })
+  it('모르는 종류나 16진수가 아닌 키는 null', () => {
+    expect(noticeImagePath('o', 'image/gif', 'abc')).toBeNull()
+    expect(noticeImagePath('o', 'image/png', '../x')).toBeNull()
   })
 })
 

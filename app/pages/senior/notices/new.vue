@@ -1,11 +1,22 @@
 <!-- 공지 작성 — 근무지·유형·제목·내용을 골라 발송한다(앱 API POST /dbo/notices, QA 2026-10-14 15번) -->
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
 import type { Program, Worksite } from '~/types/dbo'
-import { BODY_MAX, NOTICE_LEVELS, TITLE_MAX, recipientSummary, type NoticeLevel } from '~/utils/noticeCompose'
+import {
+  BODY_MAX,
+  NOTICE_IMAGE_ACCEPT,
+  NOTICE_IMAGE_BUCKET,
+  NOTICE_LEVELS,
+  TITLE_MAX,
+  noticeImagePath,
+  pickNoticeImage,
+  recipientSummary,
+  type NoticeLevel,
+} from '~/utils/noticeCompose'
 
 const api = useDboAdmin()
 const app = useDboApp()
+const supabase = useSupabase()
 const toast = useToast()
 useAdminHeader().setHeader('공지 작성', [{ label: '공지·미열람 관리', to: '/senior/notices' }])
 
@@ -88,11 +99,64 @@ onMounted(async () => {
   }
 })
 
+/*
+ * 사진 한 장(QA 2026-11-02 ANOTICE-01, 결정 S6). 고르면 미리보기만 하고, **보낼 때 올린다** — 고르고 안 보낸 사진이
+ * 버킷에 남지 않게. 한 번 올린 경로(`path`)는 다시 보낼 때 그대로 쓴다.
+ * 파일은 반응형으로 감싸지 않는다(shallowRef) — 감싼 File 은 올리기에 넘길 수 없다.
+ */
+const imageInput = ref<HTMLInputElement | null>(null)
+const image = shallowRef<{ file: File; url: string; path: string | null } | null>(null)
+
+function clearImage() {
+  if (image.value) URL.revokeObjectURL(image.value.url)
+  image.value = null
+}
+onBeforeUnmount(clearImage)
+
+function onPickImage(e: Event) {
+  const input = e.target as HTMLInputElement
+  const { file, notice } = pickNoticeImage(Array.from(input.files ?? []))
+  input.value = ''
+  if (notice) toast.add({ title: notice, color: file ? 'warning' : 'error' })
+  if (!file) return
+  clearImage()
+  image.value = { file, url: URL.createObjectURL(file), path: null }
+}
+
+/** 고른 사진을 내 폴더에 올리고 경로를 준다. 버킷 정책은 첫 폴더가 로그인한 사람 id 일 때만 받는다 */
+async function uploadImage(): Promise<string[]> {
+  const img = image.value
+  if (!img) return []
+  if (img.path) return [img.path]
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (!session) throw new Error('세션이 없습니다.')
+  const path = noticeImagePath(session.user.id, img.file.type, crypto.randomUUID())
+  if (!path) throw new Error(`올릴 수 없는 사진 종류: ${img.file.type}`)
+  const { error: e } = await supabase.storage
+    .from(NOTICE_IMAGE_BUCKET)
+    .upload(path, img.file, { contentType: img.file.type })
+  if (e) throw e
+  image.value = { ...img, path }
+  return [path]
+}
+
 async function send() {
   if (sending.value || !canSubmit.value) return
   sending.value = true
   error.value = ''
   try {
+    let imagePaths: string[]
+    try {
+      imagePaths = await uploadImage()
+    } catch (e) {
+      console.error('[notices/new] 사진 올리기 실패', e)
+      // 공지는 아직 만들지 않았다 — 그대로 다시 보내도 된다
+      error.value = '사진을 올리지 못해 공지를 보내지 않았습니다. 잠시 뒤 다시 보내 주세요.'
+      confirmOpen.value = false
+      return
+    }
     const res = await app.createNotice(
       buildNoticeBody({
         level: level.value,
@@ -100,6 +164,7 @@ async function send() {
         title: title.value,
         body: body.value,
         requestId,
+        imagePaths,
       }),
     )
     toast.add({ title: res.duplicate ? '이미 발송된 공지입니다.' : '공지를 발송했습니다.', color: 'success' })
@@ -151,6 +216,30 @@ async function send() {
         <FormField label="내용" required :hint="`${body.trim().length}/${BODY_MAX}자`">
           <AppTextarea v-model="body" :rows="8" :maxlength="BODY_MAX" />
         </FormField>
+        <!-- 사진 — 넣기·빼기 버튼은 사업자등록증 등록(OrgDocumentRow)처럼 숨긴 파일 칸을 여는 테두리 버튼 -->
+        <FormField label="사진" hint="JPG·PNG·WEBP 한 장, 10MB 까지. 앱 공지에만 붙고 문자에는 붙지 않습니다.">
+          <input ref="imageInput" type="file" class="hidden" :accept="NOTICE_IMAGE_ACCEPT" multiple @change="onPickImage" />
+          <div v-if="image" class="flex flex-wrap items-start gap-3">
+            <img
+              :src="image.url"
+              alt="넣은 사진 미리보기"
+              class="max-h-48 max-w-full rounded-lg border border-hairline object-contain"
+            />
+            <AppButton size="sm" variant="outline" color="neutral" icon="i-lucide-x" :disabled="sending" @click="clearImage">
+              빼기
+            </AppButton>
+          </div>
+          <AppButton
+            v-else
+            size="sm"
+            variant="outline"
+            color="neutral"
+            icon="i-lucide-image-plus"
+            @click="imageInput?.click()"
+          >
+            사진 넣기
+          </AppButton>
+        </FormField>
       </div>
     </AppCard>
 
@@ -158,6 +247,7 @@ async function send() {
       <div class="space-y-2 text-sm text-body">
         <p>근무지 {{ worksiteIds.length }}곳에 {{ levelLabel }} 공지를 보냅니다.</p>
         <p v-if="recipientText" class="tabular-nums">{{ recipientText }}</p>
+        <p v-if="image">사진 한 장을 함께 붙입니다.</p>
         <p v-if="level === 'urgent'" class="font-medium text-brand-500">
           긴급 공지는 모두에게 문자도 함께 나갑니다. 나간 문자는 회수할 수 없습니다.
         </p>

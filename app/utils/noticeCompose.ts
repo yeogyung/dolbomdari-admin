@@ -29,12 +29,49 @@ export function recipientSummary(counts: (number | null | undefined)[]): string 
   return counts.length === 1 ? `받는 사람 ${sum}명` : `받는 사람 최대 ${sum}명 · 여러 곳에 배정된 분은 한 번만 받습니다`
 }
 
+/**
+ * 공지 사진(QA 2026-11-02 ANOTICE-01, 결정 S6). 버킷은 서버 마이그레이션 `20261005020000` 의 `dbo-notice-images` 이고,
+ * 앱 공지 쓰기(`db-operation-rn/lib/noticeImages.ts`)와 같은 길로 올린다 — 내 폴더에 먼저 올리고 발송 때 경로를 싣는다.
+ */
+export const NOTICE_IMAGE_BUCKET = 'dbo-notice-images'
+/** 버킷 한도(10MB) */
+export const NOTICE_IMAGE_BYTES = 10 * 1024 * 1024
+/** 버킷이 받는 종류. 서버 `noticeImagePaths` 도 이 확장자만 받는다 */
+const IMAGE_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+export const NOTICE_IMAGE_ACCEPT = Object.keys(IMAGE_EXT).join(',')
+
+/**
+ * 고른 파일에서 넣을 사진. **어드민은 한 장이다**(QA 예상 — 두 장을 한 번에 넣으면 한 장만). 앱·서버는 다섯 장까지 받는다.
+ * 여러 장이면 첫 장만 넣고 그렇다고 알린다. 버킷이 거절할 것(종류·크기)은 올리기 전에 거른다.
+ */
+export function pickNoticeImage<F extends { type: string; size: number }>(
+  files: F[],
+): { file: F | null; notice: string | null } {
+  const first = files[0]
+  if (!first) return { file: null, notice: null }
+  if (!IMAGE_EXT[first.type]) return { file: null, notice: '사진은 JPG·PNG·WEBP 만 넣을 수 있습니다.' }
+  if (first.size > NOTICE_IMAGE_BYTES) return { file: null, notice: '사진은 10MB 까지 넣을 수 있습니다.' }
+  return { file: first, notice: files.length > 1 ? '사진은 한 장만 넣을 수 있어 첫 장만 넣었습니다.' : null }
+}
+
+/**
+ * 올릴 경로 `{내 프로필 id}/notice-{키}.{확장자}`. 버킷 정책은 첫 폴더가 내 id 일 때만 올리게 하고, 서버는 이 모양만
+ * 받는다(남의 폴더 사진을 붙이지 못하게). 앱 `noticeImagePath` 와 같은 모양이다. 종류를 모르거나 키가 16진수가 아니면 null
+ */
+export function noticeImagePath(ownerId: string, mimeType: string, key: string): string | null {
+  const ext = IMAGE_EXT[mimeType]
+  if (!ext || !/^[0-9a-f-]+$/.test(key)) return null
+  return `${ownerId}/notice-${key}.${ext}`
+}
+
 export function buildNoticeBody(d: {
   level: NoticeLevel
   worksiteIds: string[]
   title: string
   body: string
   requestId: string
+  /** 미리 올린 사진 경로. 없으면 칸을 싣지 않는다 */
+  imagePaths?: string[]
 }) {
   return {
     worksiteIds: d.worksiteIds,
@@ -43,6 +80,7 @@ export function buildNoticeBody(d: {
     kind: d.level === 'urgent' ? 'urgent' : 'normal',
     isSpecial: d.level === 'special',
     requestId: d.requestId,
+    ...(d.imagePaths?.length ? { imagePaths: d.imagePaths } : {}),
   }
 }
 
