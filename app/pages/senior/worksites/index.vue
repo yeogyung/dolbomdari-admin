@@ -34,8 +34,9 @@ const contacts = ref<DirectoryEntry[]>([])
 
 const programName = (pid: string | null) =>
   pid ? (programs.value.find((p) => p.id === pid)?.name ?? pid) : '—'
-const personName = (list: DirectoryEntry[], did: string | null) =>
-  did ? (list.find((m) => m.id === did)?.name ?? did) : '—'
+/* 담당자 이름은 목록 응답의 이름 칸을 먼저 쓴다 — 수요처 계정은 명부(managers·contacts)를 받지 못한다 */
+const careManagerName = (w: Worksite) => worksiteStaffName(w.care_manager, managers.value, w.care_manager_directory_id)
+const contactName = (w: Worksite) => worksiteStaffName(w.manager, contacts.value, w.manager_directory_id)
 
 const columns: Column[] = [
   { key: 'name', label: '근무지', sortable: true, strong: true },
@@ -157,8 +158,8 @@ async function exportExcel() {
       // 화면용 이름 함수는 빈 값을 '—'로 낸다 — 엑셀은 다른 화면처럼 빈 칸으로 둔다
       program: w.program_id ? programName(w.program_id) : '',
       address: w.address ?? '',
-      care_manager: w.care_manager_directory_id ? personName(managers.value, w.care_manager_directory_id) : '',
-      contact: w.manager_directory_id ? personName(contacts.value, w.manager_directory_id) : '',
+      care_manager: w.care_manager_directory_id ? careManagerName(w) : '',
+      contact: w.manager_directory_id ? contactName(w) : '',
       status: lifeStatusLabel(w.status),
       qr: w.qr_token ? '발급됨' : '없음',
     }))
@@ -378,10 +379,10 @@ onMounted(() => {
         <span class="text-muted">{{ row.address || '—' }}</span>
       </template>
       <template #cell-care_manager_directory_id="{ row }">
-        {{ personName(managers, row.care_manager_directory_id) }}
+        {{ careManagerName(row as Worksite) }}
       </template>
       <template #cell-manager_directory_id="{ row }">
-        {{ personName(contacts, row.manager_directory_id) }}
+        {{ contactName(row as Worksite) }}
       </template>
       <!-- 명부는 운영관리자 전용이라 링크도 그때만. 서버가 세다 실패하면 칸이 없어 「—」 -->
       <template #cell-senior_count="{ row }">

@@ -83,6 +83,12 @@ export interface Worksite {
   manager_directory_id: string | null
   /** 근무지 담당자(role=manager, 사회복지사). 앱·어드민 담당자 범위의 기준 */
   care_manager_directory_id: string | null
+  /**
+   * 두 담당자의 이름(서버 2026-11-04, QA PARTNER-05). 목록 응답에만 있다. 지정 전이면 null,
+   * 옛 서버거나 서버가 이름을 못 읽었으면 칸이 없다
+   */
+  manager?: { id: string; name: string | null } | null
+  care_manager?: { id: string; name: string | null } | null
   qr_token: string | null
   /** 활동 중 시니어 가운데 지금 유효한 배정이 있는 사람 수. 목록 응답에만 있다(QA 2026-10-14 17번) */
   senior_count?: number

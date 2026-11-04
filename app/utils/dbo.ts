@@ -191,6 +191,20 @@ export function assignmentSaveError(e: any): { message: string; conflicts: strin
 }
 
 /**
+ * 근무지 목록의 담당자 이름(QA 2026-11-02 PARTNER-05). 서버(2026-11-04)가 목록에 싣는 이름(`care_manager`·`manager`)을
+ * 먼저 쓴다 — 수요처 계정은 명부 API(마스터 전용)를 못 불러 이름 대신 긴 id 가 보였다.
+ * 칸이 없거나(옛 서버·서버가 이름을 못 읽음) 이름이 비면 예전처럼 명부 목록에서 찾고, 거기도 없으면 id 다.
+ */
+export function worksiteStaffName(
+  person: { name: string | null } | null | undefined,
+  list: { id: string; name: string }[],
+  id: string | null,
+): string {
+  if (person?.name) return person.name
+  return id ? (list.find((m) => m.id === id)?.name ?? id) : '—'
+}
+
+/**
  * 기록 수정 버튼을 낼지.
  *
  * - **수요처 담당자는 고칠 수 없다**(QA 2026-11-02 PARTNER-01, 시안 W10 「수요처는 기록을 수정할 수
