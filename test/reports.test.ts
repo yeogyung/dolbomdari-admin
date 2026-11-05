@@ -70,7 +70,7 @@ describe('aiReplySummary', () => {
 
 // QA 2026-11-02 ANOTICE-05 — 「문자 실패 n건」(접수 실패)만으로는 실제로 안 간 문자를 모른다
 describe('smsResultNote', () => {
-  const base = { rejected: 0, failed: 0, pending: 0, reasons: [] as { label: string; count: number }[] }
+  const base = { rejected: 0, failed: 0, pending: 0, unknown: 0, reasons: [] as { label: string; count: number }[] }
   it('실제 실패 = 접수 실패 + 수신 실패, 사유는 많은 것부터 셋', () => {
     expect(
       smsResultNote({
@@ -88,6 +88,10 @@ describe('smsResultNote', () => {
   })
   it('결과를 기다리는 문자를 덧붙인다 — 실패 0 이 「모두 도착」으로 읽히지 않게', () => {
     expect(smsResultNote({ ...base, pending: 12 })).toBe('실제 실패 0 · 결과 확인 중 12')
+  })
+  // 접수 응답에 그룹 id 가 없으면 서버가 바로 unknown 으로 닫는다 — 실패 모아 보기에도 안 나오니 여기서 보인다
+  it('결과를 못 받은 문자도 덧붙인다', () => {
+    expect(smsResultNote({ ...base, pending: 1, unknown: 5 })).toBe('실제 실패 0 · 결과 확인 중 1 · 결과 모름 5')
   })
   it('옛 서버는 칸이 없어 붙이지 않는다', () => {
     expect(smsResultNote(undefined)).toBeNull()

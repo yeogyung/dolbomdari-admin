@@ -63,10 +63,13 @@ export function throughLabel(through: string): string {
 
 /**
  * 「문자 접수 · 실패」 줄 끝의 실제 결과(QA 2026-11-02 ANOTICE-05) — 실제 실패(접수 실패 + 수신 실패)와 사유 상위 3.
- * 결과를 기다리는 문자가 있으면 덧붙인다(실패 0 이 「모두 도착」으로 읽히지 않게). 옛 서버는 `smsResults` 가 없어 null
+ * 결과를 기다리는 문자·72시간 안에 결과를 못 받은 문자가 있으면 덧붙인다(실패 0 이 「모두 도착」으로 읽히지 않게).
+ * 옛 서버는 `smsResults` 가 없어 null
  */
 export function smsResultNote(
-  s: { rejected: number; failed: number; pending: number; reasons: { label: string; count: number }[] } | undefined,
+  s:
+    | { rejected: number; failed: number; pending: number; unknown: number; reasons: { label: string; count: number }[] }
+    | undefined,
 ): string | null {
   if (!s) return null
   const reasons = s.reasons
@@ -75,5 +78,6 @@ export function smsResultNote(
     .join(' · ')
   let note = `실제 실패 ${(s.failed + s.rejected).toLocaleString()}${reasons ? `(${reasons})` : ''}`
   if (s.pending) note += ` · 결과 확인 중 ${s.pending.toLocaleString()}`
+  if (s.unknown) note += ` · 결과 모름 ${s.unknown.toLocaleString()}`
   return note
 }
