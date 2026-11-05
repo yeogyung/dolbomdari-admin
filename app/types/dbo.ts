@@ -43,16 +43,50 @@ export interface PushSummary {
   errors: Record<string, number>
 }
 export type DeliveryStatus = 'skipped' | 'pending' | 'accepted' | 'failed'
+/**
+ * 문자의 실제 결과 한 단어(서버 2026-11-04, QA ANOTICE-05). 크론이 보낸 지 10분 뒤부터 솔라피에 물어 채운다.
+ * rejected 접수부터 실패 · pending 결과 기다림 · delivered 수신 완료 · failed 수신 실패 · unknown 72시간 안에 못 받음
+ */
+export type SmsResult = 'rejected' | 'pending' | 'delivered' | 'failed' | 'unknown'
 export interface NoticeRecipient {
   notice_id: string
   directory_id: string
   name: string
   phone: string | null
   can_read: boolean
+  /** 문자 **접수** 상태 — 실제 도착은 `sms_result` */
   sms_status: DeliveryStatus
   push_status: DeliveryStatus
   read_at: string | null
   read_method: string | null
+  /** 첫 발송 문자의 실제 결과·사유. 문자 없는 공지·배포 전 발송이면 null, 옛 서버는 칸이 없다 */
+  sms_result?: SmsResult | null
+  sms_status_code?: string | null
+  sms_reason?: string | null
+  sms_checked_at?: string | null
+}
+
+/** 문자 결과 목록 한 줄 — GET /dbo-admin/sms/messages(서버 2026-11-04, QA ANOTICE-05). 문자 한 통이 한 줄, 최신순 */
+export interface NoticeSms {
+  id: string
+  notice_id: string
+  directory_id: string
+  /** 첫 발송 · 다시 알림 */
+  source: 'delivery' | 'resend'
+  resend_id: string | null
+  sms_result: SmsResult
+  sms_reason: string | null
+  status_code: string | null
+  status_message: string | null
+  send_error: string | null
+  send_detail: string | null
+  group_id: string | null
+  message_id: string | null
+  checked_at: string | null
+  /** 보낸 시각 */
+  created_at: string
+  notice: { title: string; kind: string; published_at: string | null } | null
+  senior: { name: string; phone: string | null } | null
 }
 
 export interface Paged<T> {
@@ -435,12 +469,24 @@ export interface MonthlyReport {
     special: NoticeCategoryStats
     urgent: NoticeCategoryStats
     delivery: { sms: { accepted: number; failed: number }; push: { accepted: number; failed: number } }
+    /** 문자의 실제 결과(서버 2026-11-04, QA ANOTICE-05) — 첫 발송만, `delivery.sms` 와 같은 대상. 옛 서버는 칸이 없다 */
+    smsResults?: SmsResultsSummary
     lowest: { id: string; title: string; publishedAt: string; readable: number; read: number; recipients?: number }[]
   }
   /**
    * 그달 AI 자동응답(서버 2026-11-04, QA REPORT-01). `questions = autoAnswered + handedOver`. 옛 서버는 칸이 없다
    */
   ai?: AiReplyStats
+}
+/** 그달 공지 문자의 실제 결과 집계. `reasons` 는 실패 사유별(접수 실패 + 수신 실패), 많은 것부터 */
+export interface SmsResultsSummary {
+  messages: number
+  rejected: number
+  delivered: number
+  failed: number
+  pending: number
+  unknown: number
+  reasons: { code: string; label: string; count: number }[]
 }
 export interface AiReplyStats {
   /** AI 가 받은 질문 수 — 자동응답률의 분모 */

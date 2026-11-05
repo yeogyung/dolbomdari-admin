@@ -1,6 +1,6 @@
 // 리포트 화면 표기 유틸 — 월 목록·비율·근무시간·집계 기준일
 import { describe, expect, it } from 'vitest'
-import { aiReplySummary, fmtMinutes, pct, recentMonths, throughLabel, unconnectedNote } from '../app/utils/reports'
+import { aiReplySummary, fmtMinutes, pct, recentMonths, smsResultNote, throughLabel, unconnectedNote } from '../app/utils/reports'
 
 describe('recentMonths', () => {
   it('이번 달부터 거꾸로 12개월, 해를 넘긴다', () => {
@@ -65,5 +65,31 @@ describe('aiReplySummary', () => {
   })
   it('옛 서버(ai 칸 없음)는 null — 항목을 숨긴다', () => {
     expect(aiReplySummary(undefined)).toBeNull()
+  })
+})
+
+// QA 2026-11-02 ANOTICE-05 — 「문자 실패 n건」(접수 실패)만으로는 실제로 안 간 문자를 모른다
+describe('smsResultNote', () => {
+  const base = { rejected: 0, failed: 0, pending: 0, reasons: [] as { label: string; count: number }[] }
+  it('실제 실패 = 접수 실패 + 수신 실패, 사유는 많은 것부터 셋', () => {
+    expect(
+      smsResultNote({
+        ...base,
+        rejected: 2,
+        failed: 4,
+        reasons: [
+          { label: '없는 번호(가입자 없음)', count: 3 },
+          { label: '전화번호 없음', count: 2 },
+          { label: '수신 거절', count: 1 },
+          { label: '스팸 차단(이통사)', count: 0 },
+        ],
+      }),
+    ).toBe('실제 실패 6(없는 번호(가입자 없음) 3 · 전화번호 없음 2 · 수신 거절 1)')
+  })
+  it('결과를 기다리는 문자를 덧붙인다 — 실패 0 이 「모두 도착」으로 읽히지 않게', () => {
+    expect(smsResultNote({ ...base, pending: 12 })).toBe('실제 실패 0 · 결과 확인 중 12')
+  })
+  it('옛 서버는 칸이 없어 붙이지 않는다', () => {
+    expect(smsResultNote(undefined)).toBeNull()
   })
 })

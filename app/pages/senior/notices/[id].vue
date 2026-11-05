@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NoticeDetail, NoticeRecipient } from '~/types/dbo'
 import type { Column } from '~/types/table'
-import { deliveryLabel, noticeReadLabel, pushDeliveryLine, pushSummaryHidden } from '~/utils/notices'
+import { deliveryLabel, noticeReadLabel, pushDeliveryLine, pushSummaryHidden, smsCellFailed, smsCellLabel } from '~/utils/notices'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
@@ -79,6 +79,12 @@ watch(() => route.params.id, () => {
   pushFailed.value = false
 })
 
+/*
+ * 문자의 실제 결과(QA 2026-11-02 ANOTICE-05). 「문자」 칸은 결과(sms_result)가 있으면 그것, 없으면 접수 상태다.
+ * 결과가 채워지는 공지(새 서버 · 업데이트 뒤 발송)에서만 안내를 붙인다.
+ */
+const smsResultsFilling = computed(() => rows.value.some((r) => r.sms_result != null))
+
 function search() { if (page.value !== 1) page.value = 1; else load() }
 watch([channel, read, () => route.params.id], search)
 watch(page, load)
@@ -111,7 +117,7 @@ async function exportExcel() {
     const data = all.map((r) => ({
       name: r.name,
       phone: r.phone ? fmtPhone(r.phone) : '',
-      sms_status: deliveryLabel(r.sms_status),
+      sms_status: smsCellLabel(r),
       push_status: deliveryLabel(r.push_status),
       read_state: noticeReadLabel(r),
       read_at: excelStamp(r.read_at),
@@ -161,6 +167,9 @@ async function exportExcel() {
     </AppCard>
     <p class="text-sm text-muted">문자와 푸시는 발송 접수된 참여자를 표시합니다 둘 다 발송한 경우 양쪽 필터에 포함됩니다</p>
     <p class="text-sm text-muted">문자 발송은 열람 확인이 아닙니다 앱 미가입자는 미열람 대상에서 제외됩니다 실패와 결과 미확정 내역은 전체에서 확인할 수 있습니다</p>
+    <p v-if="smsResultsFilling" class="text-sm text-muted">
+      「문자」 칸은 실제 도착 결과입니다. 결과는 보낸 뒤 30분 안에 채워집니다.
+    </p>
     <DataTable :columns="columns" :rows="rows" row-key="directory_id" :loading="loading" :total="total"
       :page="page" :page-size="20" :page-size-options="[20]" empty-text="조건에 맞는 수신자가 없습니다" @update:page="page = $event">
       <template #toolbar>
@@ -176,7 +185,9 @@ async function exportExcel() {
         </form>
         <AppButton variant="outline" @click="load">새로고침</AppButton>
       </template>
-      <template #cell-sms_status="{ row }">{{ deliveryLabel(row.sms_status) }}</template>
+      <template #cell-sms_status="{ row }">
+        <span :class="smsCellFailed(row as NoticeRecipient) ? 'text-down' : ''">{{ smsCellLabel(row as NoticeRecipient) }}</span>
+      </template>
       <template #cell-push_status="{ row }">{{ deliveryLabel(row.push_status) }}</template>
       <template #cell-read_at="{ row }">
         {{ noticeReadLabel(row as NoticeRecipient) }}

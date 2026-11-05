@@ -60,3 +60,20 @@ export function fmtMinutes(min: number): string {
 export function throughLabel(through: string): string {
   return `${Number(through.slice(5, 7))}월 ${Number(through.slice(8, 10))}일`
 }
+
+/**
+ * 「문자 접수 · 실패」 줄 끝의 실제 결과(QA 2026-11-02 ANOTICE-05) — 실제 실패(접수 실패 + 수신 실패)와 사유 상위 3.
+ * 결과를 기다리는 문자가 있으면 덧붙인다(실패 0 이 「모두 도착」으로 읽히지 않게). 옛 서버는 `smsResults` 가 없어 null
+ */
+export function smsResultNote(
+  s: { rejected: number; failed: number; pending: number; reasons: { label: string; count: number }[] } | undefined,
+): string | null {
+  if (!s) return null
+  const reasons = s.reasons
+    .slice(0, 3)
+    .map((r) => `${r.label} ${r.count.toLocaleString()}`)
+    .join(' · ')
+  let note = `실제 실패 ${(s.failed + s.rejected).toLocaleString()}${reasons ? `(${reasons})` : ''}`
+  if (s.pending) note += ` · 결과 확인 중 ${s.pending.toLocaleString()}`
+  return note
+}

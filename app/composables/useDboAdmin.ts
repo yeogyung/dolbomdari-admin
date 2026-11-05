@@ -21,6 +21,7 @@ import type {
   NoticeSummary,
   NoticeDetail,
   NoticeRecipient,
+  NoticeSms,
   PushSummary,
   FaqStatus,
   DocumentListItem,
@@ -99,6 +100,13 @@ export function useDboAdmin() {
      */
     pushSummary: (q: { kind: string; linkId: string; since?: string }) =>
       req<PushSummary>('/push/summary', { query: clean(q) }),
+    /**
+     * 공지 문자 결과 목록(서버 2026-11-04, QA ANOTICE-05). `from`·`to` 는 보낸 날(서울), `result=failed` 는 접수 실패 + 수신 실패.
+     * 옛 서버는 404
+     */
+    listSmsMessages: (
+      q: { from?: string; to?: string; result?: 'all' | 'failed' | 'delivered' | 'pending' | 'unknown'; page?: number; size?: number } = {},
+    ) => req<Paged<NoticeSms>>('/sms/messages', { query: clean(q) }),
     /* AI 문서 — master 전용. 상태(state)는 서버가 날짜로 계산한다. 본문을 고친 경우에만 재색인(indexed) */
     listDocuments: (q: ListQuery = {}) => req<Paged<DocumentListItem>>('/documents', { query: clean(q) }),
     getDocument: (id: string) => req<DocumentDetail>(`/documents/${id}`),

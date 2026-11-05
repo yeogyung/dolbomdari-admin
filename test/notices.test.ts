@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { noticeReadLabel, deliveryLabel, noticeTypeLabel, pushDeliveryLine, pushErrorLabel, pushSummaryHidden } from '../app/utils/notices'
+import {
+  noticeReadLabel,
+  deliveryLabel,
+  noticeTypeLabel,
+  pushDeliveryLine,
+  pushErrorLabel,
+  pushSummaryHidden,
+  smsCellFailed,
+  smsCellLabel,
+  smsListRangeError,
+  smsListUnsupported,
+  smsResultLabel,
+} from '../app/utils/notices'
 import type { NoticeRecipient, PushSummary } from '../app/types/dbo'
 
 const recipient: NoticeRecipient = { notice_id: 'n', directory_id: 'd', name: '참여자', phone: null, can_read: false, sms_status: 'accepted', push_status: 'skipped', read_at: null, read_method: null }
@@ -60,5 +72,45 @@ describe('앱 알림 실제 전달', () => {
     expect(pushSummaryHidden({ statusCode: 403 })).toBe(true)
     expect(pushSummaryHidden({ status: 500 })).toBe(false)
     expect(pushSummaryHidden(new Error('network'))).toBe(false)
+  })
+})
+
+// QA 2026-11-02 ANOTICE-05 — 「발송 접수」와 실제 도착·실패를 가른다
+describe('문자 실제 결과', () => {
+  it('결과가 있으면 결과로, 실패면 사유를 함께 적는다', () => {
+    expect(smsCellLabel({ ...recipient, sms_result: 'delivered', sms_reason: null })).toBe('수신 완료')
+    expect(smsCellLabel({ ...recipient, sms_result: 'failed', sms_reason: '없는 번호(가입자 없음)' })).toBe('수신 실패(없는 번호(가입자 없음))')
+    expect(smsCellLabel({ ...recipient, sms_result: 'rejected', sms_reason: '전화번호 없음' })).toBe('보내지 못함(전화번호 없음)')
+    expect(smsCellLabel({ ...recipient, sms_result: 'pending', sms_reason: null })).toBe('결과 확인 중')
+    expect(smsCellLabel({ ...recipient, sms_result: 'unknown', sms_reason: null })).toBe('결과 모름')
+  })
+  it('사유가 없는 실패는 한 단어만', () => {
+    expect(smsResultLabel('failed', null)).toBe('수신 실패')
+  })
+  // 문자 없는 공지·서버 업데이트 전 발송은 null, 옛 서버는 칸이 없다 — 지금처럼 접수 상태
+  it('결과가 없으면 접수 상태 그대로', () => {
+    expect(smsCellLabel({ ...recipient, sms_result: null })).toBe('발송 접수')
+    expect(smsCellLabel(recipient)).toBe('발송 접수')
+    expect(smsCellLabel({ ...recipient, sms_status: 'skipped' })).toBe('대상 아님')
+  })
+  it('실패로 칠하는 칸', () => {
+    expect(smsCellFailed({ sms_status: 'accepted', sms_result: 'failed' })).toBe(true)
+    expect(smsCellFailed({ sms_status: 'failed', sms_result: 'rejected' })).toBe(true)
+    // 접수는 됐지만 실제로 도착했으면 실패가 아니다
+    expect(smsCellFailed({ sms_status: 'accepted', sms_result: 'delivered' })).toBe(false)
+    expect(smsCellFailed({ sms_status: 'failed' })).toBe(true)
+    expect(smsCellFailed({ sms_status: 'accepted' })).toBe(false)
+  })
+})
+
+describe('문자 실패 모아 보기', () => {
+  it('옛 서버(404)는 안내로 가른다', () => {
+    expect(smsListUnsupported({ status: 404, data: { error: 'not_found' } })).toBe(true)
+    expect(smsListUnsupported({ status: 500 })).toBe(false)
+  })
+  it('시작일이 종료일보다 늦으면 막는다(서버 400)', () => {
+    expect(smsListRangeError('2026-11-05', '2026-11-01')).toBe('시작일은 종료일보다 늦을 수 없습니다.')
+    expect(smsListRangeError('2026-11-01', '2026-11-01')).toBeNull()
+    expect(smsListRangeError('', '2026-11-01')).toBeNull()
   })
 })

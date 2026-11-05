@@ -1,7 +1,39 @@
-import type { DeliveryStatus, NoticeRecipient, PushSummary } from '../types/dbo'
+import type { DeliveryStatus, NoticeRecipient, PushSummary, SmsResult } from '../types/dbo'
 
 export function deliveryLabel(status: DeliveryStatus): string {
   return { skipped: '대상 아님', pending: '처리 중 또는 결과 미확정', accepted: '발송 접수', failed: '발송 실패' }[status]
+}
+
+/*
+ * 문자의 실제 결과(QA 2026-11-02 ANOTICE-05 · 서버 2026-11-04 계약 3b묶음 3번). 「발송 접수」(sms_status)는 솔라피가 받았다는
+ * 뜻일 뿐이라, 서버 크론이 보낸 지 10분 뒤부터 30분마다 솔라피에 물어 실제 결과(sms_result)를 채운다.
+ */
+const SMS_RESULT_LABELS: Record<SmsResult, string> = {
+  rejected: '보내지 못함',
+  pending: '결과 확인 중',
+  delivered: '수신 완료',
+  failed: '수신 실패',
+  unknown: '결과 모름',
+}
+
+/** 결과 한 단어. 실패(접수 실패·수신 실패)면 사유를 괄호로 — 「수신 실패(없는 번호)」 */
+export function smsResultLabel(result: SmsResult, reason: string | null | undefined): string {
+  const label = SMS_RESULT_LABELS[result] ?? result
+  return (result === 'failed' || result === 'rejected') && reason ? `${label}(${reason})` : label
+}
+
+/**
+ * 수신자 표 「문자」 칸 — 실제 결과가 있으면 그것(`sms_result`), 없으면 접수 상태 그대로(`sms_status`).
+ * 없는 것은 문자가 없는 공지·서버 업데이트 전 발송·옛 서버(칸 없음)다.
+ */
+export function smsCellLabel(row: Pick<NoticeRecipient, 'sms_status' | 'sms_result' | 'sms_reason'>): string {
+  return row.sms_result ? smsResultLabel(row.sms_result, row.sms_reason) : deliveryLabel(row.sms_status)
+}
+
+/** 「문자」 칸을 실패로 칠할지 — 결과가 실패이거나, 결과 없이 접수부터 실패 */
+export function smsCellFailed(row: Pick<NoticeRecipient, 'sms_status' | 'sms_result'>): boolean {
+  if (row.sms_result) return row.sms_result === 'failed' || row.sms_result === 'rejected'
+  return row.sms_status === 'failed'
 }
 
 export function noticeReadLabel(row: NoticeRecipient): string {
@@ -59,4 +91,19 @@ export function pushDeliveryLine(s: PushSummary): string {
 export function pushSummaryHidden(e: any): boolean {
   const status: number | undefined = e?.status ?? e?.statusCode
   return status === 404 || status === 405 || status === 403
+}
+
+/** 문자 실패 모아 보기(`GET /sms/messages`)가 없는 옛 서버에서 적는 안내 */
+export const SMS_LIST_UNSUPPORTED = '문자 실패 모아 보기는 서버 업데이트 뒤에 쓸 수 있습니다.'
+
+/** 문자 결과 목록을 못 받은 까닭이 옛 서버(경로 없음)인가 */
+export function smsListUnsupported(e: any): boolean {
+  const status: number | undefined = e?.status ?? e?.statusCode
+  return status === 404 || status === 405
+}
+
+/** 보낸 날 조건 검사 — 서버는 형식이 틀리거나 시작일이 종료일보다 늦으면 400 이다. 통과면 null */
+export function smsListRangeError(from: string, to: string): string | null {
+  if (from && to && from > to) return '시작일은 종료일보다 늦을 수 없습니다.'
+  return null
 }

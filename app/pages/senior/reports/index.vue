@@ -3,7 +3,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { MonthlyReport } from '~/types/dbo'
-import { aiReplySummary, fmtMinutes, pct, recentMonths, throughLabel, unconnectedNote } from '~/utils/reports'
+import { aiReplySummary, fmtMinutes, pct, recentMonths, smsResultNote, throughLabel, unconnectedNote } from '~/utils/reports'
 
 const api = useDboAdmin()
 const { setHeader } = useAdminHeader()
@@ -264,6 +264,13 @@ const aiSummary = computed(() => aiReplySummary(report.value?.ai))
         </div>
         <p class="mt-4 text-sm text-body tabular-nums">
           문자 접수 {{ report.notices.delivery.sms.accepted }} · 실패 <span :class="report.notices.delivery.sms.failed ? 'text-down' : ''">{{ report.notices.delivery.sms.failed }}</span>
+          <!-- 실제 도착 결과(QA ANOTICE-05) — 실제 실패와 사유 상위. 옛 서버는 칸이 없어 붙지 않는다 -->
+          <template v-if="smsResultNote(report.notices.smsResults)">
+            · <NuxtLink
+              :to="{ path: '/senior/notices/sms', query: { from: report.firstDay, to: report.through } }"
+              class="text-brand-500 hover:underline"
+            >{{ smsResultNote(report.notices.smsResults) }}</NuxtLink>
+          </template>
           &nbsp;/&nbsp; 푸시 접수 {{ report.notices.delivery.push.accepted }} · 실패 <span :class="report.notices.delivery.push.failed ? 'text-down' : ''">{{ report.notices.delivery.push.failed }}</span>
         </p>
         <div v-if="report.notices.lowest.length" class="mt-4">

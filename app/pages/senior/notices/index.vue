@@ -97,6 +97,10 @@ onMounted(() => {
 <template>
   <div class="space-y-5">
     <Teleport to="#admin-topbar-actions">
+      <!-- 문자 실제 결과 중 실패만 모아 본다(QA ANOTICE-05). 옛 서버면 그 화면이 안내한다 -->
+      <AppButton variant="outline" color="neutral" icon="i-lucide-message-square-warning" @click="navigateTo('/senior/notices/sms')">
+        문자 실패 모아 보기
+      </AppButton>
       <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" @click="exportExcel">
         엑셀 다운로드
       </AppButton>
