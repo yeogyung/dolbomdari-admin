@@ -9,6 +9,7 @@ const props = defineProps<{ decide?: boolean }>()
 
 const api = useDboAdmin()
 const toast = useToast()
+const { me } = useAdminRole()
 const pending = useAttendanceRequestCount()
 
 const rows = ref<AttendanceRequestItem[]>([])
@@ -59,7 +60,7 @@ async function load() {
     if (current !== sequence) return
     rows.value = []
     total.value = 0
-    unsupported.value = requestsUnsupported(e)
+    unsupported.value = requestsUnsupported(e, me.value?.role)
     loadError.value = unsupported.value ? '' : requestListErrorMessage(e)
   } finally {
     if (current === sequence) loading.value = false

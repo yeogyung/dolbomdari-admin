@@ -20,10 +20,14 @@ const outcomeUnknown = (e: any): boolean => {
   return !s || (s >= 500 && code(e) !== 'internal' && code(e) !== 'approve_incomplete')
 }
 
-/** 옛 서버(경로 없음)인가 — 목록·요청 경로가 404 */
-export function requestsUnsupported(e: any): boolean {
+/**
+ * 옛 서버(경로 없음)인가 — 목록·요청 경로가 404.
+ * 담당자는 다르다: 옛 서버는 경로를 찾기 전에 담당자 허용 목록(`managerMayCall`)으로 막아 403 `forbidden` 을 낸다.
+ * 새 서버의 목록은 활동 중인 담당자에게 403 을 내지 않는다(범위가 비면 빈 목록).
+ */
+export function requestsUnsupported(e: any, role?: string): boolean {
   const s = status(e)
-  return s === 404 || s === 405
+  return s === 404 || s === 405 || (role === 'manager' && s === 403 && code(e) === 'forbidden')
 }
 
 /**
@@ -87,10 +91,13 @@ export interface AdjustmentBody {
   endedAt?: string
   reason: string
 }
-export type AdjustmentErrors = { status?: string; endedAt?: string; reason?: string; form?: string }
+export type AdjustmentErrors = { status?: string; startedAt?: string; endedAt?: string; reason?: string; form?: string }
+
+const CANNOT_CLEAR = '시각은 지울 수 없습니다. 지워야 하면 사유에 적어 주세요.'
 
 /**
- * 요청 본문 — **바꾼 칸만** 싣는다. 서버는 보내지 않은 칸을 「그대로」로 본다. 시각을 비운 칸도 그대로다(지우는 요청은 없다).
+ * 요청 본문 — **바꾼 칸만** 싣는다. 서버는 보내지 않은 칸을 「그대로」로 본다. 시각을 지우는 요청은 서버에 없다 —
+ * 있던 시각을 비우면 막는다(말없이 빼면 요청한 사람은 지워 달라고 했다고 믿는다).
  * 서버 판정(`decideRequestCreate`)과 같은 것을 먼저 본다 — 기록 없는 근무의 상태 · 퇴근이 출근보다 이름(지금 값과 합쳐) · 바뀐 것 없음.
  *
  * @param current 지금 출결. 기록이 없으면 null
@@ -109,6 +116,8 @@ export function buildAdjustmentRequest(
   const body: AdjustmentBody = { reason }
   if (form.status && form.status !== current?.status) body.status = form.status
   else if (!current) errors.status = '기록이 없는 근무라 상태를 골라 주세요.'
+  if (initial.startedAt && !form.startedAt) errors.startedAt = CANNOT_CLEAR
+  if (initial.endedAt && !form.endedAt) errors.endedAt = CANNOT_CLEAR
   const startedAt = form.startedAt !== initial.startedAt ? fromLocalInput(form.startedAt) : null
   const endedAt = form.endedAt !== initial.endedAt ? fromLocalInput(form.endedAt) : null
   if (startedAt) body.startedAt = startedAt
@@ -116,8 +125,10 @@ export function buildAdjustmentRequest(
 
   const start = startedAt ?? current?.started_at ?? null
   const end = endedAt ?? current?.ended_at ?? null
-  if (start && end && Date.parse(end) <= Date.parse(start)) errors.endedAt = '퇴근 시각은 출근 시각보다 늦어야 합니다.'
-  if (!errors.status && !body.status && !body.startedAt && !body.endedAt) {
+  if (!errors.endedAt && start && end && Date.parse(end) <= Date.parse(start)) {
+    errors.endedAt = '퇴근 시각은 출근 시각보다 늦어야 합니다.'
+  }
+  if (!errors.status && !errors.startedAt && !errors.endedAt && !body.status && !body.startedAt && !body.endedAt) {
     errors.form = '지금 기록과 같습니다. 바꿀 칸을 고쳐 주세요.'
   }
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, body }

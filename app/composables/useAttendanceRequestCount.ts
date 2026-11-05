@@ -14,9 +14,13 @@ export function useAttendanceRequestCount() {
     try {
       const res = await api.listAttendanceRequests({ status: 'pending', size: 1 })
       if (current === sequence) count.value = res.total
-    } catch {
-      // 옛 서버(404)·권한·일시 오류면 수를 숨긴다. 메뉴의 수는 편의이고, 조정 요청 화면이 못 읽은 까닭을 따로 알린다
-      if (current === sequence) count.value = null
+    } catch (e: any) {
+      if (current !== sequence) return
+      const status: number | undefined = e?.status ?? e?.statusCode
+      // 옛 서버(404, 담당자는 403)·권한 없음이면 수를 숨긴다
+      if (status === 404 || status === 405 || status === 403) count.value = null
+      // 일시 오류는 앞 수를 둔다 — 지우면 「기다리는 요청 없음」으로 읽힌다. 조정 요청 화면이 까닭을 따로 알린다
+      else console.error('[attendance-requests] 기다림 수 조회 실패', e)
     }
   }
 

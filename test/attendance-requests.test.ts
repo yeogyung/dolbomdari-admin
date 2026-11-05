@@ -84,10 +84,20 @@ describe('조정 요청 본문', () => {
     const long = buildAdjustmentRequest(rec, initial, { ...initial, status: 'present', reason: 'a'.repeat(1001) })
     expect(long.ok).toBe(false)
   })
-  it('시각을 비워도 지우는 요청이 아니라 그대로다', () => {
+  // 서버에 시각을 지우는 요청이 없다 — 말없이 빼면 지워 달라고 했다고 믿는다
+  it('있던 시각을 비우면 막는다', () => {
     const initial = adjustmentInitial(withTimes)
-    const r = buildAdjustmentRequest(withTimes, initial, { ...initial, endedAt: null, reason: '사유' })
-    expect(r).toEqual({ ok: false, errors: { form: '지금 기록과 같습니다. 바꿀 칸을 고쳐 주세요.' } })
+    const r = buildAdjustmentRequest(withTimes, initial, { ...initial, status: 'absent', startedAt: null, reason: '사유' })
+    expect(r).toEqual({ ok: false, errors: { startedAt: '시각은 지울 수 없습니다. 지워야 하면 사유에 적어 주세요.' } })
+    const end = buildAdjustmentRequest(withTimes, initial, { ...initial, endedAt: null, reason: '사유' })
+    expect(end).toEqual({ ok: false, errors: { endedAt: '시각은 지울 수 없습니다. 지워야 하면 사유에 적어 주세요.' } })
+  })
+  it('처음부터 빈 시각 칸은 비워 둬도 된다', () => {
+    const initial = adjustmentInitial(null)
+    expect(buildAdjustmentRequest(null, initial, { ...initial, status: 'absent', reason: '결석' })).toEqual({
+      ok: true,
+      body: { status: 'absent', reason: '결석' },
+    })
   })
 })
 
@@ -145,6 +155,10 @@ describe('조정 요청 오류 문구', () => {
   it('목록 오류', () => {
     expect(requestsUnsupported(err(404))).toBe(true)
     expect(requestsUnsupported(err(500))).toBe(false)
+    // 옛 서버는 담당자를 허용 목록(managerMayCall)으로 먼저 막아 404 대신 403 forbidden 이다
+    expect(requestsUnsupported(err(403, { error: 'forbidden' }), 'manager')).toBe(true)
+    expect(requestsUnsupported(err(403, { error: 'forbidden' }), 'master')).toBe(false)
+    expect(requestsUnsupported(err(403, { error: 'worksite_unassigned' }), 'worksite')).toBe(false)
     expect(requestListErrorMessage(err(403, { error: 'worksite_unassigned' }))).toContain('담당 근무지가 없는 계정')
   })
 
