@@ -60,6 +60,20 @@ export function downloadExcel(
   XLSX.writeFile(workbook, `${filename}_${fileStamp()}.xlsx`)
 }
 
+export interface ExcelSheet {
+  /** 시트 이름 — 엑셀 제한상 31자 이하, `\ / ? * [ ] :` 없이 */
+  name: string
+  rows: Record<string, any>[]
+  columns: ExcelColumn[]
+}
+
+/** 여러 시트를 한 파일로 내려받는다. 파일명(`.xlsx` 포함)은 받은 그대로 쓴다 — 시각을 붙이지 않는다 */
+export function downloadWorkbook(fileName: string, sheets: ExcelSheet[]) {
+  const workbook = XLSX.utils.book_new()
+  for (const s of sheets) XLSX.utils.book_append_sheet(workbook, sheetOf(s.rows, s.columns), s.name)
+  XLSX.writeFile(workbook, fileName)
+}
+
 /** 머리글을 명시한다 — 없으면 행이 0개일 때 머리글까지 사라져 빈 양식이 나간다 */
 export function sheetOf(rows: Record<string, any>[], columns: ExcelColumn[]): XLSX.WorkSheet {
   const data = rows.map((row) => {

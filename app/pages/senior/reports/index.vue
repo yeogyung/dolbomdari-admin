@@ -4,8 +4,11 @@ import { ref, computed, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { MonthlyReport } from '~/types/dbo'
 import { aiReplySummary, fmtMinutes, pct, recentMonths, smsResultNote, throughLabel, unconnectedNote } from '~/utils/reports'
+import { downloadWorkbook } from '~/utils/excel'
+import { reportFileName, reportSheets } from '~/utils/reportExcel'
 
 const api = useDboAdmin()
+const toast = useToast()
 const { setHeader } = useAdminHeader()
 setHeader('리포트')
 
@@ -110,6 +113,24 @@ const avgRead = (sec: number | null) => (sec === null ? '—' : fmtMinutes(Math.
 
 /** ⑨ AI 자동응답(QA REPORT-01). 옛 서버는 칸이 없어 null — 카드를 숨긴다 */
 const aiSummary = computed(() => aiReplySummary(report.value?.ai))
+
+/*
+ * 엑셀 내려받기(QA 2026-11-07 ADMIN-08, 결정 D19) — 보고 있는 달의 요약 지표 한 장 + 표마다 한 장.
+ * 다시 부르지 않고 화면에 받아 둔 리포트로 만든다 — 화면 숫자와 파일 숫자가 같다. PDF 는 브라우저 인쇄로 한다
+ */
+const { exporting, startExport, finishExport } = useExcelExport()
+async function exportExcel() {
+  const r = report.value
+  if (!r) return
+  await startExport()
+  try {
+    downloadWorkbook(reportFileName(r.month), reportSheets(r))
+  } catch (e) {
+    toast.add({ title: '엑셀 내려받기 실패', description: e instanceof Error ? e.message : undefined, color: 'error' })
+  } finally {
+    finishExport()
+  }
+}
 </script>
 
 <template>
@@ -118,6 +139,16 @@ const aiSummary = computed(() => aiReplySummary(report.value?.ai))
       <PillSelect v-model="month" :options="months" />
       <AppButton variant="outline" color="neutral" icon="i-lucide-refresh-cw" :loading="loading" @click="load(true)">
         새로고침
+      </AppButton>
+      <AppButton
+        variant="outline"
+        color="neutral"
+        icon="i-lucide-download"
+        :loading="exporting"
+        :disabled="!report || loading"
+        @click="exportExcel"
+      >
+        엑셀 내려받기
       </AppButton>
     </Teleport>
 
