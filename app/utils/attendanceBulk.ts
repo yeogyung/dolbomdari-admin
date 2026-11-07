@@ -1,6 +1,8 @@
-// 출퇴근 기록 일괄 상태 변경 규칙 — 고를 수 있는 기록과 빼는 까닭, 실패 문구(QA 2026-11-07 ADMIN-05)
+// 출퇴근 기록 일괄 상태 변경·선택 삭제 규칙 — 고를 수 있는 기록과 빼는 까닭, 실패 문구(QA 2026-11-07 ADMIN-05 · ADMIN-15)
 import type { AttendanceShift } from '~/types/dbo'
+import type { NavRole } from '#shared/nav'
 import { canEditAttendance } from './dbo'
+import { canDeleteAttendance, deleteErrorMessage } from './attendanceDelete'
 import { isAttendanceConflict } from './attendanceState'
 
 type Row = Pick<AttendanceShift, 'id' | 'work_date' | 'attendance'>
@@ -30,6 +32,25 @@ export function bulkEditTargets<T extends Row>(rows: T[], role: string | undefin
 }
 
 /**
+ * 선택 삭제에 넣을 기록과 빼는 기록. 건별 삭제와 같은 경계(`canDeleteAttendance`) — 서버·DB 가 오늘 기록만 지운다(`not_today`).
+ * 지난 날 기록 삭제는 결정 대기(D24)라 만들지 않는다
+ */
+export function bulkDeleteTargets<T extends Row>(
+  rows: T[],
+  role: NavRole | undefined,
+  today: string,
+): BulkSplit<T> {
+  const out: BulkSplit<T> = { targets: [], skipped: [] }
+  for (const row of rows) {
+    if (canDeleteAttendance(role, row, today)) out.targets.push(row)
+    else if (role !== 'master' && role !== 'manager') out.skipped.push({ row, reason: '삭제할 권한이 없습니다.' })
+    else if (!row.attendance) out.skipped.push({ row, reason: '지울 출결 기록이 없는 근무입니다.' })
+    else out.skipped.push({ row, reason: '오늘 기록만 지울 수 있습니다.' })
+  }
+  return out
+}
+
+/**
  * 일괄 상태 변경 한 건이 실패한 까닭. 모르는 오류면 null — 호출부가 공용 문구(dboErrorMessage)로 넘긴다.
  * 동시 수정(409)은 덮어쓰지 않고 실패로 둔다 — 그 기록은 목록을 새로 고친 뒤 건별로 확인한다
  */
@@ -39,6 +60,11 @@ export function bulkEditErrorMessage(e: any): string | null {
   if (code === 'not_found') return '근무를 찾을 수 없습니다.'
   if (code === 'forbidden') return '이 기록을 고칠 권한이 없습니다.'
   return null
+}
+
+/** 선택 삭제 한 건이 실패한 까닭. 건별 삭제와 같은 문구, 모르는 오류면 null */
+export function bulkDeleteErrorMessage(e: any): string | null {
+  return deleteErrorMessage(e)
 }
 
 /** 결과·확인 창의 한 줄 이름 — 「홍길동 · 2026-11-07 · 서대문점」 */

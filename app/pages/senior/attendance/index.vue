@@ -6,7 +6,15 @@ import type { Column } from '~/types/table'
 import type { AttendanceChange, AttendanceShift, AttendanceSummary, Program, Worksite } from '~/types/dbo'
 import type { AttendanceDisplay } from '~/utils/attendanceState'
 import { programFilterAllowed, programFilterOptions, worksiteOutsideProgram } from '~/utils/worksiteFilter'
-import { attendanceRowName, bulkEditErrorMessage, bulkEditTargets, canSelectAttendance, type BulkSplit } from '~/utils/attendanceBulk'
+import {
+  attendanceRowName,
+  bulkDeleteErrorMessage,
+  bulkDeleteTargets,
+  bulkEditErrorMessage,
+  bulkEditTargets,
+  canSelectAttendance,
+  type BulkSplit,
+} from '~/utils/attendanceBulk'
 import { failureLines, runSequential } from '~/utils/bulkRun'
 
 const api = useDboAdmin()
@@ -463,6 +471,51 @@ async function submitDelete() {
 }
 
 /*
+ * 출퇴근 기록 선택 삭제(QA 2026-11-07 ADMIN-15) — 고른 기록 가운데 오늘 기록만 지운다. 서버·DB 가 오늘 기록만 지울 수 있고
+ * (`not_today`), 지난 날 삭제는 결정 대기(D24)라 만들지 않는다. 건별 삭제를 차례로 부른다 — 건마다 삭제 기록이 남는다.
+ * 사유는 건별 삭제와 같은 규칙으로 하나 받아 모두에 쓴다. 처리 상태(진행·결과)는 일괄 수정과 같은 칸을 쓴다(창은 하나씩만 연다)
+ */
+const bulkDeleteOpen = ref(false)
+const bulkDeleteSplit = ref<BulkSplit<AttendanceShift>>({ targets: [], skipped: [] })
+const bulkDeleteReason = ref('')
+const bulkDeleteError = ref<string | null>(null)
+
+function openBulkDelete() {
+  if (bulkRunning.value) return
+  bulkDeleteSplit.value = bulkDeleteTargets(selectedRows.value, me.value?.role, todaySeoul())
+  bulkDeleteReason.value = ''
+  bulkDeleteError.value = null
+  bulkProgress.value = null
+  bulkResult.value = null
+  bulkDeleteOpen.value = true
+}
+
+async function submitBulkDelete() {
+  bulkDeleteError.value = deleteReasonError(bulkDeleteReason.value)
+  if (bulkDeleteError.value) return
+  const reason = bulkDeleteReason.value.trim()
+  const targets = bulkDeleteSplit.value.targets
+  bulkRunning.value = true
+  bulkProgress.value = { finished: 0, total: targets.length }
+  try {
+    const result = await runSequential(
+      targets,
+      (row) => api.deleteAttendance(row.id, reason),
+      (finished, total) => (bulkProgress.value = { finished, total }),
+    )
+    bulkResult.value = {
+      done: result.done.length,
+      failed: failureLines(result.failed, attendanceRowName, (e) =>
+        bulkDeleteErrorMessage(e) ?? dboErrorMessage(e, '출결을 삭제하지 못했습니다.'),
+      ),
+    }
+  } finally {
+    bulkRunning.value = false
+  }
+  load()
+}
+
+/*
  * 조정 요청(QA 2026-11-02 PARTNER-01) — 수요처는 기록을 고치지 못하고(D9) 「기록 수정」 자리의 「조정 요청」으로 담당자에게 보낸다.
  * 조정 요청 목록을 한 번 읽어 서버가 경로를 아는지 본다. 옛 서버(404)면 창을 열지 않고 안내만 한다.
  */
@@ -703,6 +756,9 @@ onMounted(() => {
           <span class="text-sm font-medium text-ink tabular-nums">선택 {{ selectedIds.length }}건</span>
           <AppButton size="sm" variant="outline" color="neutral" icon="i-lucide-list-checks" @click="openBulkEdit">
             상태 일괄 변경
+          </AppButton>
+          <AppButton size="sm" variant="soft" color="down" icon="i-lucide-trash-2" @click="openBulkDelete">
+            선택 삭제
           </AppButton>
           <button type="button" class="text-sm font-medium text-brand-500 hover:underline" @click="selectedIds = []">
             선택 해제
@@ -978,6 +1034,61 @@ onMounted(() => {
           </AppButton>
         </template>
         <AppButton v-else size="sm" @click="bulkEditOpen = false">닫기</AppButton>
+      </template>
+    </AppModal>
+
+    <!-- 출퇴근 기록 선택 삭제(QA 2026-11-07 ADMIN-15). 경고는 건별 삭제 창과 같다. 처리하는 동안은 닫지 않는다 -->
+    <AppModal v-model:open="bulkDeleteOpen" title="출결 기록 선택 삭제" width="max-w-lg" :before-close="() => !bulkRunning">
+      <div class="space-y-4">
+        <template v-if="!bulkResult">
+          <div class="rounded-lg border border-down bg-down-soft px-4 py-3 text-sm text-down" role="alert">
+            <p class="font-semibold">삭제하기 전에 확인해 주세요.</p>
+            <ul class="mt-1.5 list-disc space-y-0.5 pl-5">
+              <li>고른 활동의 출근·퇴근 기록이 사라지고, <b>활동비(임금) 정산에 그대로 반영</b>됩니다.</li>
+              <li>삭제한 사람과 사유는 건마다 기록으로 남으며, 되돌리거나 지울 수 없습니다.</li>
+              <li>오늘 기록만 지울 수 있습니다. 지난 날 기록은 빼고 지웁니다.</li>
+            </ul>
+          </div>
+          <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">
+            <p class="font-semibold text-ink tabular-nums">
+              고른 {{ bulkDeleteSplit.targets.length + bulkDeleteSplit.skipped.length }}건 중
+              {{ bulkDeleteSplit.targets.length }}건을 삭제합니다.
+            </p>
+            <ul v-if="bulkDeleteSplit.targets.length" class="mt-1.5 max-h-40 list-disc space-y-0.5 overflow-y-auto pl-5 text-muted">
+              <li v-for="row in bulkDeleteSplit.targets" :key="row.id">{{ attendanceRowName(row) }}</li>
+            </ul>
+          </div>
+          <BulkSkippedList :items="skippedLines(bulkDeleteSplit)" />
+          <FormField label="삭제 사유" required hint="고른 기록 모두에 같은 사유가 남습니다." :error="bulkDeleteError ?? undefined">
+            <AppTextarea
+              v-model="bulkDeleteReason"
+              :rows="3"
+              :maxlength="DELETE_REASON_MAX"
+              placeholder="예: 교육용으로 찍은 QR 기록 정리"
+            />
+          </FormField>
+          <p v-if="bulkProgress" class="text-sm text-muted tabular-nums" aria-live="polite">
+            처리 중 {{ bulkProgress.finished }} / {{ bulkProgress.total }}
+          </p>
+        </template>
+        <BulkResultPanel v-else done-label="삭제" :done="bulkResult.done" :failed="bulkResult.failed" />
+      </div>
+      <template #footer>
+        <template v-if="!bulkResult">
+          <AppButton variant="outline" color="neutral" size="sm" :disabled="bulkRunning" @click="bulkDeleteOpen = false">
+            취소
+          </AppButton>
+          <AppButton
+            color="down"
+            size="sm"
+            :loading="bulkRunning"
+            :disabled="!bulkDeleteSplit.targets.length || !bulkDeleteReason.trim()"
+            @click="submitBulkDelete"
+          >
+            {{ bulkDeleteSplit.targets.length }}건 삭제
+          </AppButton>
+        </template>
+        <AppButton v-else size="sm" @click="bulkDeleteOpen = false">닫기</AppButton>
       </template>
     </AppModal>
 
