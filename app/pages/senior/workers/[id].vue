@@ -304,13 +304,6 @@ const assignTried = ref(false)
 /** 서버가 저장을 거절한 이유(시작일 없음·겹친 배정). 창 안에 보이고, 창을 열거나 다시 저장하면 지운다 */
 const assignError = ref<{ message: string; conflicts: string[] } | null>(null)
 
-function toggleWeekday(day: number) {
-  const list = assignForm.value.weekdays
-  const i = list.indexOf(day)
-  if (i >= 0) list.splice(i, 1)
-  else list.push(day)
-}
-
 async function submitAssign() {
   const f = assignForm.value
   if (!editingId.value && !assignProgram.value) {
@@ -782,39 +775,7 @@ onMounted(async () => {
           />
         </FormField>
         <FormField label="근무 요일" required>
-          <div class="flex flex-wrap items-center gap-2">
-            <button
-              v-for="w in WEEKDAYS"
-              :key="w.value"
-              type="button"
-              class="size-10 rounded-full border text-sm font-medium transition-colors"
-              :class="
-                assignForm.weekdays.includes(w.value)
-                  ? 'border-brand-500 bg-brand-500 text-white'
-                  : 'border-hairline bg-white text-body hover:bg-surface-soft'
-              "
-              @click="toggleWeekday(w.value)"
-            >
-              {{ w.label }}
-            </button>
-            <!-- 빠른 선택(QA 2026-11-07 SHIFT-01) — 누르면 고른 요일을 그 묶음으로 바꾼다 -->
-            <span class="mx-1 h-6 w-px bg-hairline" aria-hidden="true" />
-            <button
-              v-for="p in WEEKDAY_PRESETS"
-              :key="p.label"
-              type="button"
-              class="h-10 rounded-full border px-3 text-sm font-medium transition-colors"
-              :class="
-                sameWeekdays(assignForm.weekdays, p.days)
-                  ? 'border-brand-500 bg-brand-soft text-brand-500'
-                  : 'border-hairline bg-white text-body hover:bg-surface-soft'
-              "
-              :aria-pressed="sameWeekdays(assignForm.weekdays, p.days)"
-              @click="assignForm.weekdays = [...p.days]"
-            >
-              {{ p.label }}
-            </button>
-          </div>
+          <WeekdayPicker v-model="assignForm.weekdays" />
         </FormField>
         <div class="grid grid-cols-2 gap-4">
           <FormField label="시작 시간" required>
