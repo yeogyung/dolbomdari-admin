@@ -1,7 +1,7 @@
 <!-- 시니어 어드민 대시보드 — 오늘 출결 현황 + 운영 규모 요약 (dbo-admin 목록 API 집계) -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import type { AttendanceShift } from '~/types/dbo'
+import type { AttendanceShift, Program, Worksite } from '~/types/dbo'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -25,9 +25,45 @@ const scale = ref<{ seniors: number | null; managers: number | null; worksites: 
 const judgedAt = computed(() => (fetchedAt.value ? new Date(fetchedAt.value) : new Date()))
 const stat = computed(() => tallyDay(shifts.value, judgedAt.value))
 
+/*
+ * 「확인이 필요한 근무」 사업·근무지 필터(QA 2026-11-07 ADMIN-06). 오늘 근무는 이미 다 받아 두었으므로 화면에서 거른다.
+ * 근무의 사업은 근무지의 사업으로 본다. 근무지 선택지는 오늘 근무가 있는 곳만 — 고르면 빈 목록인 곳은 뺀다
+ */
+const programFilter = ref('')
+const worksiteFilter = ref('')
+const worksites = ref<Worksite[]>([])
+const programs = ref<Program[]>([])
+const programOf = computed(() => new Map(worksites.value.map((w) => [w.id, w.program_id])))
+const todayWorksites = computed(() => {
+  const ids = new Set(shifts.value.map((s) => s.worksite_id))
+  return worksites.value.filter((w) => ids.has(w.id))
+})
+const scoped = computed(() =>
+  filterShiftsByScope(shifts.value, { programId: programFilter.value, worksiteId: worksiteFilter.value }, programOf.value),
+)
+const filtering = computed(() => !!(programFilter.value || worksiteFilter.value))
+
+async function loadFilterRefs(force = false) {
+  // 사업 목록은 규모 카드와 같은 키(programs)다. 새로고침에서는 규모 카드가 먼저 새로 받으므로 여기서는 force 하지 않는다
+  const [ws, pg] = await Promise.allSettled([
+    screenCache.get('senior-dashboard:allWorksites', () => api.listAllWorksites(), { force }),
+    screenCache.get('senior-dashboard:programs', () => api.listPrograms()),
+  ])
+  if (ws.status === 'fulfilled') worksites.value = ws.value.value
+  if (pg.status === 'fulfilled') programs.value = pg.value.value.items.filter((p) => p.status === 'active')
+  const failed = [ws, pg].find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined
+  // 목록은 그대로 보이지만 필터 선택지가 비거나 모자라다 — 조용히 넘기지 않는다
+  if (failed) toast.add({ title: '사업·근무지 필터를 불러오지 못했습니다.', description: dboErrorMessage(failed.reason), color: 'warning' })
+}
+
+/** 「출퇴근 기록 전체 보기」 — 근무지를 골랐으면 그 근무지로 연다. 출퇴근 기록은 사업 필터를 받지 않는다 */
+const attendanceLink = computed(() =>
+  worksiteFilter.value ? { path: '/senior/attendance', query: { worksite: worksiteFilter.value } } : '/senior/attendance',
+)
+
 /** 확인이 필요한 근무 — 미출근·결석을 앞에 둔다. 출근 전 근무는 뒤로 */
 const attention = computed(() =>
-  [...shifts.value]
+  [...scoped.value]
     .sort(
       (a, b) =>
         attentionRank(a, judgedAt.value) - attentionRank(b, judgedAt.value) ||
@@ -94,13 +130,14 @@ const show = (v: number | null) => (scaleLoading.value ? '…' : v === null ? '�
 onMounted(() => {
   loadToday()
   loadScale()
+  loadFilterRefs()
 })
 
 /** 상단바 「새로고침」 — 캐시를 건너뛰고 다시 받는다 */
 const refreshing = ref(false)
 async function refresh() {
   refreshing.value = true
-  await Promise.all([loadToday(true), loadScale(true)])
+  await Promise.all([loadToday(true), loadScale(true), loadFilterRefs(true)])
   refreshing.value = false
 }
 </script>
@@ -122,7 +159,7 @@ async function refresh() {
             {{ today }} (Asia/Seoul)<template v-if="fetchedAt"> · {{ cachedAtLabel(fetchedAt) }}</template>
           </p>
         </div>
-        <NuxtLink to="/senior/attendance" class="text-sm font-medium text-brand-500 hover:underline">
+        <NuxtLink :to="attendanceLink" class="text-sm font-medium text-brand-500 hover:underline">
           출퇴근 기록 전체 보기
         </NuxtLink>
       </div>
@@ -142,10 +179,25 @@ async function refresh() {
             <h2 class="text-[18px] font-semibold text-ink">확인이 필요한 근무</h2>
             <p class="mt-0.5 text-sm text-muted">미기록·결근을 먼저 보여 줍니다.</p>
           </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <PillSelect
+              v-model="programFilter"
+              :options="[{ label: '사업 전체', value: '' }, ...programs.map((p) => ({ label: p.name, value: p.id }))]"
+            />
+            <WorksiteFilter
+              v-model="worksiteFilter"
+              :worksites="todayWorksites"
+              :program-id="programFilter"
+              :programs="programs"
+            />
+          </div>
         </template>
         <div class="px-8 pt-2 pb-6">
           <AppSpinner v-if="loading" label="불러오는 중…" />
-          <EmptyState v-else-if="!attention.length" description="오늘 예정된 근무가 없습니다." />
+          <EmptyState
+            v-else-if="!attention.length"
+            :description="filtering && shifts.length ? '조건에 맞는 근무가 없습니다.' : '오늘 예정된 근무가 없습니다.'"
+          />
           <table v-else class="w-full border-collapse">
             <thead>
               <tr class="text-[13px] font-semibold text-muted">

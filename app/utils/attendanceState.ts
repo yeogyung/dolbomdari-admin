@@ -129,6 +129,21 @@ export function attentionRank(
   return 3
 }
 
+/**
+ * 대시보드 「확인이 필요한 근무」의 사업·근무지 필터(QA 2026-11-07 ADMIN-06). 근무에는 근무지만 있어 사업은
+ * 그 근무지의 사업(`programOf`, 근무지 id → 사업 id)으로 본다. 근무지를 골랐으면 그 근무지만 — 근무지가 사업보다 좁다.
+ * 빈 값('')은 거르지 않는다
+ */
+export function filterShiftsByScope<T extends Pick<AttendanceShift, 'worksite_id'>>(
+  rows: T[],
+  scope: { programId: string; worksiteId: string },
+  programOf: Map<string, string | null>,
+): T[] {
+  if (scope.worksiteId) return rows.filter((r) => r.worksite_id === scope.worksiteId)
+  if (scope.programId) return rows.filter((r) => programOf.get(r.worksite_id) === scope.programId)
+  return rows
+}
+
 /** 지각 판정에서 퇴근 유무는 상관없다. attendanceDisplay 의 지각 규칙만 떼어 본다 */
 function isLateByTime(row: Pick<AttendanceShift, 'work_date' | 'planned_start' | 'attendance'>): boolean {
   const rec = row.attendance

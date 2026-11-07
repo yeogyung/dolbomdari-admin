@@ -8,6 +8,7 @@ import {
   changedSince,
   describeChange,
   editDefaultStatus,
+  filterShiftsByScope,
   groupChangesByShift,
   isAttendanceConflict,
   isHumanEdited,
@@ -201,6 +202,34 @@ describe('tallyDay', () => {
     expect(attentionRank(shift('2026-10-14', null, '09:00:00'), NOW)).toBe(0)
     expect(attentionRank(shift('2026-10-14', { status: 'absent' }), NOW)).toBe(1)
     expect(attentionRank(shift('2026-10-14', null, '15:00:00'), NOW)).toBe(3)
+  })
+})
+
+// QA 2026-11-07 ADMIN-06 — 대시보드 「확인이 필요한 근무」 사업·근무지 필터
+describe('filterShiftsByScope', () => {
+  const rows = [
+    { id: 's1', worksite_id: 'w1' },
+    { id: 's2', worksite_id: 'w2' },
+    { id: 's3', worksite_id: 'w3' },
+  ]
+  const programOf = new Map<string, string | null>([
+    ['w1', 'p1'],
+    ['w2', 'p1'],
+    ['w3', null],
+  ])
+  const ids = (list: { id: string }[]) => list.map((r) => r.id)
+
+  it('고르지 않으면 모두', () => {
+    expect(ids(filterShiftsByScope(rows, { programId: '', worksiteId: '' }, programOf))).toEqual(['s1', 's2', 's3'])
+  })
+  it('사업은 근무지의 사업으로 거른다', () => {
+    expect(ids(filterShiftsByScope(rows, { programId: 'p1', worksiteId: '' }, programOf))).toEqual(['s1', 's2'])
+  })
+  it('근무지를 고르면 그 근무지만 — 사업보다 좁다', () => {
+    expect(ids(filterShiftsByScope(rows, { programId: 'p1', worksiteId: 'w2' }, programOf))).toEqual(['s2'])
+  })
+  it('사업을 모르는 근무지(목록에 없음)는 사업 필터에 걸리지 않는다', () => {
+    expect(ids(filterShiftsByScope(rows, { programId: 'p1', worksiteId: '' }, new Map()))).toEqual([])
   })
 })
 
