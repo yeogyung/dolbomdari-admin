@@ -50,6 +50,12 @@ export type HolidayOverview = {
     kind: HolidayKind | null
     days: HolidayDay[]
     warnings: HolidayWarning[]
+    /**
+     * 판정에 쓴 예보의 기상청 발표 시각과 우리가 받아 저장한 시각 — 가장 늦은 것(서버 2026-11-07, QA NOTI-04).
+     * 예보가 없으면 null, 옛 서버는 칸이 없다
+     */
+    base_at?: string | null
+    updated_at?: string | null
   }[]
   worksites: HolidayWorksite[]
   upcoming: { date: string; worksites: number }[]

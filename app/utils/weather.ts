@@ -185,14 +185,39 @@ export function latestBaseAt(rows: { base_at?: string | null }[]): string | null
   return best
 }
 
-/** 발표 시각 문구 — 「기상청 11시 발표」. 오늘(서울) 발표가 아니면 「어제」·「M월 D일」을 붙인다 */
-export function issueLabel(baseAt: string, today: string): string {
-  const local = new Date(Date.parse(baseAt) + SEOUL_OFFSET_MS)
+/** 서울 시각으로 바꾼 날 앞말(오늘이면 빈 칸, 「어제 」, 「M월 D일 」)과 시·분 */
+function seoulStamp(iso: string, today: string): { day: string; hour: number; minute: number } {
+  const local = new Date(Date.parse(iso) + SEOUL_OFFSET_MS)
   const date = local.toISOString().slice(0, 10)
-  const hour = local.getUTCHours()
   const diff = Math.round((Date.parse(today) - Date.parse(date)) / 86_400_000)
   const day = diff === 0 ? '' : diff === 1 ? '어제 ' : `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일 `
+  return { day, hour: local.getUTCHours(), minute: local.getUTCMinutes() }
+}
+
+/** 발표 시각 문구 — 「기상청 11시 발표」. 오늘(서울) 발표가 아니면 「어제」·「M월 D일」을 붙인다 */
+export function issueLabel(baseAt: string, today: string): string {
+  const { day, hour } = seoulStamp(baseAt, today)
   return `기상청 ${day}${hour}시 발표`
+}
+
+/** 예보를 마지막으로 받아 저장한 시각 문구 — 「11:20 갱신」. 날 앞말은 발표 시각과 같은 규칙(QA 2026-11-07 NOTI-04) */
+export function savedLabel(updatedAt: string, today: string): string {
+  const { day, hour, minute } = seoulStamp(updatedAt, today)
+  return `${day}${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} 갱신`
+}
+
+/**
+ * 휴무 관리 예보의 발표·갱신 줄 — 「기상청 11시 발표 · 11:20 갱신」(QA 2026-11-07 NOTI-04). 대시보드 날씨 카드와 같은 문구를 쓴다.
+ * 못 읽는 값·없는 값(예보 없음, 칸이 없는 옛 서버)은 빼고, 둘 다 없으면 null
+ */
+export function forecastIssueText(
+  w: { base_at?: string | null; updated_at?: string | null },
+  today: string,
+): string | null {
+  const ok = (v: string | null | undefined): v is string => !!v && !Number.isNaN(Date.parse(v))
+  const parts = [ok(w.base_at) ? issueLabel(w.base_at, today) : null, ok(w.updated_at) ? savedLabel(w.updated_at, today) : null]
+  const text = parts.filter((x): x is string => !!x).join(' · ')
+  return text || null
 }
 
 /** 비·눈 시간대 문구. 이어진 시간은 묶는다 — [9,10,11,15] → '9~12시, 15~16시' */

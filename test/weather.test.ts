@@ -8,8 +8,10 @@ import {
   daySummaries,
   hourRow,
   isWet,
+  forecastIssueText,
   issueLabel,
   latestBaseAt,
+  savedLabel,
   seoulDates,
   weatherKind,
   weatherLabel,
@@ -220,5 +222,28 @@ describe('seoulDates', () => {
   it('서울 기준 오늘부터 n 일 — UTC 로는 전날 밤이어도', () => {
     // 서울 2026-10-22 08:00 = UTC 2026-10-21 23:00
     expect(seoulDates(3, Date.parse('2026-10-21T23:00:00Z'))).toEqual(['2026-10-22', '2026-10-23', '2026-10-24'])
+  })
+})
+
+describe('savedLabel', () => {
+  it('서울 시각 시:분으로, 오늘이 아니면 어제·M월 D일', () => {
+    expect(savedLabel('2026-11-07T02:20:00Z', '2026-11-07')).toBe('11:20 갱신')
+    expect(savedLabel('2026-11-06T14:05:00Z', '2026-11-07')).toBe('어제 23:05 갱신')
+    expect(savedLabel('2026-11-05T00:00:00+09:00', '2026-11-07')).toBe('11월 5일 00:00 갱신')
+  })
+})
+
+describe('forecastIssueText', () => {
+  it('발표·갱신을 함께 적는다', () => {
+    expect(forecastIssueText({ base_at: '2026-11-07T02:00:00Z', updated_at: '2026-11-07T02:20:00Z' }, '2026-11-07')).toBe(
+      '기상청 11시 발표 · 11:20 갱신',
+    )
+  })
+  it('하나만 있으면 그것만, 없거나 못 읽으면 null(옛 서버는 칸이 없다)', () => {
+    expect(forecastIssueText({ base_at: null, updated_at: '2026-11-07T02:20:00Z' }, '2026-11-07')).toBe('11:20 갱신')
+    expect(forecastIssueText({ base_at: '2026-11-07T02:00:00Z' }, '2026-11-07')).toBe('기상청 11시 발표')
+    expect(forecastIssueText({ base_at: null, updated_at: null }, '2026-11-07')).toBeNull()
+    expect(forecastIssueText({}, '2026-11-07')).toBeNull()
+    expect(forecastIssueText({ base_at: 'x', updated_at: '' }, '2026-11-07')).toBeNull()
   })
 })

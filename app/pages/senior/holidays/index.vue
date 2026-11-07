@@ -293,6 +293,8 @@ async function run() {
           <p class="text-sm text-muted">
             <template v-if="forecastSite">
               <span class="font-medium text-ink">{{ forecastSite.label }}</span> 기준 예보
+              <!-- 발표·갱신 시각(QA 2026-11-07 NOTI-04) — 대시보드 날씨와 어느 쪽이 최신인지 맞춰 본다 -->
+              <template v-if="weather && forecastIssueText(weather, today)"> · {{ forecastIssueText(weather, today) }}</template>
             </template>
             <!-- 서버는 근무가 없는 날에도 격자 예보를 준다. 어느 근무지 것인지 말할 수 없어 보이지 않는다 -->
             <template v-else>이날 근무가 있고 위치가 등록된 근무지가 없어 보여 줄 예보가 없습니다.</template>
