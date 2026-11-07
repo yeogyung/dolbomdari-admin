@@ -1,9 +1,11 @@
 <!-- 근무지·수요처 관리 — 목록/사업 필터/등록/수정 + QR 토큰 재발급 (/dbo-admin/worksites) -->
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, type Ref } from 'vue'
 import type { Column } from '~/types/table'
 import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
 import { downloadExcel, type ExcelColumn } from '~/utils/excel'
+import { nextSort, type SortDir } from '~/utils/sortToggle'
+import { filterWorksiteList, sortWorksiteList } from '~/utils/worksiteList'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -11,20 +13,51 @@ const { setHeader } = useAdminHeader()
 const { me } = useAdminRole()
 setHeader('근무지·수요처')
 
-const rows = ref<Worksite[]>([])
-const total = ref(0)
+/*
+ * 근무지는 전부 받아 화면에서 거르고 정렬한다(QA 2026-11-07 ADMIN-07). 서버 목록은 이름 검색·사업·이름 정렬뿐이라
+ * 담당자 미지정·인원 0명 같은 설정 누락을 찾을 수 없었다. 360곳 남짓이라 한 번에 받아도 된다.
+ */
+const all = ref<Worksite[]>([])
 // 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
 const lq = useListQuery(
-  { page: 1, size: 20, q: '', program: '', sort: 'name' },
+  { page: 1, size: 20, q: '', program: '', care: '', contact: '', seniors: '', status: '', sort: 'name', dir: 'asc' },
   { committed: ['q'] },
 )
 const page = lq.page
 const pageSize = lq.size
 const q = lq.q
-/** 사업 필터. 근무지가 300곳 가까이라 서버에서 거른다 */
 const programFilter = lq.program
+/** 'none' — 근무지 담당자(사회복지사) 미지정만 */
+const careFilter = lq.care
+/** 'none' — 수요처 담당자(수요처 계정) 미지정만 */
+const contactFilter = lq.contact
+/** '0' — 배정 인원 0명만 */
+const seniorsFilter = lq.seniors
+const statusFilter = lq.status
 const sortKey = lq.sort
+const sortDir = lq.dir as Ref<SortDir>
 const loading = ref(false)
+
+/** 「검색」으로 정한 검색어. `committedOf` 는 반응하지 않아 따로 든다 */
+const searched = ref(lq.committedOf('q'))
+
+/** 거르고 정렬한 전체 — 표는 이 가운데 한 페이지를, 엑셀은 전부를 쓴다 */
+const listed = computed(() =>
+  sortWorksiteList(
+    filterWorksiteList(all.value, {
+      q: searched.value,
+      program: programFilter.value,
+      care: careFilter.value,
+      contact: contactFilter.value,
+      seniors: seniorsFilter.value,
+      status: statusFilter.value,
+    }),
+    sortKey.value,
+    sortDir.value,
+  ),
+)
+const total = computed(() => listed.value.length)
+const rows = computed(() => listed.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
 
 const programs = ref<Program[]>([])
 /** 근무지 담당자 후보(role=manager, 사회복지사) */
@@ -47,27 +80,20 @@ const columns: Column[] = [
   // 수요처 담당자(role=worksite) — 근무지 쪽 출석 담당. 지정·표시용이고 권한은 명부의 worksite_id 다.
   { key: 'manager_directory_id', label: '수요처 담당자' },
   // 누르면 같은 기준(활동 중 시니어·지금 유효한 배정)으로 거른 명부로 간다
-  { key: 'senior_count', label: '배정 인원', align: 'right' },
+  { key: 'senior_count', label: '배정 인원', align: 'right', sortable: true },
   { key: 'status', label: '상태' },
   { key: 'qr_token', label: 'QR' },
 ]
 
-/** 조회 순번 — 조건을 빠르게 바꾸면 늦게 온 이전 응답이 새 결과를 덮지 않게 마지막 요청만 반영한다 */
+/** 조회 순번 — 다시 받기가 겹치면 늦게 온 이전 응답이 새 결과를 덮지 않게 마지막 요청만 반영한다 */
 let sequence = 0
 async function load() {
   const current = ++sequence
   loading.value = true
   try {
-    const res = await api.listWorksites({
-      page: page.value,
-      size: pageSize.value,
-      q: lq.committedOf('q'),
-      sort: sortKey.value,
-      programId: programFilter.value || undefined,
-    })
+    const items = await api.listAllWorksites()
     if (current !== sequence) return
-    rows.value = res.items
-    total.value = res.total
+    all.value = items
   } catch (e: any) {
     if (current !== sequence) return
     toast.add({ title: '근무지 조회 실패', description: dboErrorMessage(e), color: 'error' })
@@ -112,18 +138,20 @@ async function loadRefs() {
 function search() {
   page.value = 1
   lq.commit()
-  load()
+  searched.value = lq.committedOf('q')
 }
 
-watch(programFilter, search)
+watch([programFilter, careFilter, contactFilter, seniorsFilter, statusFilter], search)
 
+/** 같은 머리글을 다시 누르면 뒤집힌다(명부와 같다) */
 function toggleSort(key: string) {
-  sortKey.value = key
+  const next = nextSort({ key: sortKey.value, dir: sortDir.value }, key)
+  sortKey.value = next.key
+  sortDir.value = next.dir
   page.value = 1
-  load()
 }
 
-/* 엑셀 — 조회 조건 전체를 받아 내보낸다. QR 은 토큰 원문 대신 발급 여부만 */
+/* 엑셀 — 지금 거른 근무지 전체를 표와 같은 순서로 내보낸다. QR 은 토큰 원문 대신 발급 여부만 */
 const { exporting, startExport, finishExport } = useExcelExport()
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'name', label: '근무지' },
@@ -138,22 +166,12 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 async function exportExcel() {
   await startExport()
   try {
-    const all = await fetchAllPages(
-      (p, size) =>
-        api.listWorksites({
-          page: p,
-          size,
-          q: lq.committedOf('q'),
-          sort: sortKey.value,
-          programId: programFilter.value || undefined,
-        }),
-      (w) => w.id,
-    )
-    if (!all.length) {
+    const list = listed.value
+    if (!list.length) {
       toast.add({ title: '내보낼 근무지가 없습니다.', color: 'warning' })
       return
     }
-    const data = all.map((w) => ({
+    const data = list.map((w) => ({
       name: w.name,
       // 화면용 이름 함수는 빈 값을 '—'로 낸다 — 엑셀은 다른 화면처럼 빈 칸으로 둔다
       program: w.program_id ? programName(w.program_id) : '',
@@ -342,24 +360,18 @@ onMounted(() => {
       :rows="refsSettled ? rows : []"
       :loading="loading || !refsSettled"
       :sort-key="sortKey"
-      sort-dir="asc"
+      :sort-dir="sortDir"
       :page="page"
       :page-size="pageSize"
       :total="total"
       :page-size-options="[20, 50, 100]"
-      empty-text="등록된 근무지가 없습니다."
+      :empty-text="all.length ? '조건에 맞는 근무지가 없습니다.' : '등록된 근무지가 없습니다.'"
       @sort="toggleSort"
-      @update:page="
-        (p) => {
-          page = p
-          load()
-        }
-      "
+      @update:page="(p) => (page = p)"
       @update:page-size="
         (s) => {
           pageSize = s
           page = 1
-          load()
         }
       "
     >
@@ -368,6 +380,36 @@ onMounted(() => {
         <PillSelect
           v-model="programFilter"
           :options="[{ label: '사업 전체', value: '' }, ...programs.map((p) => ({ label: p.name, value: p.id }))]"
+        />
+        <!-- 설정 누락 찾기(QA 2026-11-07 ADMIN-07). 두 담당자는 따로 거른다(결정 D18) -->
+        <PillSelect
+          v-model="careFilter"
+          :options="[
+            { label: '근무지 담당자 전체', value: '' },
+            { label: '근무지 담당자 미지정', value: 'none' },
+          ]"
+        />
+        <PillSelect
+          v-model="contactFilter"
+          :options="[
+            { label: '수요처 담당자 전체', value: '' },
+            { label: '수요처 담당자 미지정', value: 'none' },
+          ]"
+        />
+        <PillSelect
+          v-model="seniorsFilter"
+          :options="[
+            { label: '배정 인원 전체', value: '' },
+            { label: '배정 인원 0명', value: '0' },
+          ]"
+        />
+        <PillSelect
+          v-model="statusFilter"
+          :options="[
+            { label: '상태 전체', value: '' },
+            { label: '활성', value: 'active' },
+            { label: '종료', value: 'ended' },
+          ]"
         />
       </template>
       <template #toolbar-end>
