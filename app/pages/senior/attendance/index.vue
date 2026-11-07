@@ -378,6 +378,8 @@ const bulkEditSplit = ref<BulkSplit<AttendanceShift>>({ targets: [], skipped: []
 const bulkEditForm = ref({ status: '', memo: '' })
 const bulkEditErrors = ref<{ status?: string; memo?: string }>({})
 const bulkRunning = ref(false)
+// 처리 중에는 다른 화면으로 가거나 새로고침하지 않게 막는다 — 결과 창이 사라지면 어디까지 됐는지 모른다
+useBusyLeaveGuard(bulkRunning)
 const bulkProgress = ref<{ finished: number; total: number } | null>(null)
 const bulkResult = ref<{ done: number; failed: { name: string; reason: string }[] } | null>(null)
 const skippedLines = (split: BulkSplit<AttendanceShift>) =>

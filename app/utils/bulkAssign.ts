@@ -31,7 +31,11 @@ export type BulkAssignForm = {
   periodEnd: string | null
 }
 
-/** 저장 전 검사 — 칸마다 문구(빈 객체면 통과). 기간 규칙은 명부 상세의 배정과 같다(`assignmentPeriodErrors`) */
+/**
+ * 저장 전 검사 — 칸마다 문구(빈 객체면 통과). 기간 규칙은 명부 상세의 배정과 같다(`assignmentPeriodErrors`).
+ * 종료 시간이 시작 시간보다 늦어야 한다 — 서버도 자정을 넘는 배정을 다루지 않고(겹침 판정이 하루 안의 초로 본다), 일괄이면
+ * 잘못된 배정과 알림이 사람 수만큼 한 번에 생긴다(리뷰 반영)
+ */
 export function bulkAssignFormErrors(f: BulkAssignForm): {
   worksite?: string
   weekdays?: string
@@ -42,7 +46,11 @@ export function bulkAssignFormErrors(f: BulkAssignForm): {
   return {
     ...(f.worksiteId ? {} : { worksite: '근무지를 선택해 주세요.' }),
     ...(f.weekdays.length ? {} : { weekdays: '근무 요일을 하나 이상 선택해 주세요.' }),
-    ...(f.startTime && f.endTime ? {} : { time: '시작·종료 시간을 입력해 주세요.' }),
+    ...(!f.startTime || !f.endTime
+      ? { time: '시작·종료 시간을 입력해 주세요.' }
+      : f.endTime <= f.startTime
+        ? { time: '종료 시간은 시작 시간보다 늦어야 합니다.' }
+        : {}),
     ...assignmentPeriodErrors(f.periodStart, f.periodEnd),
   }
 }

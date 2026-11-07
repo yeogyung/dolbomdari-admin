@@ -202,6 +202,8 @@ const bulkForm = ref<BulkAssignForm>(emptyBulkForm())
 const bulkTried = ref(false)
 const bulkErrors = computed(() => bulkAssignFormErrors(bulkForm.value))
 const bulkRunning = ref(false)
+// 처리 중에는 다른 화면으로 가거나 새로고침하지 않게 막는다 — 결과 창이 사라지면 누가 됐는지 모른다
+useBusyLeaveGuard(bulkRunning)
 const bulkProgress = ref<{ finished: number; total: number } | null>(null)
 const bulkResult = ref<{
   done: number
@@ -288,9 +290,12 @@ const unassignTargets = computed(() =>
 )
 const unassignLine = (x: { assignment: Assignment; person: DirectoryEntry }) =>
   `${personLine(x.person)} · ${assignmentLine(x.assignment)}`
+/** 불러오기 순번 — 창을 닫고 다른 사람을 골라 다시 열면 앞 불러오기가 늦게 끝나 새 목록을 덮지 않게 한다(리뷰 반영) */
+let unassignSequence = 0
 
 async function openUnassign() {
   if (bulkRunning.value) return
+  const current = ++unassignSequence
   const split = bulkAssignTargets(chosenPeople())
   // 배정은 시니어에게만 있다. 종료된 시니어의 배정도 지울 수 있어 상태로는 빼지 않는다
   const seniors = chosenPeople().filter((p) => p.role === 'senior')
@@ -307,15 +312,16 @@ async function openUnassign() {
     const found: { assignment: Assignment; person: DirectoryEntry }[] = []
     for (const person of seniors) {
       const res = await api.listAssignments({ directoryId: person.id, size: 100 })
+      if (current !== unassignSequence) return
       for (const a of res.items) found.push({ assignment: a, person })
     }
     unassignList.value = found
     // 근무지가 하나뿐이면 미리 고른다
     if (unassignOptions.value.length === 1) unassignWorksite.value = unassignOptions.value[0]!.value
   } catch (e: any) {
-    unassignLoadError.value = dboErrorMessage(e, '배정을 불러오지 못했습니다.')
+    if (current === unassignSequence) unassignLoadError.value = dboErrorMessage(e, '배정을 불러오지 못했습니다.')
   } finally {
-    unassignLoading.value = false
+    if (current === unassignSequence) unassignLoading.value = false
   }
 }
 
