@@ -6,6 +6,7 @@ import {
   ROOM_TITLE_MAX,
   canCreateRoom,
   roomCreateErrorMessage,
+  roomCreatedToast,
   roomEditBlock,
   roomMemberErrorMessage,
 } from '../app/utils/roomManage'
@@ -92,5 +93,17 @@ describe('roomMemberErrorMessage', () => {
   it('게이트웨이 5xx 는 응답 없음과 같다', () => {
     expect(roomMemberErrorMessage({ status: 502 }, 'add')).toContain('응답을 확인하지 못했습니다')
     expect(roomMemberErrorMessage({ status: 504, data: 'Gateway Timeout' }, 'remove')).toContain('응답을 확인하지 못했습니다')
+  })
+})
+
+describe('roomCreatedToast', () => {
+  it('새로 만들면 참여 인원과 함께 만들었다고', () => {
+    expect(roomCreatedToast({ members: 3 })).toEqual({ title: '방을 만들었습니다. 참여자 3명', color: 'success' })
+  })
+  it('같은 두 사람 방이 이미 있으면(existing) 만들었다고 하지 않고 이름·AI 설정이 쓰이지 않는다고', () => {
+    const t = roomCreatedToast({ members: 2, existing: true })
+    expect(t.title).toBe('이미 있는 두 사람 방으로 이동합니다.')
+    expect(t.description).toContain('방 이름과 AI 답변 설정은 쓰이지 않고')
+    expect(t.color).toBe('info')
   })
 })

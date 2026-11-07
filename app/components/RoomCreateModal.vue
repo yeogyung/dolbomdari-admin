@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { ref, computed, shallowRef, watch } from 'vue'
 import { badMemberProblems, roomCandidates } from '~/utils/personPick'
-import { ROOM_TITLE_MAX, canCreateRoom, roomCreateErrorMessage } from '~/utils/roomManage'
+import { ROOM_TITLE_MAX, canCreateRoom, roomCreateErrorMessage, roomCreatedToast } from '~/utils/roomManage'
 import type { ProfileLink } from '~/composables/useRoomPeople'
 import type { DirectoryEntry } from '~/types/dbo'
 
@@ -59,7 +59,8 @@ async function submit() {
   error.value = ''
   try {
     const res = await api.createRoom({ title: title.value.trim(), profileIds: profileIds.value, aiEnabled: aiEnabled.value })
-    toast.add({ title: `방을 만들었습니다. 참여자 ${res.members}명`, color: 'success' })
+    // 같은 두 사람의 열린 방이 이미 있으면 서버가 그 방을 준다 — 만들었다고 하지 않고 그 방으로 보낸다
+    toast.add(roomCreatedToast(res))
     open.value = false
     emit('created', res.roomId)
   } catch (e) {

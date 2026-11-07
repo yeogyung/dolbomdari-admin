@@ -173,8 +173,8 @@ const createOpen = ref(false)
 async function onRoomCreated(roomId: string) {
   page.value = 1
   await loadRooms()
-  const room = rooms.value.find((r) => r.id === roomId)
-  if (room) openGuard.run(() => openRoom(room))
+  // 이미 있던 두 사람 방(서버 existing)은 첫 쪽·지금 필터 밖일 수 있다 — 목록에 없으면 직접 읽어 연다
+  openGuard.run(() => openRoomById(roomId))
 }
 
 /**

@@ -309,10 +309,12 @@ export function useDboAdmin() {
     listRooms: (q: ListQuery & RoomFilterQuery = {}) => req<Paged<ChatRoom>>('/rooms', { query: clean(q) }),
     /**
      * 단체방 만들기(서버 2026-11-04, QA CHAT-01). 참여자는 **프로필 id**. 만든 master 는 멤버로 들어가지 않는다.
-     * 넣을 수 없는 사람이 하나라도 있으면 아무것도 만들지 않고 400 bad_member(`invalid`). 옛 서버는 404
+     * 넣을 수 없는 사람이 하나라도 있으면 아무것도 만들지 않고 400 bad_member(`invalid`). 옛 서버는 404.
+     * 고른 사람이 두 명이고 그 둘만 있는 열린 방이 이미 있으면 새로 만들지 않고 그 방을 200 `existing: true` 로 준다
+     * (서버 2026-11-07, QA FIELD-04). 그때 방 이름·AI 설정은 그 방 그대로다
      */
     createRoom: (body: { title: string; profileIds: string[]; aiEnabled: boolean }) =>
-      req<{ roomId: string; members: number }>('/rooms', { method: 'POST', body }),
+      req<{ roomId: string; members: number; existing?: true }>('/rooms', { method: 'POST', body }),
     /**
      * 참여자 추가·내보내기(서버 2026-11-04, QA CHAT-03). 이미 멤버인 사람은 건너뛰고 `added` 에 세지 않는다.
      * 종료된 방·1:1 방은 409, 마지막 한 사람은 내보낼 수 없다(409 last_member). 옛 서버는 404

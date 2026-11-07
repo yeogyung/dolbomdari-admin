@@ -54,6 +54,25 @@ export function roomCreateErrorMessage(e: any): string {
   return '방을 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.'
 }
 
+/**
+ * 방 만들기가 끝난 뒤 알림(서버 2026-11-07, QA FIELD-04). 고른 사람이 두 명이고 그 둘만 있는 열린 방이 이미 있으면 서버가
+ * 새로 만들지 않고 그 방을 준다(200 `existing: true`) — 입력한 방 이름·AI 답변 설정은 쓰이지 않는다고 알린다
+ */
+export function roomCreatedToast(res: { members: number; existing?: boolean }): {
+  title: string
+  description?: string
+  color: 'success' | 'info'
+} {
+  if (res.existing) {
+    return {
+      title: '이미 있는 두 사람 방으로 이동합니다.',
+      description: '새 방은 만들지 않았습니다. 입력한 방 이름과 AI 답변 설정은 쓰이지 않고 그 방의 설정 그대로입니다.',
+      color: 'info',
+    }
+  }
+  return { title: `방을 만들었습니다. 참여자 ${res.members}명`, color: 'success' }
+}
+
 /** 참여자 관리 경로가 없는 옛 서버에서 적는 안내 */
 export const MEMBERS_UNSUPPORTED = '참여자 추가·내보내기는 서버 업데이트 뒤에 쓸 수 있습니다.'
 
