@@ -6,6 +6,8 @@ import type { Column } from '~/types/table'
 import type { AttendanceChange, AttendanceShift, AttendanceSummary, Program, Worksite } from '~/types/dbo'
 import type { AttendanceDisplay } from '~/utils/attendanceState'
 import { programFilterAllowed, programFilterOptions, worksiteOutsideProgram } from '~/utils/worksiteFilter'
+import { attendanceRowName, bulkEditErrorMessage, bulkEditTargets, canSelectAttendance, type BulkSplit } from '~/utils/attendanceBulk'
+import { failureLines, runSequential } from '~/utils/bulkRun'
 
 const api = useDboAdmin()
 const { listChangesByShifts } = useAttendanceChanges()
@@ -87,6 +89,8 @@ async function load(): Promise<boolean> {
     if (current !== sequence) return false
     rows.value = res.items
     total.value = res.total
+    // 고른 행은 지금 보이는 쪽에서만 유지한다 — 쪽·조건을 바꾸면 안 보이는 기록이 선택에 남지 않게
+    selectedIds.value = selectedIds.value.filter((id) => res.items.some((r) => r.id === id))
     // 집계를 모르는 서버(배포 순서가 어긋남)여도 화면이 깨지지 않게 0 으로 둔다
     summary.value = res.summary ?? EMPTY_SUMMARY
     // 목록이 바뀐 순간부터 이력이 올 때까지는 기준을 모른다. 그 사이에 연 창은 동시 수정 검사를 하지 않는다 —
@@ -104,6 +108,11 @@ async function load(): Promise<boolean> {
     if (current === sequence) loading.value = false
   }
 }
+
+/* 행 선택(QA 2026-11-07 ADMIN-05 · ADMIN-15) — 고친·지울 수 있는 운영관리자·담당자만. 지금 보이는 쪽에서 고른다 */
+const selectable = computed(() => canSelectAttendance(me.value?.role))
+const selectedIds = ref<string[]>([])
+const selectedRows = computed(() => rows.value.filter((r) => selectedIds.value.includes(r.id)))
 
 /* 변경 이력 — 페이지마다 한 번에 읽어 「수정됨」 판정과 이력 창에 쓴다 */
 const changesByShift = ref(new Map<string, AttendanceChange[]>())
@@ -349,6 +358,63 @@ async function submitEdit() {
   } finally {
     saving.value = false
   }
+}
+
+/*
+ * 출결 일괄 상태 변경(QA 2026-11-07 ADMIN-05, 결정 D17) — 고른 여러 건에 같은 상태·사유를 적용한다. 출근·퇴근 시각은
+ * 보내지 않아 그대로 남는다(시각은 건별 「기록 수정」만). 일괄 API 가 없어 건별 수정을 차례로 부른다 — 건마다 수정 이력이
+ * 서버에 지금처럼 남는다. 창을 열 때 본 갱신 시각을 함께 보내 그사이 다른 곳에서 고친 기록은 덮지 않고 실패로 둔다
+ */
+const bulkEditOpen = ref(false)
+const bulkEditSplit = ref<BulkSplit<AttendanceShift>>({ targets: [], skipped: [] })
+const bulkEditForm = ref({ status: '', memo: '' })
+const bulkEditErrors = ref<{ status?: string; memo?: string }>({})
+const bulkRunning = ref(false)
+const bulkProgress = ref<{ finished: number; total: number } | null>(null)
+const bulkResult = ref<{ done: number; failed: { name: string; reason: string }[] } | null>(null)
+const skippedLines = (split: BulkSplit<AttendanceShift>) =>
+  split.skipped.map((s) => ({ name: attendanceRowName(s.row), reason: s.reason }))
+
+function openBulkEdit() {
+  if (bulkRunning.value) return
+  bulkEditSplit.value = bulkEditTargets(selectedRows.value, me.value?.role, todaySeoul())
+  bulkEditForm.value = { status: '', memo: '' }
+  bulkEditErrors.value = {}
+  bulkProgress.value = null
+  bulkResult.value = null
+  bulkEditOpen.value = true
+}
+
+async function submitBulkEdit() {
+  const { status, memo } = bulkEditForm.value
+  bulkEditErrors.value = {
+    ...(status ? {} : { status: '적용할 상태를 골라 주세요.' }),
+    ...(memo.trim() ? {} : { memo: '수정 사유를 입력해 주세요.' }),
+  }
+  if (Object.keys(bulkEditErrors.value).length > 0) return
+  const targets = bulkEditSplit.value.targets
+  bulkRunning.value = true
+  bulkProgress.value = { finished: 0, total: targets.length }
+  try {
+    const result = await runSequential(
+      targets,
+      (row) =>
+        api.patchAttendance(row.id, {
+          status,
+          method: 'manual',
+          memo: memo.trim(),
+          expectedUpdatedAt: attendanceVersion(row),
+        }),
+      (finished, total) => (bulkProgress.value = { finished, total }),
+    )
+    bulkResult.value = {
+      done: result.done.length,
+      failed: failureLines(result.failed, attendanceRowName, (e) => bulkEditErrorMessage(e) ?? dboErrorMessage(e)),
+    }
+  } finally {
+    bulkRunning.value = false
+  }
+  load()
 }
 
 /* 출결 삭제 — master·담당자, 오늘 활동만. 지운 내용·삭제자·사유가 삭제 기록에 남는다 */
@@ -599,6 +665,8 @@ onMounted(() => {
       :page-size="pageSize"
       :total="total"
       :page-size-options="[20, 50, 100]"
+      :selectable="selectable"
+      v-model:selected="selectedIds"
       empty-text="해당 조건의 근무가 없습니다."
       @sort="toggleSort"
       @update:page="
@@ -630,6 +698,16 @@ onMounted(() => {
         />
       </template>
       <template #toolbar-end>
+        <!-- 고른 기록 일괄 처리(QA 2026-11-07 ADMIN-05 · ADMIN-15) -->
+        <template v-if="selectedIds.length">
+          <span class="text-sm font-medium text-ink tabular-nums">선택 {{ selectedIds.length }}건</span>
+          <AppButton size="sm" variant="outline" color="neutral" icon="i-lucide-list-checks" @click="openBulkEdit">
+            상태 일괄 변경
+          </AppButton>
+          <button type="button" class="text-sm font-medium text-brand-500 hover:underline" @click="selectedIds = []">
+            선택 해제
+          </button>
+        </template>
         <span class="text-sm text-muted tabular-nums">{{ from }} ~ {{ to }}</span>
       </template>
 
@@ -854,6 +932,52 @@ onMounted(() => {
         >
           삭제
         </AppButton>
+      </template>
+    </AppModal>
+
+    <!-- 출결 일괄 상태 변경(QA 2026-11-07 ADMIN-05). 처리하는 동안은 닫지 않는다 — 어디까지 됐는지 결과를 봐야 한다 -->
+    <AppModal v-model:open="bulkEditOpen" title="출결 일괄 수정" width="max-w-lg" :before-close="() => !bulkRunning">
+      <div class="space-y-4">
+        <template v-if="!bulkResult">
+          <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">
+            <p class="font-semibold text-ink tabular-nums">
+              고른 {{ bulkEditSplit.targets.length + bulkEditSplit.skipped.length }}건 중
+              {{ bulkEditSplit.targets.length }}건에 같은 상태·사유를 적용합니다.
+            </p>
+            <p class="mt-0.5 text-muted">
+              출근·퇴근 시각은 바꾸지 않습니다. 시각은 건마다 「기록 수정」에서 고쳐 주세요. 건마다 수정 이력이 남습니다.
+            </p>
+          </div>
+          <BulkSkippedList :items="skippedLines(bulkEditSplit)" />
+          <FormField label="상태" required :error="bulkEditErrors.status">
+            <SelectField
+              v-model="bulkEditForm.status"
+              :options="ATTENDANCE_STATUSES.map((s) => ({ label: s.label, value: s.value as string }))"
+              placeholder="상태 선택"
+            />
+          </FormField>
+          <FormField label="수정 사유" required :error="bulkEditErrors.memo">
+            <AppTextarea v-model="bulkEditForm.memo" :rows="3" />
+          </FormField>
+          <p class="text-xs text-muted">
+            저장하면 기록 방법이 <span class="font-medium text-body">manual</span>(관리자 대리 기록)로 남습니다.
+          </p>
+          <p v-if="bulkProgress" class="text-sm text-muted tabular-nums" aria-live="polite">
+            처리 중 {{ bulkProgress.finished }} / {{ bulkProgress.total }}
+          </p>
+        </template>
+        <BulkResultPanel v-else done-label="적용" :done="bulkResult.done" :failed="bulkResult.failed" />
+      </div>
+      <template #footer>
+        <template v-if="!bulkResult">
+          <AppButton variant="outline" color="neutral" size="sm" :disabled="bulkRunning" @click="bulkEditOpen = false">
+            취소
+          </AppButton>
+          <AppButton size="sm" :loading="bulkRunning" :disabled="!bulkEditSplit.targets.length" @click="submitBulkEdit">
+            {{ bulkEditSplit.targets.length }}건에 적용
+          </AppButton>
+        </template>
+        <AppButton v-else size="sm" @click="bulkEditOpen = false">닫기</AppButton>
       </template>
     </AppModal>
 
