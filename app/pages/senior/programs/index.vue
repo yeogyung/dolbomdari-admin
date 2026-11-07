@@ -1,17 +1,23 @@
 <!-- 사업 관리 — 목록/등록/수정 (앱 상단 사업 전환 헤더의 원천, /dbo-admin/programs) -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { LifeStatus, Program } from '~/types/dbo'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
+import { filterPrograms } from '~/utils/programList'
 
 const api = useDboAdmin()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
 setHeader('사업 관리')
 
-const rows = ref<Program[]>([])
+const all = ref<Program[]>([])
 const loading = ref(false)
+// 이름 검색·상태 필터(QA 2026-11-07 ADMIN-11). 전부 받으므로 화면에서 거르고, 주소에 담아 뒤로 와도 그대로다
+const lq = useListQuery({ q: '', status: '' })
+const q = lq.q
+const statusFilter = lq.status
+const rows = computed(() => filterPrograms(all.value, { q: q.value, status: statusFilter.value }))
 
 const columns: Column[] = [
   { key: 'name', label: '사업명', strong: true },
@@ -24,7 +30,7 @@ async function load() {
   loading.value = true
   try {
     const res = await api.listPrograms()
-    rows.value = res.items
+    all.value = res.items
   } catch (e: any) {
     toast.add({ title: '사업 조회 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
@@ -32,7 +38,7 @@ async function load() {
   }
 }
 
-/* 엑셀 — 목록을 전량 받으므로 화면의 행을 그대로 내보낸다 */
+/* 엑셀 — 목록을 전량 받으므로 화면의 행(지금 거른 결과)을 그대로 내보낸다 */
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'name', label: '사업명' },
   { key: 'color', label: '색' },
@@ -122,10 +128,21 @@ onMounted(load)
       :loading="loading"
       :total="rows.length"
       :paginated="false"
-      empty-text="등록된 사업이 없습니다."
+      :empty-text="all.length ? '조건에 맞는 사업이 없습니다.' : '등록된 사업이 없습니다.'"
     >
+      <template #toolbar>
+        <PillSearch v-model="q" placeholder="사업명 검색" />
+        <PillSelect
+          v-model="statusFilter"
+          :options="[
+            { label: '상태 전체', value: '' },
+            { label: '활성', value: 'active' },
+            { label: '종료', value: 'ended' },
+          ]"
+        />
+      </template>
       <template #toolbar-end>
-        <span class="text-sm text-muted tabular-nums">전체 {{ rows.length }}개</span>
+        <span class="text-sm text-muted tabular-nums">전체 {{ all.length }}개</span>
       </template>
 
       <template #cell-color="{ row }">

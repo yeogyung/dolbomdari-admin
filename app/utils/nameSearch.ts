@@ -3,6 +3,12 @@
 /** 비교용으로 띄어쓰기를 빼고 소문자로 바꾼다 */
 const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase()
 
+/** 이름에 검색어가 들어 있는가 — 띄어쓰기·대소문자 무시. 빈 검색어는 모두 맞다(목록 거르기용) */
+export function nameIncludes(name: string, term: string): boolean {
+  const word = norm(term)
+  return !word || norm(name).includes(word)
+}
+
 /**
  * 이름(또는 보조 이름 `sub`, 예: 사업 이름)에 검색어가 들어간 것을 찾는다. 빈 검색어는 아무것도
  * 찾지 않는다 — 목록을 띄우지 않기 위해서다.
