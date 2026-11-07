@@ -1,5 +1,7 @@
 <!-- 로그인 페이지 — 앱을 고르고 전화번호 OTP 로 인증한다 -->
 <script setup lang="ts">
+import { loginErrorMessage } from '~/utils/loginErrors'
+
 definePageMeta({ layout: false })
 
 const supabase = useSupabase()
@@ -104,7 +106,8 @@ async function requestOtp() {
     step.value = 'code'
     noticeMsg.value = '인증번호를 문자로 보냈습니다.'
   } catch (e: any) {
-    errorMsg.value = e?.data?.error || '인증번호를 보내지 못했습니다.'
+    // 종료된 계정은 403 inactive — 코드 대신 안내 문구(loginErrorMessage)
+    errorMsg.value = loginErrorMessage(e, '인증번호를 보내지 못했습니다.')
   } finally {
     loading.value = false
   }
@@ -168,7 +171,7 @@ async function verifyOtp() {
     // 자격이 없으면 거기서 세션을 지우고 다시 로그인 화면으로 돌려보낸다.
     await navigateTo('/')
   } catch (e: any) {
-    errorMsg.value = e?.data?.error || '인증에 실패했습니다.'
+    errorMsg.value = loginErrorMessage(e, '인증에 실패했습니다.')
   } finally {
     loading.value = false
   }
