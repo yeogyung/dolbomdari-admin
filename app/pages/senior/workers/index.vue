@@ -5,6 +5,7 @@ import type { Column } from '~/types/table'
 import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 import { nextSort, type SortDir } from '~/utils/sortToggle'
+import { rosterSiteCells } from '~/utils/rosterSites'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -40,6 +41,9 @@ const columns: Column[] = [
   { key: 'name', label: '이름', sortable: true, strong: true },
   { key: 'phone', label: '전화번호' },
   { key: 'role', label: '역할' },
+  // 근무지·사업(QA 2026-11-07 ADMIN-02) — 동명이인을 상세에 들어가지 않고 가른다. 여러 곳이면 첫 하나 외 N
+  { key: 'worksites', label: '근무지' },
+  { key: 'programs', label: '사업' },
   { key: 'status', label: '상태', sortable: true },
   { key: 'app', label: '앱 연결' },
   { key: 'memo', label: '메모' },
@@ -95,16 +99,22 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'name', label: '이름' },
   { key: 'phone', label: '전화번호' },
   { key: 'role', label: '역할' },
+  { key: 'worksites', label: '근무지' },
+  { key: 'programs', label: '사업' },
   { key: 'status', label: '상태' },
   { key: 'memo', label: '메모' },
   { key: 'created_at', label: '등록일' },
 ]
 
 function toExcelRow(r: DirectoryEntry) {
+  // 엑셀은 「외 N」으로 줄이지 않고 다 쓴다
+  const sites = rosterSiteCells(r.worksites)
   return {
     name: r.name,
     phone: r.phone ? fmtPhone(r.phone) : (r.email ?? ''),
     role: ROLE_LABELS[r.role] ?? r.role,
+    worksites: sites?.fullWorksites ?? '',
+    programs: sites?.fullPrograms ?? '',
     status: lifeStatusLabel(r.status),
     memo: r.memo ?? '',
     created_at: excelStamp(r.created_at),
@@ -322,6 +332,17 @@ onMounted(() => {
       <template #cell-phone="{ row }">{{ row.phone ? fmtPhone(row.phone) : (row.email ?? '—') }}</template>
       <template #cell-role="{ row }">
         <Tag>{{ ROLE_LABELS[row.role] ?? row.role }}</Tag>
+      </template>
+      <!-- 칸이 없는 옛 서버면 — . 전체 이름은 마우스를 올려 본다 -->
+      <template #cell-worksites="{ row }">
+        <span :title="rosterSiteCells(row.worksites)?.fullWorksites || undefined">
+          {{ rosterSiteCells(row.worksites)?.worksite ?? '—' }}
+        </span>
+      </template>
+      <template #cell-programs="{ row }">
+        <span class="text-muted" :title="rosterSiteCells(row.worksites)?.fullPrograms || undefined">
+          {{ rosterSiteCells(row.worksites)?.program ?? '—' }}
+        </span>
       </template>
       <template #cell-status="{ row }">
         <StatusBadge :tone="lifeStatusTone(row.status)">{{ lifeStatusLabel(row.status) }}</StatusBadge>

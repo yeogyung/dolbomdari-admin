@@ -161,6 +161,19 @@ export interface DirectoryEntry {
   app_connected?: boolean | null
   /** 가장 최근 앱 로그인 시각 */
   last_sign_in_at?: string | null
+  /**
+   * 이 사람의 근무지와 사업(서버 2026-11-07, QA ADMIN-02). 시니어는 지금 유효한 배정의 근무지, 담당자는 맡은 근무지,
+   * 수요처는 자기 근무지. 같은 근무지는 한 번, 이름순, 없으면 []. **목록에만 있다**(상세에는 없다). 옛 서버는 칸이 없다
+   */
+  worksites?: RosterSite[]
+}
+
+/** 명부 목록 한 줄의 근무지·사업 */
+export interface RosterSite {
+  id: string
+  name: string
+  program_id: string | null
+  program_name: string | null
 }
 
 /** 반복 배정 — shift 생성 크론이 날짜별로 펼친다 */
