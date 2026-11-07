@@ -257,6 +257,8 @@ export function useDboAdmin() {
         from?: string
         to?: string
         worksiteId?: string
+        /** 그 사업 근무지의 기록만(서버 2026-11-07, QA ADMIN-04). 근무지·담당 범위와 함께 걸리고 summary 도 같은 조건 */
+        programId?: string
         display?: AttendanceDisplay
         /** '1' 이면 조회 조건 전체의 상태별 건수를 함께 받는다. 전 페이지를 도는 호출은 보내지 않는다 */
         summary?: '1'

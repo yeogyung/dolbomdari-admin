@@ -30,3 +30,22 @@ export function worksiteOutsideProgram(worksites: Site[], worksiteId: string, pr
   const site = worksites.find((w) => w.id === worksiteId)
   return !!site && site.program_id !== programId
 }
+
+/**
+ * 사업 필터를 보일 역할인가. 사업 목록(GET /programs)이 운영관리자 전용이라 담당자·수요처는 사업 이름을 못 읽는다 —
+ * 그 역할에는 사업 필터를 숨기고 근무지 필터만 둔다(근무지 목록은 서버가 맡은 곳만 준다)
+ */
+export function programFilterAllowed(role: string | undefined): boolean {
+  return role === 'master'
+}
+
+/** 사업 필터 선택지 — 받은 순서 그대로, 종료된 사업은 「(종료)」를 붙여 지난 기록도 고를 수 있게 둔다 */
+export function programFilterOptions(
+  programs: { id: string; name: string; status?: string }[],
+  allLabel = '사업 전체',
+): { label: string; value: string }[] {
+  return [
+    { label: allLabel, value: '' },
+    ...programs.map((p) => ({ label: p.status === 'ended' ? `${p.name} (종료)` : p.name, value: p.id })),
+  ]
+}

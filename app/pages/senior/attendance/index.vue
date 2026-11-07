@@ -3,8 +3,9 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { downloadExcel, type ExcelColumn } from '~/utils/excel'
 import type { Column } from '~/types/table'
-import type { AttendanceChange, AttendanceShift, AttendanceSummary, Worksite } from '~/types/dbo'
+import type { AttendanceChange, AttendanceShift, AttendanceSummary, Program, Worksite } from '~/types/dbo'
 import type { AttendanceDisplay } from '~/utils/attendanceState'
+import { programFilterAllowed, programFilterOptions, worksiteOutsideProgram } from '~/utils/worksiteFilter'
 
 const api = useDboAdmin()
 const { listChangesByShifts } = useAttendanceChanges()
@@ -24,7 +25,7 @@ const total = ref(0)
 // 검색·기간·근무지·정렬·페이지는 주소에 담는다 — 다른 화면에 다녀와도 조회 조건이 그대로다.
 // 검색어·기간은 「조회」를 눌러야 정해지는 칸이라 commit() 때 싣는다
 const lq = useListQuery(
-  { page: 1, size: 20, q: '', from: todaySeoul(), to: todaySeoul(), worksite: '', display: '', sort: 'work_date' },
+  { page: 1, size: 20, q: '', from: todaySeoul(), to: todaySeoul(), program: '', worksite: '', display: '', sort: 'work_date' },
   { committed: ['q', 'from', 'to'] },
 )
 const page = lq.page
@@ -33,6 +34,13 @@ const q = lq.q
 const from = lq.from
 const to = lq.to
 const worksiteId = lq.worksite
+/**
+ * 사업 필터(QA 2026-11-07 ADMIN-04). 서버(`programId`)가 걸러 집계도 같은 조건이다. 사업 목록이 운영관리자 전용이라
+ * 담당자·수요처에게는 숨기고 보내지도 않는다 — 주소에 남은 값이 보이지 않는 조건으로 걸리지 않게
+ */
+const programFilter = lq.program
+const canProgram = computed(() => programFilterAllowed(me.value?.role))
+const programId = computed(() => (canProgram.value && programFilter.value) || undefined)
 /** 표시 상태 필터. 서버가 같은 규칙(dbo_display_state)으로 걸러 페이지·건수가 맞는다 */
 const display = lq.display
 const sortKey = lq.sort
@@ -40,6 +48,7 @@ const loading = ref(false)
 const { exporting, startExport, finishExport } = useExcelExport()
 
 const worksites = ref<Worksite[]>([])
+const programs = ref<Program[]>([])
 
 const columns: Column[] = [
   { key: 'work_date', label: '근무일', sortable: true, strong: true },
@@ -71,6 +80,7 @@ async function load(): Promise<boolean> {
       from: lq.committedOf('from'),
       to: lq.committedOf('to'),
       worksiteId: worksiteId.value || undefined,
+      programId: programId.value,
       display: (display.value || undefined) as AttendanceDisplay | undefined,
       summary: '1',
     })
@@ -137,6 +147,16 @@ function openHistory(row: AttendanceShift) {
   historyOpen.value = true
 }
 
+/** 사업 필터 선택지 — 운영관리자만 읽을 수 있다(다른 역할은 403) */
+async function loadPrograms() {
+  if (!canProgram.value) return
+  try {
+    programs.value = (await api.listPrograms()).items
+  } catch (e: any) {
+    toast.add({ title: '사업 목록을 불러오지 못했습니다.', description: dboErrorMessage(e), color: 'warning' })
+  }
+}
+
 async function loadWorksites() {
   try {
     // 근무지는 300곳 가까이 되는데 한 페이지는 100곳까지다 — 끝까지 받는다
@@ -166,7 +186,11 @@ function toggleSort(key: string) {
   load()
 }
 
-watch([worksiteId, display], search)
+// 사업을 바꿨는데 고른 근무지가 그 사업 밖이면 푼다. 아래 조회 감시보다 먼저 두어 조회가 한 번만 나간다
+watch(programFilter, () => {
+  if (worksiteOutsideProgram(worksites.value, worksiteId.value, programId.value ?? '')) worksiteId.value = ''
+})
+watch([programFilter, worksiteId, display], search)
 
 /* 집계 — 서버가 조회 조건 **전체**를 표시 상태(dbo_display_state)로 세어 준다.
  * 퇴근 완료 = 정상 + 지각, 미기록·결근 = 미출근 + 결석. 인정 결석·출근 전은 어디에도 세지 않는다.
@@ -455,6 +479,7 @@ async function exportExcel() {
         from: lq.committedOf('from'),
         to: lq.committedOf('to'),
         worksiteId: worksiteId.value || undefined,
+        programId: programId.value,
         display: (display.value || undefined) as AttendanceDisplay | undefined,
       })
       all.push(...res.items)
@@ -478,6 +503,7 @@ async function exportExcel() {
 onMounted(() => {
   load()
   loadWorksites()
+  loadPrograms()
   if (me.value?.role === 'worksite') probeRequests()
 })
 </script>
@@ -591,7 +617,13 @@ onMounted(() => {
     >
       <template #toolbar>
         <PillSearch v-model="q" placeholder="이름 또는 전화번호" @search="search" />
-        <WorksiteFilter v-model="worksiteId" :worksites="worksites" />
+        <PillSelect v-if="canProgram" v-model="programFilter" :options="programFilterOptions(programs)" />
+        <WorksiteFilter
+          v-model="worksiteId"
+          :worksites="worksites"
+          :program-id="programId ?? ''"
+          :programs="programs"
+        />
         <PillSelect
           v-model="display"
           :options="[{ label: '상태 전체', value: '' }, ...ATTENDANCE_DISPLAY_OPTIONS]"

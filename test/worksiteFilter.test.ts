@@ -1,6 +1,12 @@
 // 목록 툴바 근무지 필터 선택지 테스트 — 사업으로 좁히기, 검색, 사업을 바꾸면 선택 풀기(QA 2026-11-07 ADMIN-04)
 import { describe, expect, it } from 'vitest'
-import { inProgram, worksiteChoices, worksiteOutsideProgram } from '../app/utils/worksiteFilter'
+import {
+  inProgram,
+  programFilterAllowed,
+  programFilterOptions,
+  worksiteChoices,
+  worksiteOutsideProgram,
+} from '../app/utils/worksiteFilter'
 
 const sites = [
   { id: 'w1', name: '서대문시니어클럽', program_id: 'p1' },
@@ -45,5 +51,29 @@ describe('worksiteOutsideProgram', () => {
     expect(worksiteOutsideProgram(sites, '', 'p1')).toBe(false)
     expect(worksiteOutsideProgram(sites, 'w3', '')).toBe(false)
     expect(worksiteOutsideProgram([], 'w3', 'p1')).toBe(false)
+  })
+})
+
+describe('programFilterAllowed', () => {
+  it('사업 목록을 읽을 수 있는 운영관리자만', () => {
+    expect(programFilterAllowed('master')).toBe(true)
+    expect(programFilterAllowed('manager')).toBe(false)
+    expect(programFilterAllowed('worksite')).toBe(false)
+    expect(programFilterAllowed(undefined)).toBe(false)
+  })
+})
+
+describe('programFilterOptions', () => {
+  it('맨 앞 전체, 종료된 사업은 (종료)', () => {
+    expect(
+      programFilterOptions([
+        { id: 'p1', name: '시니어카페', status: 'active' },
+        { id: 'p2', name: '도시락', status: 'ended' },
+      ]),
+    ).toEqual([
+      { label: '사업 전체', value: '' },
+      { label: '시니어카페', value: 'p1' },
+      { label: '도시락 (종료)', value: 'p2' },
+    ])
   })
 })
