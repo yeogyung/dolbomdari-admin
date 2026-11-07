@@ -591,13 +591,7 @@ onMounted(() => {
     >
       <template #toolbar>
         <PillSearch v-model="q" placeholder="이름 또는 전화번호" @search="search" />
-        <PillSelect
-          v-model="worksiteId"
-          :options="[
-            { label: '근무지 전체', value: '' },
-            ...worksites.map((w) => ({ label: w.name, value: w.id })),
-          ]"
-        />
+        <WorksiteFilter v-model="worksiteId" :worksites="worksites" />
         <PillSelect
           v-model="display"
           :options="[{ label: '상태 전체', value: '' }, ...ATTENDANCE_DISPLAY_OPTIONS]"

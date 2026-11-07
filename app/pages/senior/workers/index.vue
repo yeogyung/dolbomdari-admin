@@ -1,6 +1,6 @@
 <!-- 명부 관리 — 시니어·담당자·수요처 목록/검색/역할·상태 필터 + 신규 등록 (GET·POST /dbo-admin/directory) -->
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, type Ref } from 'vue'
+import { ref, watch, onMounted, type Ref } from 'vue'
 import type { Column } from '~/types/table'
 import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
@@ -196,14 +196,6 @@ async function loadRefs() {
   }
 }
 
-/** 근무지 필터 선택지. 이름순 — 300곳 가까이라 select 에서 글자로 찾는다 */
-const worksiteFilterOptions = computed(() => [
-  { label: '근무지 전체', value: '' },
-  ...[...worksites.value]
-    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-    .map((w) => ({ label: w.name, value: w.id })),
-])
-
 /** 새 담당자에게 다른 담당자가 있던 근무지는 넘어온다 */
 const takenByOther = (w: Worksite) => !!w.care_manager_directory_id
 
@@ -311,7 +303,7 @@ onMounted(() => {
             { label: '종료', value: 'ended' },
           ]"
         />
-        <PillSelect v-model="worksiteFilter" :options="worksiteFilterOptions" />
+        <WorksiteFilter v-model="worksiteFilter" :worksites="worksites" :programs="programs" />
       </template>
 
       <template #toolbar-end>

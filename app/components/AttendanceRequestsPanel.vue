@@ -178,11 +178,7 @@ onMounted(() => {
               { label: '반려', value: 'rejected' },
             ]"
           />
-          <PillSelect
-            v-if="decide"
-            v-model="worksiteId"
-            :options="[{ label: '근무지 전체', value: '' }, ...worksites.map((w) => ({ label: w.name, value: w.id }))]"
-          />
+          <WorksiteFilter v-if="decide" v-model="worksiteId" :worksites="worksites" />
           <AppButton variant="outline" @click="load">새로고침</AppButton>
         </template>
 
