@@ -110,7 +110,10 @@ export function useDboAdmin() {
       q: { from?: string; to?: string; result?: 'all' | 'failed' | 'delivered' | 'pending' | 'unknown'; page?: number; size?: number } = {},
     ) => req<Paged<NoticeSms>>('/sms/messages', { query: clean(q) }),
     /* AI 문서 — master 전용. 상태(state)는 서버가 날짜로 계산한다. 본문을 고친 경우에만 재색인(indexed) */
-    listDocuments: (q: ListQuery = {}) => req<Paged<DocumentListItem>>('/documents', { query: clean(q) }),
+    listDocuments: (
+      /** `state` 는 그 상태의 문서만(서버 2026-11-07, QA ADMIN-12). 「현행」에는 새 판에 밀린 판도 든다. 그 밖의 값은 400 */
+      q: ListQuery & { state?: DocumentState } = {},
+    ) => req<Paged<DocumentListItem>>('/documents', { query: clean(q) }),
     getDocument: (id: string) => req<DocumentDetail>(`/documents/${id}`),
     createDocument: (body: DocumentCreateBody) =>
       req<{ id: string; indexed: boolean }>('/documents', { method: 'POST', body: { ...body } }),
