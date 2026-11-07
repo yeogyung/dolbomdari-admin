@@ -1,11 +1,22 @@
 <!-- 명부 관리 — 시니어·담당자·수요처 목록/검색/역할·상태 필터 + 신규 등록 (GET·POST /dbo-admin/directory) -->
 <script setup lang="ts">
-import { ref, watch, onMounted, type Ref } from 'vue'
+import { ref, computed, watch, onMounted, type Ref } from 'vue'
 import type { Column } from '~/types/table'
-import type { DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
+import type { Assignment, DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 import { nextSort, type SortDir } from '~/utils/sortToggle'
 import { rosterSiteCells } from '~/utils/rosterSites'
+import {
+  assignmentWorksiteOptions,
+  bulkAssignErrorMessage,
+  bulkAssignFormErrors,
+  bulkAssignTargets,
+  bulkUnassignErrorMessage,
+  isShiftSyncFailed,
+  personLine,
+  type BulkAssignForm,
+} from '~/utils/bulkAssign'
+import { failureLines, runSequential } from '~/utils/bulkRun'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -166,6 +177,170 @@ async function exportExcel() {
   }
 }
 
+/** 고른 사람 — 페이지를 넘겨도 남는다(위 `picked`) */
+const chosenPeople = () => selectedIds.value.map((id) => picked.get(id)).filter((r): r is DirectoryEntry => !!r)
+
+/*
+ * 여러 명 같은 근무 배정(QA 2026-11-07 SHIFT-02 · SHIFT-09, 결정 D25) — 고른 사람에게 근무지·요일·시간·기간을 한 번 입력해
+ * 배정한다. 일괄 API 가 없어 명부 상세의 「배정 추가」와 같은 단건 저장을 사람마다 차례로 부른다. 일부가 실패해도(겹친 배정 등)
+ * 된 사람은 그대로 두고 실패 명단을 보인다. 배정은 시니어에게만, 사업은 고른 근무지의 사업을 따른다(명부 상세와 같다)
+ */
+const bulkAssignOpen = ref(false)
+const bulkTargets = ref<{ targets: DirectoryEntry[]; skipped: { row: DirectoryEntry; reason: string }[] }>({
+  targets: [],
+  skipped: [],
+})
+const emptyBulkForm = (): BulkAssignForm => ({
+  worksiteId: null,
+  weekdays: [],
+  startTime: '09:00',
+  endTime: '11:00',
+  periodStart: null,
+  periodEnd: null,
+})
+const bulkForm = ref<BulkAssignForm>(emptyBulkForm())
+const bulkTried = ref(false)
+const bulkErrors = computed(() => bulkAssignFormErrors(bulkForm.value))
+const bulkRunning = ref(false)
+const bulkProgress = ref<{ finished: number; total: number } | null>(null)
+const bulkResult = ref<{
+  done: number
+  failed: { name: string; reason: string }[]
+  /** 배정은 저장됐지만 오늘·내일 근무 정리만 실패한 사람 */
+  syncFailed: string[]
+} | null>(null)
+const skippedPeople = (list: { row: DirectoryEntry; reason: string }[]) =>
+  list.map((s) => ({ name: personLine(s.row), reason: s.reason }))
+
+function openBulkAssign() {
+  if (bulkRunning.value) return
+  bulkTargets.value = bulkAssignTargets(chosenPeople())
+  bulkForm.value = emptyBulkForm()
+  bulkTried.value = false
+  bulkProgress.value = null
+  bulkResult.value = null
+  bulkAssignOpen.value = true
+  loadRefs()
+}
+
+async function submitBulkAssign() {
+  bulkTried.value = true
+  if (Object.keys(bulkErrors.value).length > 0) return
+  const f = { ...bulkForm.value, weekdays: [...bulkForm.value.weekdays] }
+  const site = worksites.value.find((w) => w.id === f.worksiteId)
+  const targets = bulkTargets.value.targets
+  const syncFailed: string[] = []
+  bulkRunning.value = true
+  bulkProgress.value = { finished: 0, total: targets.length }
+  try {
+    const result = await runSequential(
+      targets,
+      async (p) => {
+        try {
+          await api.createAssignment({
+            directoryId: p.id,
+            worksiteId: f.worksiteId!,
+            programId: site?.program_id ?? null,
+            weekdays: f.weekdays,
+            startTime: f.startTime,
+            endTime: f.endTime,
+            periodStart: f.periodStart,
+            periodEnd: f.periodEnd,
+          })
+        } catch (e) {
+          // 배정은 저장됐다 — 실패로 세면 다시 눌러 같은 배정을 또 만든다(명부 상세의 단건 저장과 같은 판단)
+          if (!isShiftSyncFailed(e)) throw e
+          syncFailed.push(personLine(p))
+        }
+      },
+      (finished, total) => (bulkProgress.value = { finished, total }),
+    )
+    bulkResult.value = {
+      done: result.done.length,
+      failed: failureLines(result.failed, personLine, (e) => bulkAssignErrorMessage(e) ?? dboErrorMessage(e)),
+      syncFailed,
+    }
+  } finally {
+    bulkRunning.value = false
+  }
+  load()
+}
+
+/*
+ * 배정 일괄 삭제(QA 2026-11-07 SHIFT-09 「교육 후 일괄 삭제」) — 고른 사람들의 한 근무지 배정을 지운다. 명부 상세의 「삭제」와
+ * 같은 단건 삭제(DELETE /assignments/{id})를 차례로 부른다 — 서버는 배정 행을 지우고 앞으로의 기록 없는 근무를 정리하며,
+ * 이미 생긴 출퇴근 기록은 남긴다. 실수로 모든 배정을 지우지 않게 근무지를 하나 골라야 지운다
+ */
+const unassignOpen = ref(false)
+const unassignLoading = ref(false)
+const unassignLoadError = ref('')
+const unassignList = ref<{ assignment: Assignment; person: DirectoryEntry }[]>([])
+const unassignSkipped = ref<{ row: DirectoryEntry; reason: string }[]>([])
+const unassignWorksite = ref<string | null>(null)
+const unassignOptions = computed(() =>
+  assignmentWorksiteOptions(
+    unassignList.value.map((x) => x.assignment),
+    (wid) => worksites.value.find((w) => w.id === wid)?.name ?? wid,
+  ),
+)
+const unassignTargets = computed(() =>
+  unassignWorksite.value ? unassignList.value.filter((x) => x.assignment.worksite_id === unassignWorksite.value) : [],
+)
+const unassignLine = (x: { assignment: Assignment; person: DirectoryEntry }) =>
+  `${personLine(x.person)} · ${assignmentLine(x.assignment)}`
+
+async function openUnassign() {
+  if (bulkRunning.value) return
+  const split = bulkAssignTargets(chosenPeople())
+  // 배정은 시니어에게만 있다. 종료된 시니어의 배정도 지울 수 있어 상태로는 빼지 않는다
+  const seniors = chosenPeople().filter((p) => p.role === 'senior')
+  unassignSkipped.value = split.skipped.filter((s) => s.row.role !== 'senior')
+  unassignList.value = []
+  unassignWorksite.value = null
+  unassignLoadError.value = ''
+  bulkProgress.value = null
+  bulkResult.value = null
+  unassignOpen.value = true
+  loadRefs()
+  unassignLoading.value = true
+  try {
+    const found: { assignment: Assignment; person: DirectoryEntry }[] = []
+    for (const person of seniors) {
+      const res = await api.listAssignments({ directoryId: person.id, size: 100 })
+      for (const a of res.items) found.push({ assignment: a, person })
+    }
+    unassignList.value = found
+    // 근무지가 하나뿐이면 미리 고른다
+    if (unassignOptions.value.length === 1) unassignWorksite.value = unassignOptions.value[0]!.value
+  } catch (e: any) {
+    unassignLoadError.value = dboErrorMessage(e, '배정을 불러오지 못했습니다.')
+  } finally {
+    unassignLoading.value = false
+  }
+}
+
+async function submitUnassign() {
+  const targets = unassignTargets.value
+  if (!targets.length) return
+  bulkRunning.value = true
+  bulkProgress.value = { finished: 0, total: targets.length }
+  try {
+    const result = await runSequential(
+      targets,
+      (x) => api.deleteAssignment(x.assignment.id),
+      (finished, total) => (bulkProgress.value = { finished, total }),
+    )
+    bulkResult.value = {
+      done: result.done.length,
+      failed: failureLines(result.failed, unassignLine, (e) => bulkUnassignErrorMessage(e) ?? dboErrorMessage(e)),
+      syncFailed: [],
+    }
+  } finally {
+    bulkRunning.value = false
+  }
+  load()
+}
+
 /* 일괄 등록(QA 2026-10-14 10번) — 창을 닫을 때 목록을 다시 읽는다 */
 const bulkOpen = ref(false)
 
@@ -317,6 +492,15 @@ onMounted(() => {
       </template>
 
       <template #toolbar-end>
+        <!-- 고른 사람에게 같은 근무 배정·배정 삭제(QA 2026-11-07 SHIFT-02 · SHIFT-09) -->
+        <template v-if="selectedIds.length">
+          <AppButton size="sm" variant="outline" color="neutral" icon="i-lucide-calendar-plus" @click="openBulkAssign">
+            여러 명 배정
+          </AppButton>
+          <AppButton size="sm" variant="soft" color="down" icon="i-lucide-calendar-x" @click="openUnassign">
+            배정 일괄 삭제
+          </AppButton>
+        </template>
         <button
           v-if="selectedIds.length"
           type="button"
@@ -364,6 +548,131 @@ onMounted(() => {
         </NuxtLink>
       </template>
     </DataTable>
+
+    <!-- 여러 명 같은 근무 배정(QA 2026-11-07 SHIFT-02 · SHIFT-09). 처리하는 동안은 닫지 않는다 — 누가 됐는지 결과를 봐야 한다 -->
+    <AppModal v-model:open="bulkAssignOpen" title="여러 명 배정" width="max-w-lg" :before-close="() => !bulkRunning">
+      <div class="space-y-4">
+        <template v-if="!bulkResult">
+          <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">
+            <p class="font-semibold text-ink tabular-nums">{{ bulkTargets.targets.length }}명에게 배정을 만듭니다.</p>
+            <p class="mt-0.5 text-muted">
+              한 사람씩 차례로 저장하고, 시니어마다 새 배정 알림이 갑니다. 같은 시간에 이미 배정이 있는 사람은 저장하지 않고
+              끝난 뒤 알려 드립니다.
+            </p>
+            <ul v-if="bulkTargets.targets.length" class="mt-1.5 max-h-32 list-disc space-y-0.5 overflow-y-auto pl-5 text-muted">
+              <li v-for="p in bulkTargets.targets" :key="p.id">{{ personLine(p) }}</li>
+            </ul>
+          </div>
+          <BulkSkippedList :items="skippedPeople(bulkTargets.skipped)" unit="명" />
+          <FormField label="근무지" required :error="bulkTried ? bulkErrors.worksite : undefined">
+            <AppSpinner v-if="refsLoading" label="근무지 불러오는 중…" />
+            <WorksitePicker v-else v-model="bulkForm.worksiteId" :worksites="worksites" :programs="programs" />
+          </FormField>
+          <FormField label="근무 요일" required :error="bulkTried ? bulkErrors.weekdays : undefined">
+            <WeekdayPicker v-model="bulkForm.weekdays" />
+          </FormField>
+          <div class="grid grid-cols-2 gap-4">
+            <FormField label="시작 시간" required :error="bulkTried ? bulkErrors.time : undefined">
+              <DateField v-model="bulkForm.startTime" type="time" />
+            </FormField>
+            <FormField label="종료 시간" required>
+              <DateField v-model="bulkForm.endTime" type="time" />
+            </FormField>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <FormField label="시작일" required :error="bulkTried ? bulkErrors.start : undefined">
+              <DateField v-model="bulkForm.periodStart" />
+            </FormField>
+            <FormField label="종료일" hint="비우면 무기한" :error="bulkErrors.end">
+              <DateField v-model="bulkForm.periodEnd" />
+            </FormField>
+          </div>
+          <p v-if="bulkProgress" class="text-sm text-muted tabular-nums" aria-live="polite">
+            처리 중 {{ bulkProgress.finished }} / {{ bulkProgress.total }}
+          </p>
+        </template>
+        <BulkResultPanel v-else done-label="배정" unit="명" :done="bulkResult.done" :failed="bulkResult.failed">
+          <div
+            v-if="bulkResult.syncFailed.length"
+            class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-body"
+          >
+            <p class="font-medium">아래 {{ bulkResult.syncFailed.length }}명은 배정은 저장됐지만 오늘·내일 근무 정리만 실패했습니다.</p>
+            <p class="mt-0.5 text-muted">명부 상세에서 그 배정의 「수정」을 열어 저장을 한 번 더 누르면 맞춰집니다.</p>
+            <ul class="mt-1.5 list-disc space-y-0.5 pl-5">
+              <li v-for="name in bulkResult.syncFailed" :key="name">{{ name }}</li>
+            </ul>
+          </div>
+        </BulkResultPanel>
+      </div>
+      <template #footer>
+        <template v-if="!bulkResult">
+          <AppButton variant="outline" color="neutral" size="sm" :disabled="bulkRunning" @click="bulkAssignOpen = false">
+            취소
+          </AppButton>
+          <AppButton
+            size="sm"
+            :loading="bulkRunning"
+            :disabled="!bulkTargets.targets.length || refsLoading"
+            @click="submitBulkAssign"
+          >
+            {{ bulkTargets.targets.length }}명에게 배정
+          </AppButton>
+        </template>
+        <AppButton v-else size="sm" @click="bulkAssignOpen = false">닫기</AppButton>
+      </template>
+    </AppModal>
+
+    <!-- 배정 일괄 삭제(QA 2026-11-07 SHIFT-09). 근무지를 하나 골라야 지운다 -->
+    <AppModal v-model:open="unassignOpen" title="배정 일괄 삭제" width="max-w-lg" :before-close="() => !bulkRunning">
+      <div class="space-y-4">
+        <template v-if="!bulkResult">
+          <div class="rounded-lg border border-down bg-down-soft px-4 py-3 text-sm text-down" role="alert">
+            <p class="font-semibold">삭제하기 전에 확인해 주세요.</p>
+            <ul class="mt-1.5 list-disc space-y-0.5 pl-5">
+              <li>고른 근무지의 배정이 지워지고, 앞으로 생길 근무가 더 만들어지지 않습니다.</li>
+              <li>이미 생성된 출퇴근 기록은 남습니다.</li>
+              <li>시니어마다 배정 삭제 알림이 갑니다.</li>
+            </ul>
+          </div>
+          <BulkSkippedList :items="skippedPeople(unassignSkipped)" unit="명" />
+          <AppSpinner v-if="unassignLoading" label="배정 불러오는 중…" />
+          <p v-else-if="unassignLoadError" class="text-sm text-down" role="alert">{{ unassignLoadError }}</p>
+          <EmptyState v-else-if="!unassignList.length" description="고른 사람에게 등록된 배정이 없습니다." />
+          <template v-else>
+            <FormField label="근무지" required hint="고른 사람들의 배정이 있는 근무지입니다.">
+              <SelectField v-model="unassignWorksite" :options="unassignOptions" placeholder="근무지 선택" />
+            </FormField>
+            <div v-if="unassignTargets.length" class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">
+              <p class="font-semibold text-ink tabular-nums">배정 {{ unassignTargets.length }}건을 삭제합니다.</p>
+              <ul class="mt-1.5 max-h-40 list-disc space-y-0.5 overflow-y-auto pl-5 text-muted tabular-nums">
+                <li v-for="x in unassignTargets" :key="x.assignment.id">{{ unassignLine(x) }}</li>
+              </ul>
+            </div>
+          </template>
+          <p v-if="bulkProgress" class="text-sm text-muted tabular-nums" aria-live="polite">
+            처리 중 {{ bulkProgress.finished }} / {{ bulkProgress.total }}
+          </p>
+        </template>
+        <BulkResultPanel v-else done-label="삭제" :done="bulkResult.done" :failed="bulkResult.failed" />
+      </div>
+      <template #footer>
+        <template v-if="!bulkResult">
+          <AppButton variant="outline" color="neutral" size="sm" :disabled="bulkRunning" @click="unassignOpen = false">
+            취소
+          </AppButton>
+          <AppButton
+            color="down"
+            size="sm"
+            :loading="bulkRunning"
+            :disabled="!unassignTargets.length || unassignLoading"
+            @click="submitUnassign"
+          >
+            배정 {{ unassignTargets.length }}건 삭제
+          </AppButton>
+        </template>
+        <AppButton v-else size="sm" @click="unassignOpen = false">닫기</AppButton>
+      </template>
+    </AppModal>
 
     <!-- 등록 모달 -->
     <AppModal v-model:open="createOpen" title="명부 등록">

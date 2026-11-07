@@ -179,8 +179,8 @@ export function assignmentPeriodErrors(
 /** 겹친 배정 한 건(409 assignment_overlap 의 conflicts). 칸 이름은 배정 목록과 같다 */
 type OverlapConflict = Pick<Assignment, 'weekdays' | 'start_time' | 'end_time' | 'period_start' | 'period_end'>
 
-/** 배정 표와 같은 표기 — 「월·화 09:00 – 11:00 · 2026-09-01 ~ 무기한」 */
-function assignmentLine(a: OverlapConflict): string {
+/** 배정 표와 같은 표기 — 「월·화 09:00 – 11:00 · 2026-09-01 ~ 무기한」. 여러 명 배정 일괄 삭제 목록도 쓴다 */
+export function assignmentLine(a: OverlapConflict): string {
   return `${weekdaysLabel(a.weekdays)} ${hhmm(a.start_time)} – ${hhmm(a.end_time)} · ${a.period_start || '—'} ~ ${a.period_end || '무기한'}`
 }
 
