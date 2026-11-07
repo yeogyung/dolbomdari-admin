@@ -168,6 +168,30 @@ export interface DirectoryEntry {
   worksites?: RosterSite[]
 }
 
+/**
+ * 한 사람이 받은 공지 — GET /directory/{id}/notices(서버 2026-11-07, QA ADMIN-03). 발송 최신순 50건.
+ * `read_at` 은 읽은 시각(긴급은 확인), `can_read` 가 false 면 문자로만 받은 분이라 `read_at` 이 늘 null
+ */
+export interface PersonNotice {
+  id: string
+  title: string
+  kind: 'normal' | 'urgent'
+  is_special: boolean
+  status: 'draft' | 'sent' | 'revoked'
+  published_at: string | null
+  read_at: string | null
+  can_read: boolean
+}
+
+/** 명부 상세의 「참여 중인 채팅방」 한 줄 — master 권한으로 dbo_rooms 를 직접 읽는다 */
+export interface PersonRoom {
+  id: string
+  title: string
+  kind: string
+  status: string
+  ai_enabled: boolean
+}
+
 /** 명부 목록 한 줄의 근무지·사업 */
 export interface RosterSite {
   id: string

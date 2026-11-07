@@ -6,7 +6,9 @@ import type { RoomStats } from '~/composables/useRoomStats'
 import { ROOM_AI_OPTIONS, ROOM_KIND_OPTIONS, ROOM_STATUS_OPTIONS, roomFilterQuery } from '~/utils/roomFilters'
 
 const api = useDboAdmin()
+const route = useRoute()
 const { statsFor } = useRoomStats()
+const { room: readRoom } = useRoomPeople()
 const toast = useToast()
 /** 방을 여는 중에는 다른 방을 열지 않는다 — 늦게 온 응답이 다른 방 메시지를 덮지 않게 */
 const openGuard = createClickGuard()
@@ -175,7 +177,28 @@ async function onRoomCreated(roomId: string) {
   if (room) openGuard.run(() => openRoom(room))
 }
 
-onMounted(loadRooms)
+/**
+ * 방 하나를 id 로 연다 — 지금 목록 쪽에 없어도 연다(명부 상세의 「참여 중인 채팅방」, QA 2026-11-07 ADMIN-03).
+ * 목록에 있으면 그 줄을 쓰고, 없으면 방을 직접 읽는다
+ */
+async function openRoomById(roomId: string) {
+  const inList = rooms.value.find((r) => r.id === roomId)
+  if (inList) return openRoom(inList)
+  try {
+    const room = await readRoom(roomId)
+    if (room) return openRoom(room)
+    toast.add({ title: '채팅방을 찾을 수 없습니다.', color: 'warning' })
+  } catch (e: any) {
+    toast.add({ title: '채팅방 조회 실패', description: dboErrorMessage(e), color: 'error' })
+  }
+}
+
+// `?room=<id>` 로 왔으면 그 방을 먼저 연다. 목록은 그다음에 읽는다 — 먼저 읽으면 첫 방이 잠깐 열렸다 바뀐다
+onMounted(async () => {
+  const roomId = typeof route.query.room === 'string' ? route.query.room : ''
+  if (roomId) await openRoomById(roomId)
+  loadRooms()
+})
 </script>
 
 <template>

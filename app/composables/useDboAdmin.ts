@@ -12,6 +12,7 @@ import type {
   ChatMessage,
   ChatRoom,
   DirectoryEntry,
+  PersonNotice,
   LifeStatus,
   ListQuery,
   Paged,
@@ -198,6 +199,8 @@ export function useDboAdmin() {
     ) =>
       req<Paged<DirectoryEntry>>('/directory', { query: clean(q) }),
     getDirectory: (id: string) => req<DirectoryEntry>(`/directory/${id}`),
+    /** 한 사람이 받은 공지 — 발송 최신순 50건과 읽은 시각(서버 2026-11-07, QA ADMIN-03). 옛 서버는 404 */
+    listPersonNotices: (id: string) => req<{ items: PersonNotice[] }>(`/directory/${id}/notices`),
     createDirectory: (body: {
       name: string
       phone: string

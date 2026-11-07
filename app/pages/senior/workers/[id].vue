@@ -1,8 +1,9 @@
 <!-- 명부 상세 — 인적사항 수정·계약 종료 + 시니어는 반복 배정, 담당자는 담당 수요처(여러 곳), 수요처 담당자는 담당 수요처(1곳) (/dbo-admin/directory, /dbo-admin/assignments) -->
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import type { Assignment, DirectoryEntry, LifeStatus, Program, Worksite } from '~/types/dbo'
+import type { Assignment, DirectoryEntry, LifeStatus, PersonNotice, PersonRoom, Program, Worksite } from '~/types/dbo'
 import { phoneKindFromMemo, withPhoneKind } from '~/utils/phoneKind'
+import { personNoticeCounts, personNoticeRead, personNoticesUnsupported } from '~/utils/personActivity'
 
 const route = useRoute()
 const api = useDboAdmin()
@@ -389,8 +390,40 @@ async function removeAssign(row: Assignment) {
   }
 }
 
+/*
+ * 받은 공지·참여 중인 채팅방(QA 2026-11-07 ADMIN-03) — 다른 메뉴에서 다시 찾지 않고 여기서 본다.
+ * 둘 다 덧붙이는 정보라 실패해도 상세는 그대로 두고 그 카드에만 적는다
+ */
+const notices = ref<PersonNotice[] | null>(null)
+const noticesError = ref('')
+const noticeCounts = computed(() => personNoticeCounts(notices.value ?? []))
+
+async function loadNotices() {
+  try {
+    notices.value = (await api.listPersonNotices(id.value)).items
+  } catch (e: any) {
+    noticesError.value = personNoticesUnsupported(e)
+      ? '받은 공지는 서버 업데이트 뒤에 볼 수 있습니다.'
+      : dboErrorMessage(e, '받은 공지를 불러오지 못했습니다.')
+  }
+}
+
+const { roomsOf } = useRoomPeople()
+const rooms = ref<PersonRoom[] | null>(null)
+const roomsError = ref('')
+
+async function loadRooms() {
+  try {
+    rooms.value = await roomsOf(id.value)
+  } catch (e: any) {
+    roomsError.value = dboErrorMessage(e, '참여 중인 채팅방을 불러오지 못했습니다.')
+  }
+}
+
 onMounted(async () => {
   loadRefs()
+  loadNotices()
+  loadRooms()
   await loadEntry()
   // 반복 배정은 시니어에게 근무지를 잇는 것이다. 담당자에게는 없다.
   if (entry.value?.role === 'senior') loadAssignments()
@@ -604,6 +637,79 @@ onMounted(async () => {
             </tbody>
           </table>
         </div>
+      </AppCard>
+
+      <!-- 받은 공지(QA 2026-11-07 ADMIN-03) — 발송 최신순 50건. 모양은 반복 배정 표를 따른다 -->
+      <AppCard padding="none">
+        <template #header>
+          <div>
+            <h2 class="text-[18px] font-semibold text-ink">받은 공지</h2>
+            <p class="mt-0.5 text-sm text-muted">
+              최근 50건까지 보입니다.
+              <template v-if="notices?.length">미열람 {{ noticeCounts.unread }}건.</template>
+            </p>
+          </div>
+        </template>
+        <div class="px-8 pt-2 pb-6">
+          <p v-if="noticesError" class="text-sm text-down" role="alert">{{ noticesError }}</p>
+          <AppSpinner v-else-if="!notices" label="받은 공지 불러오는 중…" />
+          <EmptyState v-else-if="!notices.length" description="받은 공지가 없습니다." />
+          <div v-else class="overflow-x-auto">
+            <table class="w-full border-collapse">
+              <thead>
+                <tr class="text-[13px] font-semibold text-muted">
+                  <th class="pr-3 pb-3 text-left">제목</th>
+                  <th class="pr-3 pb-3 text-left">구분</th>
+                  <th class="pr-3 pb-3 text-left">보낸 시각</th>
+                  <th class="pb-3 text-left">읽음</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="n in notices" :key="n.id">
+                  <td class="border-t border-hairline py-3 pr-3 text-[15px]">
+                    <NuxtLink :to="`/senior/notices/${n.id}`" class="font-semibold text-ink hover:text-brand-500 hover:underline">
+                      {{ n.title }}
+                    </NuxtLink>
+                    <Tag v-if="n.status === 'revoked'" class="ml-1.5">회수됨</Tag>
+                  </td>
+                  <td class="border-t border-hairline py-3 pr-3 text-[15px] whitespace-nowrap text-body">
+                    {{ noticeTypeLabel(n) }}
+                  </td>
+                  <td class="border-t border-hairline py-3 pr-3 text-[15px] whitespace-nowrap text-body tabular-nums">
+                    {{ fmtStamp(n.published_at) }}
+                  </td>
+                  <td class="border-t border-hairline py-3 text-[15px] whitespace-nowrap">
+                    <StatusBadge :tone="personNoticeRead(n).tone">{{ personNoticeRead(n).label }}</StatusBadge>
+                    <span v-if="n.read_at" class="ml-1.5 text-sm text-muted tabular-nums">{{ fmtStamp(n.read_at) }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </AppCard>
+
+      <!-- 참여 중인 채팅방(QA 2026-11-07 ADMIN-03) — 누르면 채팅방 화면에서 그 방이 열린다 -->
+      <AppCard padding="lg">
+        <template #header>
+          <div>
+            <h2 class="text-[18px] font-semibold text-ink">참여 중인 채팅방</h2>
+            <p class="mt-0.5 text-sm text-muted">누르면 채팅방 화면에서 그 방의 대화를 봅니다.</p>
+          </div>
+        </template>
+        <p v-if="roomsError" class="text-sm text-down" role="alert">{{ roomsError }}</p>
+        <AppSpinner v-else-if="!rooms" label="채팅방 불러오는 중…" />
+        <EmptyState v-else-if="!rooms.length" description="참여 중인 채팅방이 없습니다." />
+        <ul v-else class="divide-y divide-hairline">
+          <li v-for="r in rooms" :key="r.id" class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
+            <NuxtLink :to="`/senior/chat?room=${r.id}`" class="text-[15px] font-semibold text-ink hover:text-brand-500 hover:underline">
+              {{ r.title }}
+            </NuxtLink>
+            <StatusBadge :tone="r.status === 'active' ? 'green' : 'gray'">{{ r.status === 'active' ? '활성' : '종료' }}</StatusBadge>
+            <span class="text-sm text-muted">{{ r.kind === 'direct' ? '1:1' : '단체' }}</span>
+            <span v-if="r.ai_enabled" class="text-sm text-brand-500">AI 사용</span>
+          </li>
+        </ul>
       </AppCard>
     </template>
 
