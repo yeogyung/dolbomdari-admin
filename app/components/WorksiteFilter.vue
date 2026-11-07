@@ -25,6 +25,11 @@ const programName = (pid: string | null) => (pid ? (props.programs.find((p) => p
 
 const query = ref('')
 const open = ref(false)
+/**
+ * 입력칸에 포커스가 있는가. 있으면 고른 이름 대신 검색어를 보인다 — Esc 로 목록만 닫고 바로 치면
+ * 고른 이름 뒤에 글자가 붙어 검색 결과가 늘 0건이 됐다(리뷰 반영)
+ */
+const focused = ref(false)
 const activeIndex = ref(0)
 const inputEl = ref<HTMLInputElement | null>(null)
 
@@ -109,7 +114,7 @@ function onKey(e: KeyboardEvent) {
     />
     <input
       ref="inputEl"
-      :value="open ? query : selectedLabel"
+      :value="open || focused ? query : selectedLabel"
       type="text"
       role="combobox"
       aria-label="근무지 필터"
@@ -117,11 +122,16 @@ function onKey(e: KeyboardEvent) {
       :aria-controls="`${uid}-list`"
       :aria-expanded="open"
       :aria-activedescendant="open && optionCount ? `${uid}-opt-${activeIndex}` : undefined"
-      :placeholder="open ? '근무지 이름 검색' : allLabel"
+      :placeholder="open || focused ? '근무지 이름 검색' : allLabel"
       :title="selectedLabel || allLabel"
       autocomplete="off"
       class="h-11 w-full truncate rounded-full border border-hairline bg-white pr-9 pl-10 text-[15px] font-medium text-ink outline-none transition-colors placeholder:text-ink focus:border-brand-500 focus:placeholder:text-muted"
-      @focus="openList"
+      @focus="
+        () => {
+          focused = true
+          openList()
+        }
+      "
       @click="openList"
       @input="
         (e) => {
@@ -131,19 +141,22 @@ function onKey(e: KeyboardEvent) {
       "
       @blur="
         () => {
+          focused = false
           open = false
           query = ''
         }
       "
       @keydown="onKey"
     />
-    <!-- 고른 근무지가 있으면 X 로 바로 푼다. mousedown 에서 막아 입력칸 blur 보다 먼저 받는다 -->
+    <!-- 고른 근무지가 있으면 X 로 바로 푼다. 마우스는 mousedown 에서 막아 입력칸 blur 보다 먼저 받고,
+         키보드(Tab 으로 와서 Enter·Space)는 click 으로 받는다 -->
     <button
       v-if="model && !open"
       type="button"
       class="absolute top-1/2 right-3 -translate-y-1/2 text-muted hover:text-ink"
       aria-label="근무지 선택 풀기"
       @mousedown.prevent="pick('')"
+      @click="pick('')"
     >
       <UIcon name="i-lucide-x" class="size-4" />
     </button>
