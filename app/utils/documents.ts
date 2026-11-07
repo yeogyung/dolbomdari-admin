@@ -1,6 +1,7 @@
 // AI 문서 관리 화면의 상태 톤·적용 범위·용량 표기·수정 본문 계산 순수 유틸
 import type { DocumentListItem, DocumentPatch, DocumentState } from '../types/dbo'
 import { throughLabel } from './reports'
+import { TOO_LARGE_MESSAGE } from './documentImport'
 
 export function docStateTone(state: DocumentState): 'green' | 'blue' | 'gray' | 'amber' | 'red' {
   return {
@@ -144,6 +145,7 @@ export function documentVersionError(
     }
   }
   if (code === 'duplicate_filename') return plain('같은 파일명의 문서가 이미 있습니다. 파일명을 바꿔 주세요.')
+  if (code === 'too_large') return plain(TOO_LARGE_MESSAGE)
   if (code === 'previous_changed') {
     return {
       message: '그사이 이전 판이 바뀌었습니다. 이전 판을 다시 열고 올려 주세요.',

@@ -66,6 +66,11 @@ async function onPick(e: Event) {
     toast.add({ title: '지원하지 않는 형식입니다.', description: 'md, docx, pdf 파일만 올릴 수 있습니다.', color: 'warning' })
     return
   }
+  // 20MB 를 넘으면 읽기 전에 막는다(QA 2026-11-07 FAQ-03) — 서버도 too_large 로 거절한다
+  if (fileTooLarge(file.size)) {
+    toast.add({ title: TOO_LARGE_MESSAGE, description: `고른 파일은 ${fmtBytes(file.size)}예요.`, color: 'warning' })
+    return
+  }
 
   extracting.value = true
   try {
@@ -115,7 +120,9 @@ async function submit() {
     await navigateTo(`/senior/documents/${res.id}`)
   } catch (e: any) {
     const status = e?.status ?? e?.statusCode
-    if (status === 409) {
+    if (isTooLargeError(e)) {
+      toast.add({ title: TOO_LARGE_MESSAGE, color: 'warning' })
+    } else if (status === 409) {
       toast.add({
         title: '같은 파일명의 문서가 이미 있습니다.',
         description: '파일명을 바꾸거나, 목록에서 기존 문서를 찾아 본문을 수정해 주세요.',
@@ -222,7 +229,7 @@ function reset() {
         <template v-else>
           <UIcon name="i-lucide-file-up" class="size-10 text-brand-500" />
           <span class="text-[15px] font-semibold text-ink">파일 선택</span>
-          <span class="text-sm text-muted">md · docx · pdf (HWP는 지원하지 않습니다)</span>
+          <span class="text-sm text-muted">md · docx · pdf, 20MB까지 (HWP는 지원하지 않습니다)</span>
         </template>
       </button>
       <p class="mt-4 text-sm text-muted">

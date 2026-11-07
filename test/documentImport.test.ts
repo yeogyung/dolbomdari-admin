@@ -4,8 +4,26 @@ import {
   kindFromFilename,
   normalizeExtractedText,
   buildCreatePayload,
+  fileTooLarge,
+  isTooLargeError,
+  MAX_IMPORT_BYTES,
   type DocumentCreateForm,
 } from '../app/utils/documentImport'
+
+describe('파일 크기 상한 20MB (FAQ-03)', () => {
+  it('정확히 20MB 는 받고 1바이트라도 넘으면 막는다', () => {
+    expect(MAX_IMPORT_BYTES).toBe(20 * 1024 * 1024)
+    expect(fileTooLarge(MAX_IMPORT_BYTES)).toBe(false)
+    expect(fileTooLarge(MAX_IMPORT_BYTES + 1)).toBe(true)
+    expect(fileTooLarge(0)).toBe(false)
+  })
+  it('서버의 too_large 는 상태 코드와 관계없이 알아본다', () => {
+    expect(isTooLargeError({ status: 400, data: { error: 'too_large' } })).toBe(true)
+    expect(isTooLargeError({ status: 413, data: { error: 'too_large' } })).toBe(true)
+    expect(isTooLargeError({ status: 400, data: { error: 'bad_request' } })).toBe(false)
+    expect(isTooLargeError(new Error('network'))).toBe(false)
+  })
+})
 
 describe('지원 형식 판별', () => {
   it('md·docx·pdf 만 받고 대소문자를 가리지 않는다', () => {

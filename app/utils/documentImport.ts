@@ -5,6 +5,23 @@ export type ImportKind = 'md' | 'docx' | 'pdf'
 
 export const IMPORT_ACCEPT = '.md,.markdown,.docx,.pdf'
 
+/**
+ * 원본 파일 상한 20MB(QA 2026-11-07 FAQ-03). 앱(`lib/docFormat.ts` 의 `MAX_DOC_BYTES`)과 서버(`MAX_BYTE_SIZE`)와 같은 값이다.
+ * 서버는 넘으면 `too_large` 를 낸다
+ */
+export const MAX_IMPORT_BYTES = 20 * 1024 * 1024
+export const TOO_LARGE_MESSAGE = '20MB 보다 큰 파일은 올릴 수 없어요.'
+
+/** 상한을 넘는가 — 정확히 20MB 는 받는다(서버도 `size > MAX` 만 막는다) */
+export function fileTooLarge(size: number): boolean {
+  return size > MAX_IMPORT_BYTES
+}
+
+/** 서버가 크기로 거절했는가(`too_large`). 상태 코드(400·413)와 관계없이 코드로 본다 */
+export function isTooLargeError(e: any): boolean {
+  return e?.data?.error === 'too_large'
+}
+
 export function kindFromFilename(name: string): ImportKind | null {
   const ext = name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]
   if (ext === 'md' || ext === 'markdown') return 'md'

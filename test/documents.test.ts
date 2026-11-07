@@ -163,6 +163,11 @@ describe('문서 판 — 새 판 올리기 실패', () => {
       '새 판 발효일은 이전 판(4월 1일)보다 늦어야 합니다.',
     )
     expect(documentVersionError(err(409, { error: 'duplicate_filename' }), prev).message).toContain('파일명을 바꿔')
+    // 400 공용 문구(종료일 안내)보다 먼저 크기 안내를 낸다
+    expect(documentVersionError(err(400, { error: 'too_large' }), prev)).toEqual({
+      message: '20MB 보다 큰 파일은 올릴 수 없어요.',
+      link: null,
+    })
     expect(documentVersionError(err(409, { error: 'previous_changed' }), prev)).toEqual({
       message: '그사이 이전 판이 바뀌었습니다. 이전 판을 다시 열고 올려 주세요.',
       link: { to: '/senior/documents/p1', label: '이전 판 다시 열기' },
