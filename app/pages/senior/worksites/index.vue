@@ -58,6 +58,11 @@ const listed = computed(() =>
 )
 const total = computed(() => listed.value.length)
 const rows = computed(() => listed.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
+// 다시 받은 뒤 목록이 줄면(예: 「근무지 담당자 미지정」으로 거른 채 담당자를 지정) 빈 페이지에 남지 않게 마지막 페이지로 옮긴다
+watch(total, (t) => {
+  const last = Math.max(1, Math.ceil(t / pageSize.value))
+  if (page.value > last) page.value = last
+})
 
 const programs = ref<Program[]>([])
 /** 근무지 담당자 후보(role=manager, 사회복지사) */
