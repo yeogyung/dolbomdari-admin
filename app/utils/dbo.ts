@@ -26,6 +26,18 @@ export const WEEKDAYS: { value: number; label: string }[] = [
   { value: 7, label: '일' },
 ]
 
+/** 요일 빠른 선택(QA 2026-11-07 SHIFT-01). 누르면 고른 요일을 이 묶음으로 바꾼다 — 평일 배정에 다섯 번 누르던 것을 한 번에 */
+export const WEEKDAY_PRESETS: { label: string; days: number[] }[] = [
+  { label: '평일', days: [1, 2, 3, 4, 5] },
+  { label: '매일', days: [1, 2, 3, 4, 5, 6, 7] },
+  { label: '주말', days: [6, 7] },
+]
+
+/** 고른 요일이 그 묶음과 같은가(순서 무관) — 빠른 선택 버튼을 눌린 모양으로 보인다 */
+export function sameWeekdays(a: number[], b: number[]): boolean {
+  return a.length === b.length && a.every((d) => b.includes(d))
+}
+
 export function weekdaysLabel(days: number[] | null | undefined): string {
   if (!days?.length) return '—'
   return [...days]

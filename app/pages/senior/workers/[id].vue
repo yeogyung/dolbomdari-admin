@@ -676,7 +676,7 @@ onMounted(async () => {
           />
         </FormField>
         <FormField label="근무 요일" required>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <button
               v-for="w in WEEKDAYS"
               :key="w.value"
@@ -690,6 +690,23 @@ onMounted(async () => {
               @click="toggleWeekday(w.value)"
             >
               {{ w.label }}
+            </button>
+            <!-- 빠른 선택(QA 2026-11-07 SHIFT-01) — 누르면 고른 요일을 그 묶음으로 바꾼다 -->
+            <span class="mx-1 h-6 w-px bg-hairline" aria-hidden="true" />
+            <button
+              v-for="p in WEEKDAY_PRESETS"
+              :key="p.label"
+              type="button"
+              class="h-10 rounded-full border px-3 text-sm font-medium transition-colors"
+              :class="
+                sameWeekdays(assignForm.weekdays, p.days)
+                  ? 'border-brand-500 bg-brand-soft text-brand-500'
+                  : 'border-hairline bg-white text-body hover:bg-surface-soft'
+              "
+              :aria-pressed="sameWeekdays(assignForm.weekdays, p.days)"
+              @click="assignForm.weekdays = [...p.days]"
+            >
+              {{ p.label }}
             </button>
           </div>
         </FormField>
