@@ -4,6 +4,7 @@ import { ref, computed, onMounted } from 'vue'
 import type { Column } from '~/types/table'
 import type { AdminAccount, AdminRole, LifeStatus, Worksite } from '~/types/dbo'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
+import { accountWorksiteOptions, filterAccounts } from '~/utils/accountList'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -12,12 +13,32 @@ const endGuard = createClickGuard()
 const { setHeader } = useAdminHeader()
 setHeader('계정·권한')
 
-const rows = ref<AdminAccount[]>([])
+const all = ref<AdminAccount[]>([])
 const loading = ref(false)
 const worksites = ref<Worksite[]>([])
 
 const worksiteName = (id: string | null) =>
   id ? (worksites.value.find((w) => w.id === id)?.name ?? id) : '—'
+
+// 이름 검색·권한·상태·담당 근무지 필터(QA 2026-11-07 ADMIN-13). 전부 받으므로 화면에서 거르고, 주소에 담는다
+const lq = useListQuery({ q: '', role: '', status: '', worksite: '' })
+const q = lq.q
+const roleFilter = lq.role
+const statusFilter = lq.status
+const worksiteFilter = lq.worksite
+const rows = computed(() =>
+  filterAccounts(all.value, {
+    q: q.value,
+    role: roleFilter.value,
+    status: statusFilter.value,
+    worksite: worksiteFilter.value,
+  }),
+)
+/** 담당 근무지 선택지 — 계정에 지정된 근무지만(전체 360곳이 아니라 몇 곳) */
+const worksiteOptions = computed(() => [
+  { label: '담당 근무지 전체', value: '' },
+  ...accountWorksiteOptions(all.value, (id) => worksiteName(id)),
+])
 
 const columns: Column[] = [
   { key: 'name', label: '이름', strong: true },
@@ -32,7 +53,7 @@ async function load() {
   loading.value = true
   try {
     const res = await api.listAccounts()
-    rows.value = res.items
+    all.value = res.items
   } catch (e: any) {
     toast.add({ title: '계정 조회 실패', description: dboErrorMessage(e), color: 'error' })
   } finally {
@@ -54,7 +75,7 @@ async function loadWorksites() {
   }
 }
 
-/* 엑셀 — 목록을 전량 받으므로 화면의 행을 그대로 내보낸다 */
+/* 엑셀 — 목록을 전량 받으므로 화면의 행(지금 거른 결과)을 그대로 내보낸다 */
 const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: 'name', label: '이름' },
   { key: 'email', label: '이메일' },
@@ -211,10 +232,30 @@ onMounted(() => {
       :loading="loading || !worksitesSettled"
       :total="rows.length"
       :paginated="false"
-      empty-text="발급된 계정이 없습니다."
+      :empty-text="all.length ? '조건에 맞는 계정이 없습니다.' : '발급된 계정이 없습니다.'"
     >
+      <template #toolbar>
+        <PillSearch v-model="q" placeholder="이름 검색" />
+        <PillSelect
+          v-model="roleFilter"
+          :options="[
+            { label: '권한 전체', value: '' },
+            { label: '운영관리자', value: 'master' },
+            { label: '수요처', value: 'worksite' },
+          ]"
+        />
+        <PillSelect
+          v-model="statusFilter"
+          :options="[
+            { label: '상태 전체', value: '' },
+            { label: '활성', value: 'active' },
+            { label: '종료', value: 'ended' },
+          ]"
+        />
+        <PillSelect v-model="worksiteFilter" :options="worksiteOptions" />
+      </template>
       <template #toolbar-end>
-        <span class="text-sm text-muted tabular-nums">전체 {{ rows.length }}개</span>
+        <span class="text-sm text-muted tabular-nums">전체 {{ all.length }}개</span>
       </template>
 
       <template #cell-email="{ row }">
