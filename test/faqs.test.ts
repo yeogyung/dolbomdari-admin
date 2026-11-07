@@ -7,6 +7,7 @@ import {
   faqScopeNames,
   faqScopeLabel,
   faqReadErrorMessage,
+  faqEditPatch,
 } from '../app/utils/faqs'
 import type { Faq } from '../app/types/dbo'
 
@@ -53,6 +54,36 @@ describe('FAQ 목록 필터', () => {
   })
   it('상태와 검색어를 함께 건다', () => {
     expect(filterFaqs(items, { q: 'QR', status: 'rejected' }).map((f) => f.id)).toEqual(['f3'])
+  })
+  // QA 2026-11-07 ADMIN-10 — 반려 FAQ 는 목록 기본에서 숨긴다
+  it('hideRejected 면 상태를 고르지 않았을 때 반려를 뺀다', () => {
+    expect(filterFaqs(items, { status: '', hideRejected: true }).map((f) => f.id)).toEqual(['f1', 'f2'])
+  })
+  it('반려를 직접 고르면 hideRejected 와 관계없이 보인다', () => {
+    expect(filterFaqs(items, { status: 'rejected', hideRejected: true }).map((f) => f.id)).toEqual(['f3'])
+  })
+})
+
+describe('FAQ 수정 본문', () => {
+  const original = { question: '급여일이 언제인가요', answer: '매월 10일입니다.' }
+
+  it('바뀐 칸만 앞뒤 공백을 빼고 싣는다', () => {
+    expect(faqEditPatch(original, { question: ' 급여일은 언제인가요 ', answer: '매월 10일입니다.' })).toEqual({
+      ok: true,
+      patch: { question: '급여일은 언제인가요' },
+    })
+  })
+  it('공백만 바뀌었으면 고칠 것이 없다', () => {
+    expect(faqEditPatch(original, { question: '급여일이 언제인가요  ', answer: ' 매월 10일입니다.' })).toEqual({
+      ok: true,
+      patch: {},
+    })
+  })
+  it('빈 질문·답변은 칸마다 막는다(서버도 400)', () => {
+    expect(faqEditPatch(original, { question: '  ', answer: '' })).toEqual({
+      ok: false,
+      errors: { question: '질문을 입력해 주세요.', answer: '답변을 입력해 주세요.' },
+    })
   })
 })
 

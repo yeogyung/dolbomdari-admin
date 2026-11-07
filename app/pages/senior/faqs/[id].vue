@@ -1,7 +1,8 @@
-<!-- FAQ 상세 — 질문·답변·적용 범위 열람 + 승인·반려 (조회 supabase 직접, 쓰기 PATCH /dbo-admin/faqs/{id}) -->
+<!-- FAQ 상세 — 질문·답변·적용 범위 열람 + 승인·반려·질문·답변 수정·사용 안 함 (조회 supabase 직접, 쓰기 PATCH /dbo-admin/faqs/{id}) -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import type { Faq, FaqStatus } from '~/types/dbo'
+import type { FaqEditForm } from '~/utils/faqs'
 
 const route = useRoute()
 const faqs = useFaqs()
@@ -56,6 +57,98 @@ async function decide(status: 'approved' | 'rejected') {
   }
 }
 
+/*
+ * 「사용 안 함 · 다시 사용」(QA 2026-11-07 ADMIN-10, 결정 D21) — 지우지 않고 AI 답변에서만 뺀다(서버에 삭제가 없다).
+ * 승인한 FAQ 만 켜고 끈다. 승인 대기·반려는 승인·반려가 켜고 끄며, AI 는 승인된 것만 쓴다
+ */
+const toggling = ref(false)
+async function toggleEnabled() {
+  const f = faq.value
+  if (!f || toggling.value) return
+  const next = !f.enabled
+  const ask = next
+    ? '이 FAQ를 다시 사용할까요? 바로 AI 답변에 쓰여요.'
+    : '이 FAQ를 사용 안 함으로 바꿀까요? AI 답변에 쓰이지 않고, 지워지지는 않아요.'
+  if (!confirm(ask)) return
+  toggling.value = true
+  try {
+    await api.updateFaq(f.id, { enabled: next })
+    toast.add({ title: next ? '다시 사용해요.' : '사용 안 함으로 바꿨어요.', color: 'success' })
+    await loadFaq()
+  } catch (e: any) {
+    toast.add({ title: '처리 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    toggling.value = false
+  }
+}
+
+/* 질문·답변 수정(QA 2026-11-07 ADMIN-10). 비슷한 질문은 서버가 받지 않아 고칠 수 없다 */
+const editOpen = ref(false)
+const saving = ref(false)
+const editInitial = ref<FaqEditForm>({ question: '', answer: '' })
+const editForm = ref<FaqEditForm>({ question: '', answer: '' })
+const editErrors = ref<Partial<FaqEditForm>>({})
+
+function openEdit() {
+  if (!faq.value) return
+  editInitial.value = { question: faq.value.question, answer: faq.value.answer }
+  editForm.value = { ...editInitial.value }
+  editErrors.value = {}
+  editOpen.value = true
+}
+
+/**
+ * 저장하지 않고 닫을 때 묻는다 — 출퇴근 기록의 수정 창과 같다(QA 2026-11-02 ADM-01, 결정 F8).
+ * X·바깥 누르기·Esc·메뉴 이동이 모두 같은 확인 창을 본다
+ */
+const discardOpen = ref(false)
+const discard = createPendingAnswer()
+function confirmDiscardEdit(): boolean | Promise<boolean> {
+  // 저장 중에는 닫지 않는다 — 닫혀도 저장은 들어가 「저장 안 했다」고 믿게 된다
+  if (saving.value) return false
+  if (!formChanged(editInitial.value, editForm.value)) return true
+  discardOpen.value = true
+  return discard.ask()
+}
+/** 확인 창을 먼저 내리고 답한다 — 확인 창이 포커스를 수정 창에 돌려준 뒤에 수정 창이 닫힌다 */
+function answerDiscard(ok: boolean) {
+  discardOpen.value = false
+  discard.answer(ok)
+}
+// 확인 창을 X·바깥 누르기·Esc 로 닫으면 「계속 수정」이다
+watch(discardOpen, (v) => {
+  if (!v) discard.answer(false)
+})
+onBeforeRouteLeave(() => (editOpen.value ? confirmDiscardEdit() : true))
+
+async function submitEdit() {
+  const f = faq.value
+  if (!f || saving.value) return
+  const built = faqEditPatch(editInitial.value, editForm.value)
+  if (!built.ok) {
+    editErrors.value = built.errors
+    return
+  }
+  editErrors.value = {}
+  // 앞뒤 공백만 바뀌었으면 고칠 것이 없다 — 묻지 않고 닫는다
+  if (!Object.keys(built.patch).length) {
+    editOpen.value = false
+    return
+  }
+  saving.value = true
+  try {
+    await api.updateFaq(f.id, built.patch)
+    editOpen.value = false
+    toast.add({ title: '저장했어요.', description: f.enabled && f.status === 'approved' ? '바로 AI 답변에 쓰여요.' : undefined, color: 'success' })
+    await loadFaq()
+  } catch (e: any) {
+    // 창을 닫지 않는다 — 고친 내용이 남아 있어야 다시 저장할 수 있다
+    toast.add({ title: '저장 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    saving.value = false
+  }
+}
+
 onMounted(loadFaq)
 </script>
 
@@ -66,6 +159,20 @@ onMounted(loadFaq)
         목록
       </AppButton>
       <template v-if="faq">
+        <AppButton variant="outline" color="neutral" icon="i-lucide-pencil" :disabled="!!deciding || toggling" @click="openEdit">
+          수정
+        </AppButton>
+        <AppButton
+          v-if="faq.status === 'approved'"
+          variant="outline"
+          color="neutral"
+          :icon="faq.enabled ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+          :loading="toggling"
+          :disabled="!!deciding"
+          @click="toggleEnabled"
+        >
+          {{ faq.enabled ? '사용 안 함' : '다시 사용' }}
+        </AppButton>
         <!-- 결정은 번복할 수 있다: 대기는 둘 다, 승인은 반려만, 반려는 승인만 -->
         <AppButton
           v-if="faq.status !== 'rejected'"
@@ -149,5 +256,33 @@ onMounted(loadFaq)
       :description="loadError"
     />
     <EmptyState v-else title="FAQ를 찾을 수 없습니다." description="삭제되었거나 볼 권한이 없는 FAQ입니다." />
+
+    <!-- 질문·답변 수정 — 모양은 출퇴근 기록의 「출결 기록 수정」 창을 따른다 -->
+    <AppModal v-model:open="editOpen" title="FAQ 수정" width="max-w-2xl" :before-close="confirmDiscardEdit">
+      <div class="space-y-4">
+        <FormField label="질문" required :error="editErrors.question">
+          <AppTextarea v-model="editForm.question" :rows="2" />
+        </FormField>
+        <FormField label="답변" required :error="editErrors.answer">
+          <AppTextarea v-model="editForm.answer" :rows="8" />
+        </FormField>
+        <p class="text-xs text-muted">
+          승인해 사용 중인 FAQ 는 저장하면 바로 AI 답변에 쓰여요. 비슷한 질문은 여기서 고칠 수 없어요.
+        </p>
+      </div>
+      <template #footer>
+        <AppButton variant="outline" color="neutral" size="sm" :disabled="saving" @click="editOpen = false">취소</AppButton>
+        <AppButton size="sm" :loading="saving" @click="submitEdit">저장</AppButton>
+      </template>
+    </AppModal>
+
+    <!-- 저장하지 않고 닫기 확인. 수정 창 위에 뜨도록 뒤에 둔다 -->
+    <AppModal v-model:open="discardOpen" title="저장하지 않고 닫을까요?" width="max-w-md">
+      <p class="text-sm text-body">입력한 내용이 사라집니다.</p>
+      <template #footer>
+        <AppButton variant="outline" color="neutral" size="sm" @click="answerDiscard(false)">계속 수정</AppButton>
+        <AppButton color="down" size="sm" @click="answerDiscard(true)">저장하지 않고 닫기</AppButton>
+      </template>
+    </AppModal>
   </div>
 </template>

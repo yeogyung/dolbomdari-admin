@@ -15,11 +15,18 @@ export function faqStatusTone(status: FaqStatus): 'amber' | 'green' | 'red' {
   return { pending: 'amber', approved: 'green', rejected: 'red' }[status] as 'amber' | 'green' | 'red'
 }
 
-/** 서버가 준 sort 순서를 유지한 채 상태·검색어(질문·답변)로 거른다 */
-export function filterFaqs(items: Faq[], opts: { q?: string; status?: FaqStatus | '' }): Faq[] {
+/**
+ * 서버가 준 sort 순서를 유지한 채 상태·검색어(질문·답변)로 거른다.
+ * `hideRejected` 는 상태를 고르지 않았을 때 반려를 뺀다 — 목록 기본값(QA 2026-11-07 ADMIN-10, 결정 D21)
+ */
+export function filterFaqs(
+  items: Faq[],
+  opts: { q?: string; status?: FaqStatus | ''; hideRejected?: boolean },
+): Faq[] {
   const q = opts.q?.trim().toLowerCase() ?? ''
   return items.filter((f) => {
     if (opts.status && f.status !== opts.status) return false
+    if (!opts.status && opts.hideRejected && f.status === 'rejected') return false
     if (q && !f.question.toLowerCase().includes(q) && !f.answer.toLowerCase().includes(q)) return false
     return true
   })
@@ -40,6 +47,28 @@ export function faqScopeLabel(faq: Pick<Faq, 'dbo_faq_worksites'>): string {
   const names = faqScopeNames(faq)
   if (!names.length) return '기관 전체'
   return names.length === 1 ? names[0]! : `${names[0]} 외 ${names.length - 1}곳`
+}
+
+export type FaqEditForm = { question: string; answer: string }
+
+/**
+ * FAQ 수정 창의 저장 본문(QA 2026-11-07 ADMIN-10). 앞뒤 공백을 빼고 바뀐 칸만 싣는다 — 빈 본문이면 고칠 것이 없다.
+ * 빈 질문·답변은 서버도 400 으로 거절하므로 칸마다 먼저 알린다. 비슷한 질문은 서버 PATCH 가 받지 않아 고치지 않는다
+ */
+export function faqEditPatch(
+  original: FaqEditForm,
+  form: FaqEditForm,
+): { ok: true; patch: Partial<FaqEditForm> } | { ok: false; errors: Partial<FaqEditForm> } {
+  const question = form.question.trim()
+  const answer = form.answer.trim()
+  const errors: Partial<FaqEditForm> = {}
+  if (!question) errors.question = '질문을 입력해 주세요.'
+  if (!answer) errors.answer = '답변을 입력해 주세요.'
+  if (errors.question || errors.answer) return { ok: false, errors }
+  const patch: Partial<FaqEditForm> = {}
+  if (question !== original.question.trim()) patch.question = question
+  if (answer !== original.answer.trim()) patch.answer = answer
+  return { ok: true, patch }
 }
 
 /** PostgREST 오류({ code, message })를 사람이 읽는 한국어로 바꾼다 */

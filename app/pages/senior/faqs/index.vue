@@ -15,11 +15,19 @@ const loading = ref(false)
 // 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
 const lq = useListQuery({ q: '', status: '' })
 const q = lq.q
-const statusFilter = lq.status as Ref<'' | FaqStatus>
+/** '' 은 반려를 뺀 전체(기본, QA 2026-11-07 ADMIN-10 · 결정 D21), 'all' 은 반려까지 전부 */
+const statusFilter = lq.status as Ref<'' | FaqStatus | 'all'>
 
 // 서버가 페이지를 나누지 않는다 — 프롬프트에 실리는 순서(sort) 그대로 전부 보여 준다
-const rows = computed(() => filterFaqs(all.value, { q: q.value, status: statusFilter.value }))
+const rows = computed(() =>
+  filterFaqs(all.value, {
+    q: q.value,
+    status: statusFilter.value === 'all' ? '' : statusFilter.value,
+    hideRejected: statusFilter.value === '',
+  }),
+)
 const pendingCount = computed(() => all.value.filter((f) => f.status === 'pending').length)
+const rejectedCount = computed(() => all.value.filter((f) => f.status === 'rejected').length)
 
 const columns: Column[] = [
   { key: 'sort', label: '순서', align: 'center' },
@@ -105,12 +113,17 @@ onMounted(load)
         <PillSearch v-model="q" placeholder="질문·답변 검색" />
         <PillSelect
           v-model="statusFilter"
-          :options="[{ label: '상태 전체', value: '' }, ...FAQ_STATUSES]"
+          :options="[
+            { label: '반려 빼고 전체', value: '' },
+            ...FAQ_STATUSES,
+            { label: '반려 포함 전체', value: 'all' },
+          ]"
         />
       </template>
       <template #toolbar-end>
         <span class="text-sm text-muted tabular-nums">
-          전체 {{ all.length }}개 · 승인 대기 {{ pendingCount }}개
+          전체 {{ all.length }}개 · 승인 대기 {{ pendingCount }}개<template v-if="statusFilter === '' && rejectedCount">
+            · 반려 {{ rejectedCount }}개 숨김</template>
         </span>
       </template>
 

@@ -124,6 +124,12 @@ export function useDboAdmin() {
     /* FAQ 승인·반려 — master 전용. 조회는 useFaqs(PostgREST 직접). enabled 는 서버가 status 에 맞춰 켜고 끈다 */
     updateFaqStatus: (id: string, status: FaqStatus) =>
       req<{ ok: true }>(`/faqs/${id}`, { method: 'PATCH', body: { status } }),
+    /**
+     * 질문·답변 고치기와 「사용 안 함 · 다시 사용」(QA 2026-11-07 ADMIN-10). 보낸 칸만 고친다. 서버는 FAQ 를 지우지 않는다 —
+     * AI 답변에서 빼려면 enabled=false. 비슷한 질문은 받지 않고, 동시 수정 검사(expectedUpdatedAt)도 없다
+     */
+    updateFaq: (id: string, body: { question?: string; answer?: string; enabled?: boolean }) =>
+      req<{ ok: true }>(`/faqs/${id}`, { method: 'PATCH', body }),
     /* 사업 — master 전용 */
     listPrograms: () => req<{ items: Program[] }>('/programs'),
     createProgram: (body: { name: string; color?: string }) =>
