@@ -33,6 +33,7 @@ import type {
   MonthlyReport,
 } from '~/types/dbo'
 import type { DocumentCreateBody } from '~/utils/documentImport'
+import type { RoomFilterQuery } from '~/utils/roomFilters'
 import type { AttendanceDisplay } from '~/utils/attendanceState'
 import { fetchAllPages } from '~/utils/paging'
 
@@ -296,8 +297,8 @@ export function useDboAdmin() {
     rejectAttendanceRequest: (id: string, memo: string | null) =>
       req<{ ok: true; request: AttendanceRequest }>(`/attendance-requests/${id}/reject`, { method: 'POST', body: { memo } }),
 
-    /* 채팅방 열람 — master 전용 */
-    listRooms: (q: ListQuery = {}) => req<Paged<ChatRoom>>('/rooms', { query: clean(q) }),
+    /* 채팅방 열람 — master 전용. 상태·종류·AI 필터(서버 2026-11-07, QA ADMIN-01)는 DB 값 그대로, 그 밖은 400 */
+    listRooms: (q: ListQuery & RoomFilterQuery = {}) => req<Paged<ChatRoom>>('/rooms', { query: clean(q) }),
     /**
      * 단체방 만들기(서버 2026-11-04, QA CHAT-01). 참여자는 **프로필 id**. 만든 master 는 멤버로 들어가지 않는다.
      * 넣을 수 없는 사람이 하나라도 있으면 아무것도 만들지 않고 400 bad_member(`invalid`). 옛 서버는 404

@@ -1,8 +1,9 @@
 <!-- 채팅방 열람 — 방 목록 + 대화 읽기 + 활성/종료 전환 (/dbo-admin/rooms) -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import type { ChatMessage, ChatRoom } from '~/types/dbo'
 import type { RoomStats } from '~/composables/useRoomStats'
+import { ROOM_AI_OPTIONS, ROOM_KIND_OPTIONS, ROOM_STATUS_OPTIONS, roomFilterQuery } from '~/utils/roomFilters'
 
 const api = useDboAdmin()
 const { statsFor } = useRoomStats()
@@ -14,11 +15,16 @@ setHeader('채팅방')
 
 const rooms = ref<ChatRoom[]>([])
 const total = ref(0)
-// 검색어·페이지는 주소에 담는다 — 다른 화면에 다녀와도 그대로다. 검색어는 「검색」 때 싣는다
-const lq = useListQuery({ page: 1, q: '' }, { committed: ['q'] })
+// 검색어·필터·페이지는 주소에 담는다 — 다른 화면에 다녀와도 그대로다. 검색어는 「검색」 때 싣는다
+const lq = useListQuery({ page: 1, q: '', status: '', kind: '', ai: '' }, { committed: ['q'] })
 const page = lq.page
 const pageSize = 20
 const q = lq.q
+/** 상태·종류·AI 사용 필터(QA 2026-11-07 ADMIN-01). 서버가 걸러 쪽·개수가 맞는다 */
+const statusFilter = lq.status
+const kindFilter = lq.kind
+const aiFilter = lq.ai
+const filtering = computed(() => !!(lq.committedOf('q') || statusFilter.value || kindFilter.value || aiFilter.value))
 const loadingRooms = ref(false)
 
 /** 방별 참여 인원·마지막 메시지 시각(QA 2026-11-02 CHAT-02). 못 읽으면 비어 있고 그 칸만 안 보인다 */
@@ -43,7 +49,12 @@ async function loadRooms() {
   const current = ++sequence
   loadingRooms.value = true
   try {
-    const res = await api.listRooms({ page: page.value, size: pageSize, q: lq.committedOf('q') })
+    const res = await api.listRooms({
+      page: page.value,
+      size: pageSize,
+      q: lq.committedOf('q'),
+      ...roomFilterQuery({ status: statusFilter.value, kind: kindFilter.value, ai: aiFilter.value }),
+    })
     if (current !== sequence) return
     rooms.value = res.items
     total.value = res.total
@@ -124,6 +135,8 @@ function search() {
   loadRooms()
 }
 
+watch([statusFilter, kindFilter, aiFilter], search)
+
 // 조회 Promise 를 돌려준다 — 이전·다음 버튼(AppButton)이 끝날 때까지 다시 눌리지 않게
 function goPage(p: number) {
   if (p < 1 || p > lastPage.value) return
@@ -181,12 +194,17 @@ onMounted(loadRooms)
         <span class="text-sm text-muted tabular-nums">{{ loadingRooms ? '…' : total.toLocaleString() }}개</span>
       </template>
 
-      <div class="p-4">
+      <div class="space-y-2 p-4">
         <PillSearch v-model="q" placeholder="방 이름 검색" width="w-full" @search="search" />
+        <div class="flex flex-wrap gap-2">
+          <PillSelect v-model="statusFilter" :options="ROOM_STATUS_OPTIONS" />
+          <PillSelect v-model="kindFilter" :options="ROOM_KIND_OPTIONS" />
+          <PillSelect v-model="aiFilter" :options="ROOM_AI_OPTIONS" />
+        </div>
       </div>
 
       <AppSpinner v-if="loadingRooms" label="불러오는 중…" />
-      <EmptyState v-else-if="!rooms.length" description="채팅방이 없습니다." />
+      <EmptyState v-else-if="!rooms.length" :description="filtering ? '조건에 맞는 채팅방이 없습니다.' : '채팅방이 없습니다.'" />
       <ul v-else class="max-h-[60vh] overflow-y-auto">
         <li v-for="room in rooms" :key="room.id">
           <button
