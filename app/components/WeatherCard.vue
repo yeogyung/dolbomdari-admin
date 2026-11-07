@@ -7,7 +7,7 @@
 // 담당자는 맡은 곳, 수요처는 자기 근무지 한 곳만 준다 — 셀렉터 범위와 정확히 같다.
 // 예보(`dbo_weather_forecasts`)는 로그인 사용자 누구나 읽는다. 서버 API 를 거치지 않는다.
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import type { DaySummary, ForecastRow, HourSlot, WeatherKind } from '~/utils/weather'
+import type { DayExtremes, DaySummary, ForecastRow, HourSlot, WeatherKind } from '~/utils/weather'
 import { searchByName } from '~/utils/nameSearch'
 import { useDebounced } from '~/composables/useDebounced'
 import { alertHeadline } from '~/utils/holidays'
@@ -21,6 +21,10 @@ const sites = ref<Site[]>([])
 const selectedId = ref<string | null>(null)
 const q = ref('')
 const slots = ref<HourSlot[]>([])
+/** 날짜별 TMN·TMX — 최저·최고를 서버 휴무 판정과 같은 규칙으로 낸다 */
+const extremes = ref<DayExtremes>(new Map())
+/** 받은 예보의 가장 늦은 기상청 발표 시각 */
+const baseAt = ref<string | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -114,10 +118,10 @@ function fetchRows(site: Site): Promise<ForecastRow[]> {
   const rows = (async () => {
     const { data, error: e } = await supabase
       .from('dbo_weather_forecasts')
-      .select('fcst_at, category, value')
+      .select('fcst_at, category, value, base_at')
       .eq('nx', site.grid_nx)
       .eq('ny', site.grid_ny)
-      .in('category', ['TMP', 'SKY', 'PTY', 'POP'])
+      .in('category', ['TMP', 'SKY', 'PTY', 'POP', 'TMN', 'TMX'])
       .gte('fcst_at', from)
       .lt('fcst_at', to)
       .order('fcst_at')
@@ -147,12 +151,16 @@ async function loadForecast() {
     const rows = await fetchRows(site)
     if (current !== sequence) return
     slots.value = buildHourly(rows)
+    extremes.value = dayExtremes(rows)
+    baseAt.value = latestBaseAt(rows)
     loadedAt = Date.now()
   } catch (e) {
     if (current !== sequence) return
     console.error('[WeatherCard] 예보 조회 실패:', e)
     error.value = '날씨를 불러오지 못했습니다.'
     slots.value = []
+    extremes.value = new Map()
+    baseAt.value = null
   } finally {
     if (current === sequence) loading.value = false
   }
@@ -230,6 +238,7 @@ const rows = computed(() =>
     summary: daySummaries(
       slots.value.filter((s) => s.date === date),
       today.value,
+      extremes.value,
     )[0] as DaySummary | undefined,
     cells: hourRow(slots.value, date),
   })),
@@ -271,7 +280,8 @@ const cellTitle = (s: HourSlot) =>
       <div>
         <h2 class="text-[18px] font-semibold text-ink">날씨</h2>
         <p class="mt-0.5 text-sm text-muted">
-          {{ selected ? siteLabel(selected) : '근무지' }} · 기상청 단기예보, 3시간마다 갱신
+          {{ selected ? siteLabel(selected) : '근무지' }} ·
+          {{ baseAt && !loading ? issueLabel(baseAt, today) : '기상청 단기예보' }}, 3시간마다 갱신
         </p>
       </div>
       <div v-if="choosable" class="flex flex-wrap items-center gap-2">

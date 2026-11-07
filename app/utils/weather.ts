@@ -44,7 +44,8 @@ export function weatherKind(sky: string | null, pty: string | null, hour: number
   return 'cloudy'
 }
 
-export type ForecastRow = { fcst_at: string; category: string; value: string }
+/** `base_at` 은 그 값을 실어 온 기상청 발표 시각(UTC ISO) — 발표 시각 표시에만 쓴다 */
+export type ForecastRow = { fcst_at: string; category: string; value: string; base_at?: string | null }
 
 export type HourSlot = {
   /** 예보 시각(UTC ISO) */
@@ -123,22 +124,75 @@ export type DaySummary = {
   wetHours: number[]
 }
 
+/** 서울 날짜별 기상청 일 최저(TMN)·최고(TMX). 숫자가 아닌 값은 버린다 */
+export type DayExtremes = Map<string, { tmn: number[]; tmx: number[] }>
+
+/**
+ * 예보 행에서 날짜별 TMN·TMX 를 모은다(QA 2026-11-07 NOTI-04). TMN 은 그날 6시, TMX 는 15시 예보 시각에 실려 온다.
+ * 서버 휴무 판정(`dolbomdari-server/apps/dbo/_domain/holiday.ts` 의 `byDate`)과 같이 예보 시각의 서울 날짜로 묶는다
+ */
+export function dayExtremes(rows: ForecastRow[]): DayExtremes {
+  const out: DayExtremes = new Map()
+  for (const r of rows) {
+    if (r.category !== 'TMN' && r.category !== 'TMX') continue
+    const v = num(r.value)
+    if (v === null) continue
+    const date = new Date(Date.parse(r.fcst_at) + SEOUL_OFFSET_MS).toISOString().slice(0, 10)
+    const day = out.get(date) ?? { tmn: [], tmx: [] }
+    ;(r.category === 'TMN' ? day.tmn : day.tmx).push(v)
+    out.set(date, day)
+  }
+  return out
+}
+
 /**
  * 날짜별 요약 — 최저·최고 기온과 비·눈 시간대. 담당자가 그날 근무를 쉬게 할지 한눈에 본다.
  * 칸이 있는 날만, 날짜순으로 낸다.
+ *
+ * 최저는 시간별 기온과 TMN 가운데 낮은 값, 최고는 시간별 기온과 TMX 가운데 높은 값이다 — 서버 휴무 판정과 같은 규칙.
+ * 시간별 기온만 보면 휴무 관리 화면과 1도씩 어긋났다(QA 2026-11-07 NOTI-04, 대시보드 4° · 휴무 관리 3°).
+ * 앱(`lib/weather.ts`)은 아직 시간별 기온만 본다 — 앱도 같은 규칙으로 맞춰야 한다
  */
-export function daySummaries(slots: HourSlot[], today: string): DaySummary[] {
+export function daySummaries(slots: HourSlot[], today: string, extremes: DayExtremes = new Map()): DaySummary[] {
   const days = new Map<string, HourSlot[]>()
   for (const s of slots) days.set(s.date, [...(days.get(s.date) ?? []), s])
   return [...days.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, list]) => ({
-      date,
-      name: dayName(date, today),
-      min: Math.min(...list.map((s) => s.temp)),
-      max: Math.max(...list.map((s) => s.temp)),
-      wetHours: list.filter(isWet).map((s) => s.hour),
-    }))
+    .map(([date, list]) => {
+      const temps = list.map((s) => s.temp)
+      const ext = extremes.get(date)
+      return {
+        date,
+        name: dayName(date, today),
+        min: Math.min(...temps, ...(ext?.tmn ?? [])),
+        max: Math.max(...temps, ...(ext?.tmx ?? [])),
+        wetHours: list.filter(isWet).map((s) => s.hour),
+      }
+    })
+}
+
+/** 받은 예보 가운데 가장 늦은 발표 시각(`base_at`). 없으면 null */
+export function latestBaseAt(rows: { base_at?: string | null }[]): string | null {
+  let best: string | null = null
+  let bestMs = -Infinity
+  for (const r of rows) {
+    const ms = r.base_at ? Date.parse(r.base_at) : NaN
+    if (Number.isFinite(ms) && ms > bestMs) {
+      bestMs = ms
+      best = r.base_at!
+    }
+  }
+  return best
+}
+
+/** 발표 시각 문구 — 「기상청 11시 발표」. 오늘(서울) 발표가 아니면 「어제」·「M월 D일」을 붙인다 */
+export function issueLabel(baseAt: string, today: string): string {
+  const local = new Date(Date.parse(baseAt) + SEOUL_OFFSET_MS)
+  const date = local.toISOString().slice(0, 10)
+  const hour = local.getUTCHours()
+  const diff = Math.round((Date.parse(today) - Date.parse(date)) / 86_400_000)
+  const day = diff === 0 ? '' : diff === 1 ? '어제 ' : `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일 `
+  return `기상청 ${day}${hour}시 발표`
 }
 
 /** 비·눈 시간대 문구. 이어진 시간은 묶는다 — [9,10,11,15] → '9~12시, 15~16시' */

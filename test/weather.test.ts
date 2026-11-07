@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest'
 import {
   buildHourly,
   currentSlot,
+  dayExtremes,
   dayName,
   daySummaries,
   hourRow,
   isWet,
+  issueLabel,
+  latestBaseAt,
   seoulDates,
   weatherKind,
   weatherLabel,
@@ -131,6 +134,64 @@ describe('daySummaries', () => {
       { date: '2026-10-22', name: '오늘', min: 15, max: 16, wetHours: [] },
       { date: '2026-10-23', name: '내일', min: 8, max: 12, wetHours: [9, 10] },
     ])
+  })
+
+  // QA 2026-11-07 NOTI-04 — 대시보드 4° · 휴무 관리 3°. 서버 휴무 판정처럼 min(TMP, TMN) · max(TMP, TMX)
+  it('TMN·TMX 가 시간별 기온 밖이면 그 값을 최저·최고로 쓴다', () => {
+    const rows = [
+      ...hour('2026-11-03 06', { TMP: '4', SKY: '1', PTY: '0' }),
+      { fcst_at: kst('2026-11-03 06'), category: 'TMN', value: '3.0' },
+      ...hour('2026-11-03 15', { TMP: '12', SKY: '1', PTY: '0' }),
+      { fcst_at: kst('2026-11-03 15'), category: 'TMX', value: '13.0' },
+    ]
+    expect(daySummaries(buildHourly(rows), '2026-11-02', dayExtremes(rows))[0]).toMatchObject({ min: 3, max: 13 })
+  })
+  it('TMN·TMX 가 시간별 기온 안이면 시간별 기온을 그대로 쓴다', () => {
+    const rows = [
+      ...hour('2026-11-03 06', { TMP: '2' }),
+      { fcst_at: kst('2026-11-03 06'), category: 'TMN', value: '3' },
+      ...hour('2026-11-03 15', { TMP: '14' }),
+      { fcst_at: kst('2026-11-03 15'), category: 'TMX', value: '13' },
+    ]
+    expect(daySummaries(buildHourly(rows), '2026-11-02', dayExtremes(rows))[0]).toMatchObject({ min: 2, max: 14 })
+  })
+  it('다른 날의 TMN 은 섞지 않는다', () => {
+    const rows = [
+      ...hour('2026-11-03 06', { TMP: '4' }),
+      { fcst_at: kst('2026-11-04 06'), category: 'TMN', value: '-1' },
+    ]
+    expect(daySummaries(buildHourly(rows), '2026-11-02', dayExtremes(rows))[0]).toMatchObject({ min: 4, max: 4 })
+  })
+})
+
+describe('dayExtremes', () => {
+  it('TMN·TMX 를 서울 날짜로 묶고 숫자가 아닌 값·다른 카테고리는 버린다', () => {
+    const ext = dayExtremes([
+      { fcst_at: kst('2026-11-03 06'), category: 'TMN', value: '-2.5' },
+      { fcst_at: kst('2026-11-03 15'), category: 'TMX', value: '9' },
+      { fcst_at: kst('2026-11-03 15'), category: 'TMP', value: '8' },
+      { fcst_at: kst('2026-11-04 06'), category: 'TMN', value: '없음' },
+    ])
+    expect([...ext.entries()]).toEqual([['2026-11-03', { tmn: [-2.5], tmx: [9] }]])
+  })
+})
+
+describe('기상청 발표 시각', () => {
+  it('가장 늦은 base_at 을 고른다. 없으면 null', () => {
+    expect(
+      latestBaseAt([
+        { base_at: '2026-11-07T08:00:00+09:00' },
+        { base_at: '2026-11-07T11:00:00+09:00' },
+        { base_at: null },
+      ]),
+    ).toBe('2026-11-07T11:00:00+09:00')
+    expect(latestBaseAt([{}, { base_at: null }])).toBeNull()
+  })
+  it('오늘 발표는 시만, 어제·그 전은 날을 붙인다', () => {
+    expect(issueLabel('2026-11-07T11:00:00+09:00', '2026-11-07')).toBe('기상청 11시 발표')
+    // DB 는 UTC 로 준다 — 서울 23시 = UTC 14시
+    expect(issueLabel('2026-11-06T14:00:00Z', '2026-11-07')).toBe('기상청 어제 23시 발표')
+    expect(issueLabel('2026-11-05T02:00:00+09:00', '2026-11-07')).toBe('기상청 11월 5일 2시 발표')
   })
 })
 
