@@ -512,7 +512,14 @@ async function run() {
       width="max-w-md"
     >
       <div class="space-y-2 text-sm text-body">
-        <p v-if="ask?.kind === 'cancel'">시니어 {{ ask.site.people }}명의 근무가 원래대로 돌아갑니다.</p>
+        <p v-if="ask?.kind === 'cancel'">
+          <template v-if="ask.site.holiday?.range">
+            {{ shortDate(overview?.date ?? '') }} 하루만 취소합니다. 기간 {{ shortDate(ask.site.holiday.range.from) }}~{{
+              shortDate(ask.site.holiday.range.to)
+            }}의 다른 날은 휴무로 남습니다.
+          </template>
+          시니어 {{ ask.site.people }}명의 근무가 원래대로 돌아갑니다.
+        </p>
         <p v-else-if="ask?.kind === 'cancelRange'">
           기간 {{ shortDate(ask.site.holiday!.range!.from) }}~{{ shortDate(ask.site.holiday!.range!.to) }} 가운데 내일 이후 날만 원래대로
           돌아갑니다. 오늘·지난 날은 그대로입니다.

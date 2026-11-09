@@ -12,7 +12,7 @@ export const ROOM_STATUS_OPTIONS = [
   { label: '종료', value: 'closed' },
 ]
 
-/** 「1:1」은 앱의 「담당 선생님과 채팅하기」 방이다. 앱·어드민에서 두 사람을 골라 만든 방은 「단체」로 저장된다 */
+/** 결정 D30(2026-11-09) — 「1:1」은 멤버 두 명인 방, 「단체」는 세 명 이상이다(방 종류 칸과 무관, 서버가 그 기준으로 거른다) */
 export const ROOM_KIND_OPTIONS = [
   { label: '종류 전체', value: '' },
   // 결정 D30(2026-11-09) — 방 종류 칸이 아니라 멤버 수로 나눈다(서버가 그 기준으로 거른다)
@@ -46,10 +46,11 @@ export function roomFilterQuery(f: { status: string; kind: string; ai: string })
 
 /**
  * 방 종류 표시 — 멤버 두 명이면 1:1, 셋 이상이면 단체(결정 D30). 멤버 수를 모르면(옛 서버) 방 종류 칸으로 본다.
- * 0·1명 방은 어느 쪽 필터에도 안 걸리므로 「참여자 없음」으로 적는다
+ * 0·1명 방은 어느 쪽 필터에도 안 걸린다 — 0명은 「참여자 없음」, 1명은 「1명」으로 적는다
  */
-export function roomKindLabel(room: { kind: string; member_count?: number }): '1:1' | '단체' | '참여자 없음' {
+export function roomKindLabel(room: { kind: string; member_count?: number }): '1:1' | '단체' | '1명' | '참여자 없음' {
   if (room.member_count === undefined) return room.kind === 'direct' ? '1:1' : '단체'
   if (room.member_count === 2) return '1:1'
-  return room.member_count >= 3 ? '단체' : '참여자 없음'
+  if (room.member_count >= 3) return '단체'
+  return room.member_count === 1 ? '1명' : '참여자 없음'
 }

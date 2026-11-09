@@ -135,12 +135,14 @@ async function toggleStatus() {
 const updatingAi = ref(false)
 async function toggleAi() {
   if (!selected.value) return
+  const id = selected.value.id
   const next = !selected.value.ai_enabled
   updatingAi.value = true
   try {
-    await api.updateRoom(selected.value.id, { aiEnabled: next })
-    selected.value = { ...selected.value, ai_enabled: next }
-    const idx = rooms.value.findIndex((r) => r.id === selected.value!.id)
+    await api.updateRoom(id, { aiEnabled: next })
+    // 그새 다른 방을 골랐으면 그 방 표시는 건드리지 않는다
+    if (selected.value?.id === id) selected.value = { ...selected.value, ai_enabled: next }
+    const idx = rooms.value.findIndex((r) => r.id === id)
     if (idx >= 0) rooms.value[idx] = { ...rooms.value[idx]!, ai_enabled: next }
     toast.add({ title: next ? 'AI 자동응답을 켰습니다.' : 'AI 자동응답을 껐습니다.', color: 'success' })
   } catch (e: any) {
@@ -165,8 +167,11 @@ async function removeRoom() {
   try {
     await api.deleteRoom(id)
     toast.add({ title: '채팅방을 삭제했습니다.', color: 'success' })
-    selected.value = null
-    messages.value = []
+    // 그새 다른 방을 골랐으면 그 방은 그대로 둔다
+    if (selected.value?.id === id) {
+      selected.value = null
+      messages.value = []
+    }
     await loadRooms()
   } catch (e: any) {
     toast.add({ title: '삭제 실패', description: dboErrorMessage(e), color: 'error' })
@@ -329,7 +334,7 @@ onMounted(async () => {
         <div v-if="selected">
           <h2 class="text-[18px] font-semibold text-ink">{{ selected.title }}</h2>
           <p class="mt-0.5 text-sm text-muted">
-            {{ roomKindLabel(selected) === '1:1' ? '1:1 대화' : roomKindLabel(selected) === '단체' ? '단체방' : '참여자 없음' }} ·
+            {{ roomKindLabel(selected) === '1:1' ? '1:1 대화' : roomKindLabel(selected) === '단체' ? '단체방' : roomKindLabel(selected) }} ·
             <template v-if="stats.has(selected.id)">참여 {{ stats.get(selected.id)!.members }}명 · </template>
             {{ selected.ai_enabled ? 'AI 답변 사용' : 'AI 답변 없음' }} ·
             개설 {{ fmtStamp(selected.created_at) }}

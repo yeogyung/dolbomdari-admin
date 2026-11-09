@@ -36,7 +36,8 @@ describe('roomKindLabel', () => {
   it('멤버 수로 나눈다 — 방 종류 칸과 무관', () => {
     expect(roomKindLabel({ kind: 'group', member_count: 2 })).toBe('1:1')
     expect(roomKindLabel({ kind: 'direct', member_count: 3 })).toBe('단체')
-    expect(roomKindLabel({ kind: 'group', member_count: 1 })).toBe('참여자 없음')
+    expect(roomKindLabel({ kind: 'group', member_count: 1 })).toBe('1명')
+    expect(roomKindLabel({ kind: 'group', member_count: 0 })).toBe('참여자 없음')
   })
   it('멤버 수를 모르면(옛 서버) 방 종류 칸으로 본다', () => {
     expect(roomKindLabel({ kind: 'direct' })).toBe('1:1')
