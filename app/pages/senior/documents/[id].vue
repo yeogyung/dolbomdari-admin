@@ -223,6 +223,8 @@ onMounted(() => {
             <h2 class="text-[18px] font-semibold text-ink">문서 정보</h2>
             <Tag>{{ doc.kind || '—' }}</Tag>
             <StatusBadge :tone="docStateTone(doc.state)">{{ doc.state }}</StatusBadge>
+            <!-- AI 가 아직 읽지 못한 문서(결정 D16) -->
+            <StatusBadge v-if="doc.indexed === false" tone="amber">준비 중</StatusBadge>
             <!-- 날짜로는 현행인데 AI 는 같은 계보의 새 판을 쓴다(QA DOC-02). 누르면 그 판으로 -->
             <NuxtLink v-if="supersededLabel(doc)" :to="`/senior/documents/${doc.superseded_by!.id}`">
               <StatusBadge tone="amber">{{ supersededLabel(doc) }}</StatusBadge>

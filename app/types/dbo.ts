@@ -345,6 +345,8 @@ export interface ChatRoom {
   created_at: string
   /** 마지막 메시지 시각, 없으면 null(서버 2026-11-04, QA CHAT-02). 옛 서버는 칸이 없다 */
   last_message_at?: string | null
+  /** 멤버 수(서버 2026-11-09, 결정 D30). 2명이면 1:1 이다. 옛 서버는 칸이 없다 */
+  member_count?: number
 }
 
 /** 대화 보기 메시지의 첨부(서버 2026-11-04, QA CHAT-04). `url` 은 1시간짜리 서명 주소, 못 만들었으면 null */
@@ -416,6 +418,8 @@ export interface DocumentListItem {
    */
   lineage_id?: string | null
   superseded_by?: { id: string; filename: string; version: string | null } | null
+  /** AI 가 읽었는가 — false 면 「준비 중」(서버 2026-11-09, 결정 D16). 옛 서버는 칸이 없다 */
+  indexed?: boolean
 }
 
 /** GET /dbo-admin/documents/{id}/versions 한 줄(오래된 판부터). `in_use` = 지금 AI 가 쓰는 판 */

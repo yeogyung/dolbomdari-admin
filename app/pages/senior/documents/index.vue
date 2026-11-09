@@ -270,6 +270,8 @@ onMounted(() => {
       </template>
       <template #cell-state="{ row }">
         <StatusBadge :tone="docStateTone(row.state)">{{ row.state }}</StatusBadge>
+        <!-- AI 가 아직 읽지 못한 문서(결정 D16). 옛 서버는 칸이 없어 붙지 않는다 -->
+        <StatusBadge v-if="row.indexed === false" tone="amber" class="ml-1.5">준비 중</StatusBadge>
         <!-- 날짜로는 현행인데 AI 는 같은 계보의 새 판을 쓴다(QA DOC-02). 옛 서버는 칸이 없어 붙지 않는다 -->
         <NuxtLink v-if="supersededLabel(row)" :to="`/senior/documents/${row.superseded_by.id}`" class="ml-1.5">
           <StatusBadge tone="amber">{{ supersededLabel(row) }}</StatusBadge>
