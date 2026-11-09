@@ -1,8 +1,9 @@
-<!-- 배정 근무 시간 입력 — 모든 요일 같은 시간 또는 요일마다 다르게. 명부 상세 배정 추가와 여러 명 배정이 같이 쓴다(QA 2026-11-07 SHIFT-04 · 결정 D26) -->
+<!-- 배정 근무 시간 입력 — 모든 요일 같은 시간 또는 요일마다 다르게 · 자주 쓰는 시간 묶음. 명부 상세 배정과 여러 명 배정이 같이 쓴다(QA 2026-11-07 SHIFT-04 · SHIFT-06, 결정 D26 · D27) -->
 <script setup lang="ts">
-// Figma 에 요일별 시간 입력이 없어 기존 배정 창의 시간 칸·「공지 유형」 알약 단추 모양을 그대로 쓴다.
+// Figma 에 요일별 시간 입력·시간 묶음이 없어 기존 배정 창의 시간 칸·「공지 유형」 알약·요일 빠른 선택(WeekdayPicker) 모양을 그대로 쓴다.
 import { computed } from 'vue'
 import { dayTime, timeGroupLine, timeGroups, type DayTimes } from '~/utils/assignmentTimes'
+import { SHIFT_TIME_PRESETS, isShiftPreset, type ShiftTimePreset } from '~/utils/shiftTimePresets'
 
 const props = withDefaults(
   defineProps<{
@@ -42,6 +43,18 @@ function setDay(day: number, key: 'start' | 'end', value: string | null | undefi
   const current = dayTime(form.value, day)
   dayTimes.value = { ...dayTimes.value, [day]: { ...current, [key]: value ?? '' } }
 }
+
+/** 시간 묶음(결정 D27) — 누르면 시작·종료 시간을 채운다. 요일마다 다르게면 그 요일 줄만 */
+function applyPreset(p: ShiftTimePreset, day?: number) {
+  if (day === undefined) {
+    startTime.value = p.start
+    endTime.value = p.end
+    return
+  }
+  dayTimes.value = { ...dayTimes.value, [day]: { start: p.start, end: p.end } }
+}
+const presetCls = (on: boolean) =>
+  on ? 'border-brand-500 bg-brand-soft text-brand-500' : 'border-hairline bg-white text-body hover:bg-surface-soft'
 </script>
 
 <template>
@@ -60,14 +73,30 @@ function setDay(day: number, key: 'start' | 'end', value: string | null | undefi
       </button>
     </div>
 
-    <div v-if="!allowPerDay || !perDay" class="grid grid-cols-2 gap-4">
-      <FormField label="시작 시간" required :error="error">
-        <DateField v-model="startTime" type="time" />
-      </FormField>
-      <FormField label="종료 시간" required>
-        <DateField v-model="endTime" type="time" />
-      </FormField>
-    </div>
+    <template v-if="!allowPerDay || !perDay">
+      <!-- 자주 쓰는 시간(결정 D27) — 요일 빠른 선택과 같은 단추. 지금 시간과 같으면 눌린 모양 -->
+      <div class="flex flex-wrap items-center gap-2" role="group" aria-label="자주 쓰는 근무 시간">
+        <button
+          v-for="p in SHIFT_TIME_PRESETS"
+          :key="p.label"
+          type="button"
+          class="h-9 rounded-full border px-3 text-sm font-medium tabular-nums transition-colors"
+          :class="presetCls(isShiftPreset(p, startTime, endTime))"
+          :aria-pressed="isShiftPreset(p, startTime, endTime)"
+          @click="applyPreset(p)"
+        >
+          {{ p.label }} {{ p.start }}–{{ p.end }}
+        </button>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <FormField label="시작 시간" required :error="error">
+          <DateField v-model="startTime" type="time" />
+        </FormField>
+        <FormField label="종료 시간" required>
+          <DateField v-model="endTime" type="time" />
+        </FormField>
+      </div>
+    </template>
 
     <!-- 요일마다 다르게 — 한 줄에 요일 하나. 칸이 여럿이라 FormField(라벨 하나에 입력 하나) 대신 칸마다 이름을 단다 -->
     <div v-else class="space-y-2">
@@ -92,6 +121,20 @@ function setDay(day: number, key: 'start' | 'end', value: string | null | undefi
             @update:model-value="setDay(d, 'end', $event)"
           />
         </div>
+        <!-- 자주 쓰는 시간 — 줄이 좁아 이름만, 시간은 단추에 올리면 보인다 -->
+        <button
+          v-for="p in SHIFT_TIME_PRESETS"
+          :key="p.label"
+          type="button"
+          class="h-9 rounded-full border px-3 text-sm font-medium transition-colors"
+          :class="presetCls(isShiftPreset(p, dayTime(form, d).start, dayTime(form, d).end))"
+          :title="`${p.start}–${p.end}`"
+          :aria-label="`${dayLabel(d)}요일 ${p.label} ${p.start}–${p.end}`"
+          :aria-pressed="isShiftPreset(p, dayTime(form, d).start, dayTime(form, d).end)"
+          @click="applyPreset(p, d)"
+        >
+          {{ p.label }}
+        </button>
         <p v-if="dayErrors?.[d]" class="w-full pl-8 text-xs text-down">{{ dayErrors[d] }}</p>
       </div>
       <div v-if="groups.length > 1" class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm text-body">
