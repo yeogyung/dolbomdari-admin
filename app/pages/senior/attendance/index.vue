@@ -427,7 +427,7 @@ async function submitBulkEdit() {
   load()
 }
 
-/* 출결 삭제 — master·담당자, 오늘 활동만. 지운 내용·삭제자·사유가 삭제 기록에 남는다 */
+/* 출결 삭제 — master 는 날짜 제한 없이(결정 D24), 담당자는 오늘 활동만. 지운 내용·삭제자·사유가 삭제 기록에 남는다 */
 const deleteOpen = ref(false)
 const deleting = ref(false)
 const deleteTarget = ref<AttendanceShift | null>(null)
@@ -473,8 +473,8 @@ async function submitDelete() {
 }
 
 /*
- * 출퇴근 기록 선택 삭제(QA 2026-11-07 ADMIN-15) — 고른 기록 가운데 오늘 기록만 지운다. 서버·DB 가 오늘 기록만 지울 수 있고
- * (`not_today`), 지난 날 삭제는 결정 대기(D24)라 만들지 않는다. 건별 삭제를 차례로 부른다 — 건마다 삭제 기록이 남는다.
+ * 출퇴근 기록 선택 삭제(QA 2026-11-07 ADMIN-15) — master 는 고른 기록 전부, 담당자는 오늘 기록만 지운다(결정 D24, 서버·DB
+ * `not_today`). 건별 삭제를 차례로 부른다 — 건마다 삭제 기록이 남는다.
  * 사유는 건별 삭제와 같은 규칙으로 하나 받아 모두에 쓴다. 처리 상태(진행·결과)는 일괄 수정과 같은 칸을 쓴다(창은 하나씩만 연다)
  */
 const bulkDeleteOpen = ref(false)
@@ -954,7 +954,11 @@ onMounted(() => {
           <ul class="mt-1.5 list-disc space-y-0.5 pl-5">
             <li>이 활동의 출근·퇴근 기록이 사라지고, <b>활동비(임금) 정산에 그대로 반영</b>됩니다.</li>
             <li>삭제한 사람과 사유는 기록으로 남으며, 되돌리거나 지울 수 없습니다.</li>
-            <li>삭제한 뒤에도 시니어는 오늘 QR 출근을 다시 찍을 수 있습니다.</li>
+            <li v-if="deleteTarget.work_date === todaySeoul()">삭제한 뒤에도 시니어는 오늘 QR 출근을 다시 찍을 수 있습니다.</li>
+            <!-- 지난 날 기록(결정 D24, master) — 미출근으로 바뀌고 집계에서 빠진다 -->
+            <li v-else>
+              지난 날 기록입니다. 지우면 이 근무는 <b>미출근으로 바뀌고 월 리포트·활동비 집계에서 빠집니다.</b>
+            </li>
           </ul>
         </div>
         <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">
@@ -1048,7 +1052,10 @@ onMounted(() => {
             <ul class="mt-1.5 list-disc space-y-0.5 pl-5">
               <li>고른 활동의 출근·퇴근 기록이 사라지고, <b>활동비(임금) 정산에 그대로 반영</b>됩니다.</li>
               <li>삭제한 사람과 사유는 건마다 기록으로 남으며, 되돌리거나 지울 수 없습니다.</li>
-              <li>오늘 기록만 지울 수 있습니다. 지난 날 기록은 빼고 지웁니다.</li>
+              <li v-if="me?.role === 'master'">
+                <b>지난 날 기록도 지웁니다.</b> 지운 근무는 미출근으로 바뀌고 월 리포트·활동비 집계에서 빠집니다.
+              </li>
+              <li v-else>오늘 기록만 지울 수 있습니다. 지난 날 기록은 빼고 지웁니다.</li>
             </ul>
           </div>
           <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">

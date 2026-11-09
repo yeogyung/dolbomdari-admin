@@ -34,7 +34,7 @@ export function canDeleteAttendance(
 export const QUERY_TOO_BROAD = '검색어에 맞는 사람이 너무 많습니다. 이름을 더 자세히 입력해 주세요.'
 
 const DELETE_ERRORS: Record<string, string> = {
-  not_today: '담당자는 오늘 활동의 출결만 삭제할 수 있습니다.',
+  not_today: '오늘 활동의 출결만 삭제할 수 있습니다.',
   forbidden: '이 출결을 삭제할 권한이 없습니다.',
   not_found: '활동을 찾을 수 없습니다. 목록을 새로 고쳐 주세요.',
   attendance_not_found: '이미 삭제됐거나 기록이 없는 출결입니다. 목록을 새로 고쳐 주세요.',

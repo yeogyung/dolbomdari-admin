@@ -64,7 +64,7 @@ describe('canDeleteAttendance', () => {
 describe('deleteErrorMessage', () => {
   it('서버 오류 코드를 우리말로 바꾼다', () => {
     expect(deleteErrorMessage({ status: 403, data: { error: 'not_today' } })).toBe(
-      '담당자는 오늘 활동의 출결만 삭제할 수 있습니다.',
+      '오늘 활동의 출결만 삭제할 수 있습니다.',
     )
     expect(deleteErrorMessage({ status: 403, data: { error: 'forbidden' } })).toBe(
       '이 출결을 삭제할 권한이 없습니다.',
