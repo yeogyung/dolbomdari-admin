@@ -18,6 +18,7 @@ import {
   recipientCountPlan,
   recipientSummary,
   recipientTotalSummary,
+  withoutPushNote,
   type NoticeLevel,
   type PeopleCountFailure,
   type RecipientMode,
@@ -78,6 +79,8 @@ const levelLabel = computed(() => NOTICE_LEVELS.find((l) => l.value === level.va
 const totalRouteMissing = ref(false)
 /** 한 번에 센 수. undefined 면 오는 중, null 이면 못 셌다 */
 const recipientTotal = ref<number | null | undefined>(undefined)
+/** 그중 앱으로 못 받는 분(결정 D5). 값의 뜻은 recipientTotal 과 같다 */
+const recipientWithoutPush = ref<number | null | undefined>(undefined)
 /** 선택이 바뀔 때마다 올린다 — 늦게 온 앞 선택의 응답이 지금 수를 덮지 않게 */
 let totalSequence = 0
 let totalTimer: ReturnType<typeof setTimeout> | undefined
@@ -86,15 +89,19 @@ function countTotal(ids: string[]) {
   const current = totalSequence
   const list = [...ids]
   recipientTotal.value = undefined
+  recipientWithoutPush.value = undefined
   // 근무지를 연달아 누르면 멈춘 뒤 한 번만 센다
   totalTimer = setTimeout(() => {
     app
       .recipientTotal(list)
       .then((r) => {
-        if (current === totalSequence) recipientTotal.value = r.total
+        if (current !== totalSequence) return
+        recipientTotal.value = r.total
+        recipientWithoutPush.value = r.withoutPush
       })
       .catch((e) => {
         if (current !== totalSequence) return
+        recipientWithoutPush.value = null
         if (!isMissingRoute(e)) {
           recipientTotal.value = null
           return
@@ -191,6 +198,8 @@ watch(mode, (m) => {
 
 /** 개인으로 고른 받는 사람 수. undefined 면 오는 중, null 이면 못 셌다(까닭은 peopleFailure) */
 const peopleTotal = ref<number | null | undefined>(undefined)
+/** 그중 앱으로 못 받는 분(결정 D5) */
+const peopleWithoutPush = ref<number | null | undefined>(undefined)
 const peopleFailure = ref<PeopleCountFailure | null>(null)
 let peopleSequence = 0
 let peopleTimer: ReturnType<typeof setTimeout> | undefined
@@ -202,6 +211,7 @@ watch(
     clearTimeout(peopleTimer)
     const current = ++peopleSequence
     peopleTotal.value = undefined
+    peopleWithoutPush.value = undefined
     peopleFailure.value = null
     if (m !== 'person' || peopleUnsupported.value || ids.length === 0 || ids.length > NOTICE_PEOPLE_MAX) return
     const list = [...ids]
@@ -210,7 +220,9 @@ watch(
       app
         .recipientTotalPeople(list)
         .then((r) => {
-          if (current === peopleSequence) peopleTotal.value = r.total
+          if (current !== peopleSequence) return
+          peopleTotal.value = r.total
+          peopleWithoutPush.value = r.withoutPush
         })
         .catch((e) => {
           if (current !== peopleSequence) return
@@ -218,6 +230,7 @@ watch(
           if (failure === 'unsupported') peopleUnsupported.value = true
           else peopleFailure.value = failure
           peopleTotal.value = null
+          peopleWithoutPush.value = null
         })
     }, 250)
   },
@@ -237,6 +250,16 @@ const recipientText = computed(() => {
   if (plan === 'none') return null
   if (plan === 'total') return recipientTotalSummary(recipientTotal.value)
   return recipientSummary(ids.map((id) => recipientCounts.value.get(id)))
+})
+
+/*
+ * 앱으로 못 받는 분(QA 2026-11-07 NOTI-01, 결정 D5) — 문자는 긴급만이라 일반·특별이면 이분들은 받지 못한다. 발송 확인 창에서
+ * 눈에 띄게 보인다. 근무지마다 세는 길(옛 서버·100곳 초과)은 두 곳에 배정된 분을 뺄 수 없어 정확한 수가 아니라 적지 않는다
+ */
+const pushNote = computed(() => {
+  if (mode.value === 'person') return withoutPushNote(level.value, peopleWithoutPush.value)
+  const plan = recipientCountPlan(worksiteIds.value.length, totalRouteMissing.value)
+  return plan === 'total' ? withoutPushNote(level.value, recipientWithoutPush.value) : null
 })
 
 onMounted(async () => {
@@ -377,6 +400,9 @@ async function send() {
             <PersonPicker v-else v-model="directoryIds" :people="people" />
           </template>
           <p v-if="recipientText" class="mt-2 text-sm text-body tabular-nums">{{ recipientText }}</p>
+          <p v-if="pushNote" class="mt-1 text-sm font-medium tabular-nums" :class="pushNote.tone === 'warning' ? 'text-down' : 'text-muted'">
+            {{ pushNote.title }}<template v-if="pushNote.tone === 'warning'"> · 일반·특별 공지는 받지 못합니다</template>
+          </p>
         </FormField>
         <FormField label="공지 유형" required>
           <div class="flex gap-2">
@@ -431,6 +457,16 @@ async function send() {
         <p v-if="mode === 'person'">고른 {{ directoryIds.length }}명에게 {{ levelLabel }} 공지를 보냅니다.</p>
         <p v-else>근무지 {{ worksiteIds.length }}곳에 {{ levelLabel }} 공지를 보냅니다.</p>
         <p v-if="recipientText" class="tabular-nums">{{ recipientText }}</p>
+        <!-- 앱으로 못 받는 분(결정 D5) — 일반·특별은 받지 못하므로 경고 상자(출결 삭제 창의 경고 상자 모양), 긴급은 안내 상자 -->
+        <div
+          v-if="pushNote"
+          class="rounded-lg border px-4 py-3"
+          :class="pushNote.tone === 'warning' ? 'border-down bg-down-soft text-down' : 'border-hairline bg-surface-soft text-body'"
+          :role="pushNote.tone === 'warning' ? 'alert' : undefined"
+        >
+          <p class="font-semibold tabular-nums">{{ pushNote.title }}</p>
+          <p class="mt-0.5">{{ pushNote.detail }}</p>
+        </div>
         <p v-if="image">사진 한 장을 함께 붙입니다.</p>
         <p v-if="level === 'urgent'" class="font-medium text-brand-500">
           긴급 공지는 모두에게 문자도 함께 나갑니다. 나간 문자는 회수할 수 없습니다.

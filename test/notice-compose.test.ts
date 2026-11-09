@@ -19,6 +19,7 @@ import {
   recipientSummary,
   recipientTotalSummary,
   TITLE_MAX,
+  withoutPushNote,
 } from '../app/utils/noticeCompose'
 
 describe('buildNoticeBody', () => {
@@ -257,5 +258,31 @@ describe('recipientTotalSummary', () => {
   it('세는 중·실패를 가른다', () => {
     expect(recipientTotalSummary(undefined)).toBe('받는 사람 세는 중…')
     expect(recipientTotalSummary(null)).toBe('받는 사람 수를 세지 못했습니다')
+  })
+})
+
+// QA 2026-11-07 NOTI-01 · 결정 D5 — 문자는 긴급만(규칙 그대로). 발송 확인 창에서 앱으로 못 받는 분을 눈에 띄게
+describe('withoutPushNote', () => {
+  it('일반·특별은 문자로 가지 않아 이 공지를 받지 못한다고 경고한다', () => {
+    for (const level of ['simple', 'special'] as const) {
+      expect(withoutPushNote(level, 3)).toEqual({
+        tone: 'warning',
+        title: '앱으로 못 받는 분 3명',
+        detail:
+          '일반·특별 공지는 문자로 가지 않아 이분들은 이 공지를 받지 못합니다. 필요하면 직접 알려 주세요. 앱을 지운 분은 보내 봐야 알 수 있어 더 있을 수 있습니다.',
+      })
+    }
+  })
+  it('긴급은 모두에게 문자가 가므로 문자로만 받는다고 알린다', () => {
+    expect(withoutPushNote('urgent', 2)).toEqual({
+      tone: 'info',
+      title: '앱으로 못 받는 분 2명',
+      detail: '긴급 공지는 모두에게 문자도 가므로 이분들은 문자로 받습니다.',
+    })
+  })
+  it('0명·세는 중·못 셌으면 적지 않는다', () => {
+    expect(withoutPushNote('simple', 0)).toBeNull()
+    expect(withoutPushNote('simple', undefined)).toBeNull()
+    expect(withoutPushNote('simple', null)).toBeNull()
   })
 })

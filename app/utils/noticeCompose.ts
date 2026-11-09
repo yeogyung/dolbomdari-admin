@@ -57,6 +57,26 @@ export function recipientTotalSummary(total: number | null | undefined): string 
   return `받는 사람 ${total}명`
 }
 
+/**
+ * 앱으로 못 받는 분 안내(QA 2026-11-07 NOTI-01, 결정 D5). 받는 사람 수 API 의 `withoutPush`(푸시 토큰이 없는 사람)다.
+ * **문자는 긴급에만 나간다**(2026-10-08 결정, 그대로) — 일반·특별이면 이분들은 이 공지를 받지 못해 경고로 띄운다.
+ * 앱을 지운 분(죽은 토큰)은 보내 봐야 알아 이 수는 「적어도」다(서버 `recipientPreview`). 0명·세는 중·못 셌으면 null
+ */
+export function withoutPushNote(
+  level: NoticeLevel,
+  withoutPush: number | null | undefined,
+): { tone: 'warning' | 'info'; title: string; detail: string } | null {
+  if (!withoutPush) return null
+  const title = `앱으로 못 받는 분 ${withoutPush}명`
+  if (level === 'urgent') return { tone: 'info', title, detail: '긴급 공지는 모두에게 문자도 가므로 이분들은 문자로 받습니다.' }
+  return {
+    tone: 'warning',
+    title,
+    detail:
+      '일반·특별 공지는 문자로 가지 않아 이분들은 이 공지를 받지 못합니다. 필요하면 직접 알려 주세요. 앱을 지운 분은 보내 봐야 알 수 있어 더 있을 수 있습니다.',
+  }
+}
+
 /*
  * 받는 사람을 개인으로 고르기(QA 2026-11-02 ANOTICE-03, 결정 S1 · 서버 2026-11-04 계약 3a묶음 3번).
  * 한 공지는 근무지 공지이거나 개인 공지다 — 서버가 `worksiteIds` 와 `directoryIds` 중 하나만 받는다.
