@@ -3,7 +3,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import type { ChatMessage, ChatRoom } from '~/types/dbo'
 import type { RoomStats } from '~/composables/useRoomStats'
-import { ROOM_AI_OPTIONS, ROOM_KIND_OPTIONS, ROOM_STATUS_OPTIONS, roomFilterQuery } from '~/utils/roomFilters'
+import { ROOM_AI_OPTIONS, ROOM_KIND_OPTIONS, ROOM_STATUS_OPTIONS, roomFilterQuery, roomKindLabel } from '~/utils/roomFilters'
 
 const api = useDboAdmin()
 const route = useRoute()
@@ -131,6 +131,50 @@ async function toggleStatus() {
   }
 }
 
+/** AI 자동응답 켜기·끄기(결정 D13) — 그 방 앱 화면은 다시 열 때 바뀐다 */
+const updatingAi = ref(false)
+async function toggleAi() {
+  if (!selected.value) return
+  const next = !selected.value.ai_enabled
+  updatingAi.value = true
+  try {
+    await api.updateRoom(selected.value.id, { aiEnabled: next })
+    selected.value = { ...selected.value, ai_enabled: next }
+    const idx = rooms.value.findIndex((r) => r.id === selected.value!.id)
+    if (idx >= 0) rooms.value[idx] = { ...rooms.value[idx]!, ai_enabled: next }
+    toast.add({ title: next ? 'AI 자동응답을 켰습니다.' : 'AI 자동응답을 껐습니다.', color: 'success' })
+  } catch (e: any) {
+    toast.add({ title: 'AI 설정 변경 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    updatingAi.value = false
+  }
+}
+
+/** 방 삭제(결정 D23) — 표시만 한다. 목록에서 빼고 다시 읽는다 */
+const deleting = ref(false)
+async function removeRoom() {
+  if (!selected.value) return
+  if (
+    !confirm(
+      `「${selected.value.title}」 채팅방을 삭제하시겠습니까? 메시지는 보관되지만 앱과 어드민 어디에서도 더는 보이지 않으며, 화면에서 되살릴 수 없습니다.`,
+    )
+  )
+    return
+  const id = selected.value.id
+  deleting.value = true
+  try {
+    await api.deleteRoom(id)
+    toast.add({ title: '채팅방을 삭제했습니다.', color: 'success' })
+    selected.value = null
+    messages.value = []
+    await loadRooms()
+  } catch (e: any) {
+    toast.add({ title: '삭제 실패', description: dboErrorMessage(e), color: 'error' })
+  } finally {
+    deleting.value = false
+  }
+}
+
 function search() {
   page.value = 1
   lq.commit()
@@ -244,7 +288,7 @@ onMounted(async () => {
               </StatusBadge>
             </span>
             <span class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-              <span>{{ room.kind === 'direct' ? '1:1' : '단체' }}</span>
+              <span>{{ roomKindLabel(room) }}</span>
               <span v-if="stats.has(room.id)" class="tabular-nums">참여 {{ stats.get(room.id)!.members }}명</span>
               <span v-if="room.ai_enabled" class="text-brand-500">AI 사용</span>
               <!-- 날짜는 마지막 메시지 시각이다. 예전에는 개설 시각이라 대화가 오간 방도 오래된 방처럼 보였다 -->
@@ -285,7 +329,7 @@ onMounted(async () => {
         <div v-if="selected">
           <h2 class="text-[18px] font-semibold text-ink">{{ selected.title }}</h2>
           <p class="mt-0.5 text-sm text-muted">
-            {{ selected.kind === 'direct' ? '1:1 대화' : '단체방' }} ·
+            {{ roomKindLabel(selected) === '1:1' ? '1:1 대화' : roomKindLabel(selected) === '단체' ? '단체방' : '참여자 없음' }} ·
             <template v-if="stats.has(selected.id)">참여 {{ stats.get(selected.id)!.members }}명 · </template>
             {{ selected.ai_enabled ? 'AI 답변 사용' : 'AI 답변 없음' }} ·
             개설 {{ fmtStamp(selected.created_at) }}
@@ -305,14 +349,30 @@ onMounted(async () => {
           >
             새로고침
           </AppButton>
+          <!-- AI 자동응답 켜기·끄기(결정 D13). 종료된 방은 다시 연 뒤 바꾼다 -->
+          <AppButton
+            size="sm"
+            variant="outline"
+            color="neutral"
+            :loading="updatingAi"
+            :disabled="selected.status !== 'active' || updating || deleting"
+            @click="toggleAi"
+          >
+            {{ selected.ai_enabled ? 'AI 끄기' : 'AI 켜기' }}
+          </AppButton>
           <AppButton
             size="sm"
             :variant="selected.status === 'active' ? 'soft' : 'solid'"
             :color="selected.status === 'active' ? 'down' : 'primary'"
             :loading="updating"
+            :disabled="deleting"
             @click="toggleStatus"
           >
             {{ selected.status === 'active' ? '방 종료' : '방 다시 열기' }}
+          </AppButton>
+          <!-- 방 삭제 — 표시만(결정 D23). 메시지는 남고 앱·어드민 어디에서도 보이지 않는다 -->
+          <AppButton size="sm" variant="ghost" color="down" :loading="deleting" :disabled="updating" @click="removeRoom">
+            방 삭제
           </AppButton>
         </div>
       </template>

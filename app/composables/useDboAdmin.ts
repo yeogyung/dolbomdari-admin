@@ -323,8 +323,11 @@ export function useDboAdmin() {
       req<{ ok: true; added: number }>(`/rooms/${id}/members`, { method: 'POST', body: { profileIds } }),
     removeRoomMember: (id: string, profileId: string) =>
       req<{ ok: true }>(`/rooms/${id}/members/${profileId}`, { method: 'DELETE' }),
-    updateRoom: (id: string, body: { status: 'active' | 'closed' }) =>
+    /** 방 활성·종료와 AI 켜기·끄기(결정 D13). 둘 중 하나 이상 */
+    updateRoom: (id: string, body: { status?: 'active' | 'closed'; aiEnabled?: boolean }) =>
       req<{ ok: true }>(`/rooms/${id}`, { method: 'PATCH', body }),
+    /** 방 삭제 — 표시만, 메시지는 남고 모두에게서 숨는다(결정 D23). 되살리는 경로는 없다 */
+    deleteRoom: (id: string) => req<{ ok: true }>(`/rooms/${id}`, { method: 'DELETE' }),
     listRoomMessages: (id: string) => req<{ items: ChatMessage[] }>(`/rooms/${id}/messages`),
     /* 월간 리포트 — master 전용, 기관 전체 */
     getMonthlyReport: (month: string) => req<MonthlyReport>('/reports/monthly', { query: { month } }),

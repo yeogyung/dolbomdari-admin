@@ -28,3 +28,18 @@ describe('roomFilterQuery', () => {
     for (const o of ROOM_AI_OPTIONS) expect(roomFilterQuery({ status: '', kind: '', ai: o.value }).ai ?? '').toBe(o.value)
   })
 })
+
+// 결정 D30(2026-11-09) — 1:1 은 멤버 두 명인 방
+import { roomKindLabel } from '../app/utils/roomFilters'
+
+describe('roomKindLabel', () => {
+  it('멤버 수로 나눈다 — 방 종류 칸과 무관', () => {
+    expect(roomKindLabel({ kind: 'group', member_count: 2 })).toBe('1:1')
+    expect(roomKindLabel({ kind: 'direct', member_count: 3 })).toBe('단체')
+    expect(roomKindLabel({ kind: 'group', member_count: 1 })).toBe('참여자 없음')
+  })
+  it('멤버 수를 모르면(옛 서버) 방 종류 칸으로 본다', () => {
+    expect(roomKindLabel({ kind: 'direct' })).toBe('1:1')
+    expect(roomKindLabel({ kind: 'group' })).toBe('단체')
+  })
+})
