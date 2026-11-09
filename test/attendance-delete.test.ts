@@ -50,16 +50,21 @@ describe('canDeleteAttendance', () => {
   it('기록이 없는 활동에는 버튼이 없다', () => {
     expect(canDeleteAttendance('master', row({ attendance: null }), TODAY)).toBe(false)
   })
-  it('오늘이 아닌 활동에는 버튼이 없다', () => {
-    expect(canDeleteAttendance('master', row({ work_date: '2026-10-20' }), TODAY)).toBe(false)
+  it('담당자는 오늘이 아닌 활동에 버튼이 없다', () => {
+    expect(canDeleteAttendance('manager', row({ work_date: '2026-10-20' }), TODAY)).toBe(false)
     expect(canDeleteAttendance('manager', row({ work_date: '2026-10-22' }), TODAY)).toBe(false)
+  })
+  // 결정 D24(2026-11-09) — master 는 지난 날·앞날도 지운다(사유 필수·삭제 기록은 그대로)
+  it('master 는 오늘이 아닌 활동에도 버튼이 있다', () => {
+    expect(canDeleteAttendance('master', row({ work_date: '2026-10-20' }), TODAY)).toBe(true)
+    expect(canDeleteAttendance('master', row({ work_date: '2026-10-22' }), TODAY)).toBe(true)
   })
 })
 
 describe('deleteErrorMessage', () => {
   it('서버 오류 코드를 우리말로 바꾼다', () => {
     expect(deleteErrorMessage({ status: 403, data: { error: 'not_today' } })).toBe(
-      '오늘 활동의 출결만 삭제할 수 있습니다.',
+      '담당자는 오늘 활동의 출결만 삭제할 수 있습니다.',
     )
     expect(deleteErrorMessage({ status: 403, data: { error: 'forbidden' } })).toBe(
       '이 출결을 삭제할 권한이 없습니다.',

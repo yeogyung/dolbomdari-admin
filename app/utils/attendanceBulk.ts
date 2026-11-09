@@ -32,7 +32,8 @@ export function bulkEditTargets<T extends Row>(rows: T[], role: string | undefin
 }
 
 /**
- * 선택 삭제에 넣을 기록과 빼는 기록. 건별 삭제와 같은 경계(`canDeleteAttendance`) — 서버·DB 가 오늘 기록만 지운다(`not_today`).
+ * 선택 삭제에 넣을 기록과 빼는 기록. 건별 삭제와 같은 경계(`canDeleteAttendance`) — master 는 날짜 제한 없이, 담당자는
+ * 오늘 기록만 지운다(결정 D24, 서버·DB `not_today`).
  * 지난 날 기록 삭제는 결정 대기(D24)라 만들지 않는다
  */
 export function bulkDeleteTargets<T extends Row>(

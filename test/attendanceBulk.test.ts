@@ -70,7 +70,7 @@ describe('bulkEditErrorMessage', () => {
 
 describe('bulkDeleteErrorMessage', () => {
   it('건별 삭제와 같은 문구', () => {
-    expect(bulkDeleteErrorMessage({ data: { error: 'not_today' } })).toBe('오늘 활동의 출결만 삭제할 수 있습니다.')
+    expect(bulkDeleteErrorMessage({ data: { error: 'not_today' } })).toBe('담당자는 오늘 활동의 출결만 삭제할 수 있습니다.')
     expect(bulkDeleteErrorMessage({ data: { error: 'internal' } })).toBeNull()
   })
 })

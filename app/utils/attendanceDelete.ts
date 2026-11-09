@@ -15,7 +15,7 @@ export function deleteReasonError(reason: string): string | null {
 }
 
 /**
- * 삭제 버튼을 보일지. master·담당자이고, 기록이 있고, 오늘 활동일 때만.
+ * 삭제 버튼을 보일지. 기록이 있고, master 는 날짜 제한 없이(결정 D24, 2026-11-09), 담당자는 오늘 활동만.
  *
  * 화면을 거르는 용도다. 담당자가 맡은 수요처인지는 목록이 이미 그 범위만 주고,
  * 최종 판정은 서버(`decideAttendanceDelete`)가 한다.
@@ -26,14 +26,15 @@ export function canDeleteAttendance(
   today: string,
 ): boolean {
   if (role !== 'master' && role !== 'manager') return false
-  return attendanceOf(row) !== null && row.work_date === today
+  if (attendanceOf(row) === null) return false
+  return role === 'master' || row.work_date === today
 }
 
 /** 삭제 기록 목록의 검색이 너무 넓을 때(query_too_broad) */
 export const QUERY_TOO_BROAD = '검색어에 맞는 사람이 너무 많습니다. 이름을 더 자세히 입력해 주세요.'
 
 const DELETE_ERRORS: Record<string, string> = {
-  not_today: '오늘 활동의 출결만 삭제할 수 있습니다.',
+  not_today: '담당자는 오늘 활동의 출결만 삭제할 수 있습니다.',
   forbidden: '이 출결을 삭제할 권한이 없습니다.',
   not_found: '활동을 찾을 수 없습니다. 목록을 새로 고쳐 주세요.',
   attendance_not_found: '이미 삭제됐거나 기록이 없는 출결입니다. 목록을 새로 고쳐 주세요.',
