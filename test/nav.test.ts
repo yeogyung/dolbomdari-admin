@@ -1,16 +1,23 @@
-// 롤별 사이드바 메뉴 — 담당자는 출퇴근 기록·조정 요청·휴무 관리만 본다
+// 롤별 사이드바 메뉴와 라우트 가드 판정 — 담당자는 대시보드·출퇴근 기록·조정 요청·휴무 관리·리포트만 본다
 import { describe, expect, it } from 'vitest'
-import { getApps, managerAllows, phoneAllows, phoneHome, worksiteAllows } from '../shared/nav'
+import { getApps, managerAllows, phoneAllows, phoneHome, roleAllows, worksiteAllows } from '../shared/nav'
 
 const paths = (role: Parameters<typeof getApps>[0]) =>
   getApps(role).flatMap((a) => a.sections.flatMap((s) => s.items.map((i) => i.to)))
 
 describe('getApps', () => {
-  it('담당자는 시니어 앱의 출퇴근 기록·조정 요청과 휴무 관리만 본다', () => {
+  // QA 2026-11-07 MGR-03 · MGR-04, 결정 D4 — 대시보드·리포트를 맡은 근무지로 좁혀 연다
+  it('담당자는 시니어 앱의 대시보드·출퇴근 기록·조정 요청·휴무 관리·리포트만 본다', () => {
     const apps = getApps('manager')
     expect(apps.map((a) => a.key)).toEqual(['senior'])
     expect(apps[0]!.home).toBe('/senior/attendance')
-    expect(paths('manager')).toEqual(['/senior/attendance', '/senior/attendance-requests', '/senior/holidays'])
+    expect(paths('manager')).toEqual([
+      '/senior',
+      '/senior/attendance',
+      '/senior/attendance-requests',
+      '/senior/holidays',
+      '/senior/reports',
+    ])
   })
 
   // QA 2026-11-02 PARTNER-02 — 조정 요청은 확정하는 담당자·master 메뉴에만. 수요처는 출퇴근 기록의 「내 요청」 탭으로 본다
@@ -31,9 +38,13 @@ describe('getApps', () => {
     expect(paths('worksite')).toEqual(['/senior/worksites', '/senior/attendance'])
   })
 
-  it('리포트는 master 메뉴에만 있다', () => {
-    expect(paths('master')).toContain('/senior/reports')
-    for (const role of ['manager', 'worksite', 'org'] as const) {
+  it('대시보드·리포트는 master·담당자 메뉴에만 있다', () => {
+    for (const role of ['master', 'manager'] as const) {
+      expect(paths(role)).toContain('/senior')
+      expect(paths(role)).toContain('/senior/reports')
+    }
+    for (const role of ['worksite', 'org'] as const) {
+      expect(paths(role)).not.toContain('/senior')
       expect(paths(role)).not.toContain('/senior/reports')
     }
   })
@@ -49,6 +60,68 @@ describe('managerAllows', () => {
     // 접두만 같은 다른 경로는 막는다
     expect(managerAllows('/senior/holidays-admin')).toBe(false)
     expect(managerAllows('/')).toBe(false)
+  })
+
+  // 결정 D4 — `/senior` 는 시니어 앱 모든 주소의 앞부분이다. 앞부분 일치로 열면 명부·계정·공지까지 열린다
+  it('대시보드·리포트는 그 주소만 열고 아래 주소는 열지 않는다', () => {
+    for (const p of ['/senior', '/senior/', '/senior/reports', '/senior/reports/']) {
+      expect(managerAllows(p)).toBe(true)
+    }
+    for (const p of [
+      '/senior/workers',
+      '/senior/workers/abc',
+      '/senior/worksites',
+      '/senior/accounts',
+      '/senior/notices',
+      '/senior/notices/new',
+      '/senior/chat',
+      '/senior/faqs',
+      '/senior/documents',
+      '/senior/programs',
+      '/senior/reports/x',
+      '/senior/reports-x',
+      '/senior-x',
+      '/users',
+    ]) {
+      expect(managerAllows(p)).toBe(false)
+    }
+  })
+})
+
+/*
+ * 라우트 가드(`middleware/auth.global.ts`)는 이 판정 하나만 본다. 가드 안에 롤마다 조건을 따로 적으면
+ * 한 곳을 열 때 다른 조건이 그대로 막거나(대시보드 master 전용 검사) 거꾸로 넓어진다
+ */
+describe('roleAllows', () => {
+  it('master 는 어디든 들어간다', () => {
+    for (const p of ['/', '/senior', '/senior/reports', '/senior/workers', '/users']) expect(roleAllows('master', p)).toBe(true)
+  })
+
+  it('담당자는 담당자에게 연 화면만 들어간다', () => {
+    for (const p of ['/senior', '/senior/reports', '/senior/attendance', '/senior/holidays', '/senior/attendance-requests']) {
+      expect(roleAllows('manager', p)).toBe(true)
+    }
+    for (const p of ['/', '/users', '/senior/workers', '/senior/worksites', '/senior/accounts', '/senior/notices', '/senior/reports/x']) {
+      expect(roleAllows('manager', p)).toBe(false)
+    }
+  })
+
+  it('수요처는 근무지·출퇴근 기록만 — 대시보드·리포트는 막는다', () => {
+    for (const p of ['/senior/attendance', '/senior/worksites', '/senior/worksites/abc']) expect(roleAllows('worksite', p)).toBe(true)
+    for (const p of ['/', '/senior', '/senior/reports', '/senior/workers', '/senior/attendance-requests']) {
+      expect(roleAllows('worksite', p)).toBe(false)
+    }
+  })
+
+  it('기관 관리자는 전체 집계 화면(대시보드·리포트)만 막는다 — 예전 가드 그대로', () => {
+    for (const p of ['/', '/senior', '/senior/reports', '/senior/reports/x']) expect(roleAllows('org', p)).toBe(false)
+    for (const p of ['/users', '/organization']) expect(roleAllows('org', p)).toBe(true)
+  })
+
+  it('메뉴에 있는 화면은 그 롤이 모두 들어갈 수 있다', () => {
+    for (const role of ['master', 'manager', 'worksite', 'org'] as const) {
+      for (const p of paths(role)) expect(roleAllows(role, p)).toBe(true)
+    }
   })
 })
 

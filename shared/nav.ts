@@ -129,8 +129,8 @@ export function getApps(role: NavRole = 'master'): AppNav[] {
     ]
   }
 
-  // 담당자(사회복지사) — 맡은 수요처의 출퇴근 기록·조정 요청과 휴무 관리
-  if (role === 'manager') return [seniorOnly(MANAGER_PATHS, '/senior/attendance')]
+  // 담당자(사회복지사) — 맡은 수요처의 대시보드·출퇴근 기록·조정 요청·휴무 관리·리포트
+  if (role === 'manager') return [seniorOnly([...MANAGER_EXACT_PATHS, ...MANAGER_PATHS], '/senior/attendance')]
 
   // 수요처 담당자 — 시니어의 출퇴근 기록·근무지만. 첫 화면은 오늘 출결이다(QA 2026-11-02 PARTNER-04)
   return [seniorOnly(WORKSITE_PATHS, '/senior/attendance')]
@@ -142,9 +142,15 @@ export function getApps(role: NavRole = 'master'): AppNav[] {
  */
 const MANAGER_PATHS = ['/senior/attendance', ATTENDANCE_REQUESTS_PATH, '/senior/holidays']
 
+/**
+ * 담당자에게 **그 주소 하나만** 연 화면 — 맡은 근무지 대시보드·월별 리포트(QA 2026-11-07 MGR-03 · MGR-04, 결정 D4).
+ * `/senior` 는 시니어 앱 모든 주소의 앞부분이라 `allows` 로 열면 명부·계정·공지까지 열린다. 리포트도 아래 주소는 열지 않는다
+ */
+const MANAGER_EXACT_PATHS = ['/senior', '/senior/reports']
+
 /** 담당자가 이 경로에 들어갈 수 있는가. 접두만 같은 다른 경로(`/senior/holidays-x`)는 막는다 */
 export function managerAllows(path: string): boolean {
-  return allows(MANAGER_PATHS, path)
+  return allows(MANAGER_PATHS, path) || MANAGER_EXACT_PATHS.some((p) => path === p || path === `${p}/`)
 }
 
 /**
@@ -159,6 +165,18 @@ const WORKSITE_PATHS = ['/senior/worksites', '/senior/attendance']
 /** 수요처 담당자가 이 경로에 들어갈 수 있는가 */
 export function worksiteAllows(path: string): boolean {
   return allows(WORKSITE_PATHS, path)
+}
+
+/**
+ * 이 롤이 이 주소에 들어갈 수 있는가 — 라우트 가드(`middleware/auth.global.ts`)는 이것 하나만 본다.
+ * 담당자·수요처는 연 화면 목록으로만, 기관 관리자는 전체 집계 화면(대시보드·리포트)만 막는다(예전 가드 그대로).
+ * 대시보드·리포트를 master 전용으로 따로 막던 검사가 담당자 목록보다 먼저 걸려, 목록에 넣어도 열리지 않았다(결정 D4)
+ */
+export function roleAllows(role: NavRole, path: string): boolean {
+  if (role === 'master') return true
+  if (role === 'manager') return managerAllows(path)
+  if (role === 'worksite') return worksiteAllows(path)
+  return !(path === '/' || path === '/senior' || path.startsWith('/senior/reports'))
 }
 
 /**

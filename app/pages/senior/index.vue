@@ -1,4 +1,4 @@
-<!-- 시니어 어드민 대시보드 — 오늘 출결 현황 + 운영 규모 요약 (dbo-admin 목록 API 집계) -->
+<!-- 시니어 어드민 대시보드 — 오늘 출결 현황 + 운영 규모 요약 (dbo-admin 목록 API 집계). 담당자는 맡은 근무지의 오늘 출결·날씨만 -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { AttendanceShift, Program, Worksite } from '~/types/dbo'
@@ -7,6 +7,13 @@ const api = useDboAdmin()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
 setHeader('대시보드')
+
+/*
+ * 담당자 대시보드(QA 2026-11-07 MGR-03, 결정 D4) — 같은 화면에서 master 전용 호출(운영 규모·사업 목록)만 뺀다.
+ * 오늘 출결·근무지 목록은 서버가 담당자에게 연 dbo-admin 호출이라 맡은 근무지로 좁혀 온다(`managerMayCall`).
+ * 날씨 카드는 RLS 가 맡은 근무지만 준다. 사업 이름은 받을 길이 없어 사업 필터 없이 근무지 필터만 둔다
+ */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 
 const today = todaySeoul()
 
@@ -47,13 +54,15 @@ async function loadFilterRefs(force = false) {
   // 사업 목록은 규모 카드와 같은 키(programs)다. 새로고침에서는 규모 카드가 먼저 새로 받으므로 여기서는 force 하지 않는다
   const [ws, pg] = await Promise.allSettled([
     screenCache.get('senior-dashboard:allWorksites', () => api.listAllWorksites(), { force }),
-    screenCache.get('senior-dashboard:programs', () => api.listPrograms()),
+    // 사업 목록은 master 전용이다 — 담당자는 부르지 않는다(403 알림만 뜬다)
+    isManager.value ? Promise.resolve(null) : screenCache.get('senior-dashboard:programs', () => api.listPrograms()),
   ])
   if (ws.status === 'fulfilled') worksites.value = ws.value.value
-  if (pg.status === 'fulfilled') programs.value = pg.value.value.items.filter((p) => p.status === 'active')
+  if (pg.status === 'fulfilled' && pg.value) programs.value = pg.value.value.items.filter((p) => p.status === 'active')
   const failed = [ws, pg].find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined
   // 목록은 그대로 보이지만 필터 선택지가 비거나 모자라다 — 조용히 넘기지 않는다
-  if (failed) toast.add({ title: '사업·근무지 필터를 불러오지 못했습니다.', description: dboErrorMessage(failed.reason), color: 'warning' })
+  const title = isManager.value ? '근무지 필터를 불러오지 못했습니다.' : '사업·근무지 필터를 불러오지 못했습니다.'
+  if (failed) toast.add({ title, description: dboErrorMessage(failed.reason), color: 'warning' })
 }
 
 /** 「출퇴근 기록 전체 보기」 — 근무지를 골랐으면 그 근무지로 연다. 출퇴근 기록은 사업 필터를 받지 않는다 */
@@ -102,8 +111,8 @@ async function loadToday(force = false) {
   }
 }
 
-/** 규모 카드 조회 중. 끝난 뒤의 「—」는 실패를 뜻한다 — 조회 중과 구분해 「…」을 보인다 */
-const scaleLoading = ref(true)
+/** 규모 카드 조회 중. 끝난 뒤의 「—」는 실패를 뜻한다 — 조회 중과 구분해 「…」을 보인다. 담당자는 부르지 않는다 */
+const scaleLoading = ref(!isManager.value)
 
 async function loadScale(force = false) {
   // 호출마다 따로 캐시한다 — 하나가 실패해도 나머지는 보관되고, 실패한 것만 다음에 다시 부른다
@@ -129,7 +138,8 @@ const show = (v: number | null) => (scaleLoading.value ? '…' : v === null ? '�
 
 onMounted(() => {
   loadToday()
-  loadScale()
+  // 운영 규모는 기관 전체 숫자라 master 만 — 명부·사업·채팅방 목록이 master 전용이다
+  if (!isManager.value) loadScale()
   loadFilterRefs()
 })
 
@@ -137,7 +147,7 @@ onMounted(() => {
 const refreshing = ref(false)
 async function refresh() {
   refreshing.value = true
-  await Promise.all([loadToday(true), loadScale(true), loadFilterRefs(true)])
+  await Promise.all([loadToday(true), isManager.value ? null : loadScale(true), loadFilterRefs(true)])
   refreshing.value = false
 }
 </script>
@@ -156,7 +166,7 @@ async function refresh() {
         <div>
           <h2 class="text-[18px] font-semibold text-ink">오늘 출결</h2>
           <p class="mt-0.5 text-sm text-muted">
-            {{ today }} (Asia/Seoul)<template v-if="fetchedAt"> · {{ cachedAtLabel(fetchedAt) }}</template>
+            {{ today }} (Asia/Seoul)<template v-if="isManager"> · 맡은 근무지</template><template v-if="fetchedAt"> · {{ cachedAtLabel(fetchedAt) }}</template>
           </p>
         </div>
         <NuxtLink :to="attendanceLink" class="text-sm font-medium text-brand-500 hover:underline">
@@ -181,6 +191,7 @@ async function refresh() {
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <PillSelect
+              v-if="!isManager"
               v-model="programFilter"
               :options="[{ label: '사업 전체', value: '' }, ...programs.map((p) => ({ label: p.name, value: p.id }))]"
             />
@@ -238,8 +249,8 @@ async function refresh() {
       </AppCard>
     </section>
 
-    <!-- 운영 규모 -->
-    <section>
+    <!-- 운영 규모 — 기관 전체 숫자라 master 만 -->
+    <section v-if="!isManager">
       <h2 class="mb-4 text-[18px] font-semibold text-ink">운영 규모</h2>
       <div class="grid grid-cols-2 gap-6 md:grid-cols-5">
         <NuxtLink to="/senior/workers" class="group">

@@ -1,4 +1,4 @@
-<!-- 월간 리포트 — 출결·인력·공지 월 집계 (master 전용, GET /dbo-admin/reports/monthly) -->
+<!-- 월간 리포트 — master 는 기관 전체 출결·인력·공지 월 집계(GET /dbo-admin/reports/monthly), 담당자는 맡은 근무지 리포트(ManagerReport) -->
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
@@ -11,6 +11,8 @@ const api = useDboAdmin()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
 setHeader('리포트')
+/** 담당자는 아래 master 리포트(dbo-admin, master 전용)를 부르지 않고 맡은 근무지 리포트를 본다(QA 2026-11-07 MGR-04 · 결정 D4) */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 
 const today = todaySeoul()
 const months = recentMonths(today)
@@ -42,7 +44,9 @@ async function load(force = false) {
   }
 }
 watch(month, () => load())
-onMounted(() => load())
+onMounted(() => {
+  if (!isManager.value) load()
+})
 
 const att = computed(() => report.value?.attendance)
 const isCurrentMonth = computed(() => report.value?.month === months[0]!.value)
@@ -134,7 +138,8 @@ async function exportExcel() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <ManagerReport v-if="isManager" />
+  <div v-else class="flex flex-col gap-6">
     <Teleport to="#admin-topbar-actions">
       <PillSelect v-model="month" :options="months" />
       <AppButton variant="outline" color="neutral" icon="i-lucide-refresh-cw" :loading="loading" @click="load(true)">

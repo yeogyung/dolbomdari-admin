@@ -1,5 +1,5 @@
 // 전역 인증 가드 — 세션과 어드민 롤을 화면이 그려지기 전에 확정한다
-import { managerAllows, worksiteAllows } from '#shared/nav'
+import { roleAllows } from '#shared/nav'
 // 공개 경로(공유 링크 랜딩 등)는 인증 없이 접근 허용
 const PUBLIC_PREFIXES = ['/l/']
 
@@ -57,23 +57,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo({ path: '/login', query: { denied: String(Date.now()) } })
   }
 
-  // 대시보드·리포트는 전체 집계 화면이라 master 만 본다. 범위가 제한된 롤에게는
-  // 목록에서 막아 둔 규모를 숫자로 되돌려 주는 셈이 된다.
+  // 롤마다 들어갈 수 있는 화면은 `roleAllows` 한 곳에서 정한다(테스트로 고정).
+  // - 대시보드·리포트는 전체 집계 화면이라 master 와, 맡은 근무지로 좁혀 보는 담당자만 연다(결정 D4).
+  //   수요처·기관 관리자에게는 목록에서 막아 둔 규모를 숫자로 되돌려 주는 셈이 된다.
+  // - 담당자·수요처는 연 화면 목록 밖을 막는다. 열어도 데이터가 403 이라 이유 없는 빈 화면이 됐다(QA 2026-11-02 PARTNER-03).
   const home = ROLE_HOME[me.value?.role ?? 'master'] ?? '/'
-  const isMasterOnly =
-    to.path === '/' || to.path === '/senior' || to.path.startsWith('/senior/reports')
-  if (isMasterOnly && me.value?.role !== 'master') {
-    return navigateTo(home)
-  }
-
-  // 담당자에게 연 화면은 출퇴근 기록·조정 요청과 휴무 관리다(`managerAllows`). 다른 화면은 열어도 데이터가
-  // 403 이라 빈 화면이 된다.
-  if (me.value?.role === 'manager' && !managerAllows(to.path)) {
-    return navigateTo(home)
-  }
-
-  // 수요처 담당자도 같다. 명부·계정 같은 화면을 주소로 열면 이유 없는 빈 화면이 됐다(QA 2026-11-02 PARTNER-03).
-  if (me.value?.role === 'worksite' && !worksiteAllows(to.path)) {
+  if (!roleAllows(role.role, to.path)) {
     return navigateTo(home)
   }
 

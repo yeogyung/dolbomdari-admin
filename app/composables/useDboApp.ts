@@ -1,5 +1,6 @@
 // 앱 API(dbo) 호출 — 어드민에 없는 기능을 앱 엔드포인트로 쓴다. 공지 발송(QA 2026-10-14 15번)·날씨 휴무
 import type { CancelResult, CreateResult, HolidayOverview } from '~/utils/holidays'
+import type { ManagerMonthlyReport } from '~/utils/managerReport'
 
 /**
  * `useDboAdmin` 은 주소가 dbo-admin 으로 고정이라 따로 둔다. 인증은 같다 —
@@ -63,5 +64,11 @@ export function useDboApp() {
       post<CreateResult>('/holidays', { date, worksiteIds }),
     cancelHoliday: (id: string) =>
       post<CancelResult>(`/holidays/${id}/cancel`, {}),
+    /**
+     * 담당자 월간 리포트 — 앱 내정보 > 리포트와 같은 API(QA 2026-11-07 MGR-04 · 결정 D4). 근무지 1~100곳.
+     * 담당자는 맡은 근무지만 세고 맡지 않은 곳은 빼서 `scope.dropped` 로 알린다(서버 판정). 정렬해 보낸다 — 같은 범위가 같은 주소
+     */
+    monthlyReport: (month: string, worksiteIds: string[]) =>
+      call<ManagerMonthlyReport>('GET', `/reports/monthly?month=${month}&worksiteIds=${[...worksiteIds].sort().join(',')}`),
   }
 }
