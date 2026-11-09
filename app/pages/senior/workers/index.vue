@@ -17,6 +17,7 @@ import {
   type BulkAssignForm,
 } from '~/utils/bulkAssign'
 import { failureLines, runSequential } from '~/utils/bulkRun'
+import { savedPerGroup, timeGroupLine, timeGroups, type TimeGroup } from '~/utils/assignmentTimes'
 
 const api = useDboAdmin()
 const toast = useToast()
@@ -195,10 +196,17 @@ const emptyBulkForm = (): BulkAssignForm => ({
   weekdays: [],
   startTime: '09:00',
   endTime: '11:00',
+  perDay: false,
+  dayTimes: {},
   periodStart: null,
   periodEnd: null,
 })
 const bulkForm = ref<BulkAssignForm>(emptyBulkForm())
+/**
+ * 요일마다 시간이 다르면 같은 시간인 요일끼리 배정을 나눈다(QA 2026-11-07 SHIFT-04 · 결정 D26). 사람 N명 × 시간 묶음 M개 = 배정 N×M건.
+ * 시간 묶음이 하나면 예전 여러 명 배정 그대로(사람 단위로 센다)
+ */
+const bulkGroups = computed(() => timeGroups(bulkForm.value))
 const bulkTried = ref(false)
 const bulkErrors = computed(() => bulkAssignFormErrors(bulkForm.value))
 const bulkRunning = ref(false)
@@ -210,6 +218,10 @@ const bulkResult = ref<{
   failed: { name: string; reason: string }[]
   /** 배정은 저장됐지만 오늘·내일 근무 정리만 실패한 사람 */
   syncFailed: string[]
+  /** 세는 단위 — 시간 묶음이 둘 이상이면 사람이 아니라 배정 건으로 센다 */
+  unit?: string
+  /** 시간 묶음마다 저장된 수(묶음이 둘 이상일 때) — 일부만 실패했을 때 무엇이 저장됐는지 보인다 */
+  saved?: { line: string; count: number }[]
 } | null>(null)
 const skippedPeople = (list: { row: DirectoryEntry; reason: string }[]) =>
   list.map((s) => ({ name: personLine(s.row), reason: s.reason }))
@@ -231,36 +243,43 @@ async function submitBulkAssign() {
   const f = { ...bulkForm.value, weekdays: [...bulkForm.value.weekdays] }
   const site = worksites.value.find((w) => w.id === f.worksiteId)
   const targets = bulkTargets.value.targets
+  const groups = bulkGroups.value
+  // 사람마다 시간 묶음을 차례로 — 한 사람의 배정이 결과 명단에서 붙어 보인다
+  const items = targets.flatMap((p) => groups.map((g) => ({ p, g })))
+  const many = groups.length > 1
+  const lineOf = (x: { p: DirectoryEntry; g: TimeGroup }) => (many ? `${personLine(x.p)} · ${timeGroupLine(x.g)}` : personLine(x.p))
   const syncFailed: string[] = []
   bulkRunning.value = true
-  bulkProgress.value = { finished: 0, total: targets.length }
+  bulkProgress.value = { finished: 0, total: items.length }
   try {
     const result = await runSequential(
-      targets,
-      async (p) => {
+      items,
+      async (x) => {
         try {
           await api.createAssignment({
-            directoryId: p.id,
+            directoryId: x.p.id,
             worksiteId: f.worksiteId!,
             programId: site?.program_id ?? null,
-            weekdays: f.weekdays,
-            startTime: f.startTime,
-            endTime: f.endTime,
+            weekdays: x.g.weekdays,
+            startTime: x.g.startTime,
+            endTime: x.g.endTime,
             periodStart: f.periodStart,
             periodEnd: f.periodEnd,
           })
         } catch (e) {
           // 배정은 저장됐다 — 실패로 세면 다시 눌러 같은 배정을 또 만든다(명부 상세의 단건 저장과 같은 판단)
           if (!isShiftSyncFailed(e)) throw e
-          syncFailed.push(personLine(p))
+          syncFailed.push(lineOf(x))
         }
       },
       (finished, total) => (bulkProgress.value = { finished, total }),
     )
     bulkResult.value = {
       done: result.done.length,
-      failed: failureLines(result.failed, personLine, (e) => bulkAssignErrorMessage(e) ?? dboErrorMessage(e)),
+      failed: failureLines(result.failed, lineOf, (e) => bulkAssignErrorMessage(e) ?? dboErrorMessage(e)),
       syncFailed,
+      unit: many ? '건' : '명',
+      saved: many ? savedPerGroup(groups, result.done) : [],
     }
   } finally {
     bulkRunning.value = false
@@ -560,10 +579,13 @@ onMounted(() => {
       <div class="space-y-4">
         <template v-if="!bulkResult">
           <div class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-sm">
-            <p class="font-semibold text-ink tabular-nums">{{ bulkTargets.targets.length }}명에게 배정을 만듭니다.</p>
+            <p v-if="bulkGroups.length > 1" class="font-semibold text-ink tabular-nums">
+              {{ bulkTargets.targets.length }}명 × 시간 {{ bulkGroups.length }}가지 — 배정 {{ bulkTargets.targets.length * bulkGroups.length }}건을 만듭니다.
+            </p>
+            <p v-else class="font-semibold text-ink tabular-nums">{{ bulkTargets.targets.length }}명에게 배정을 만듭니다.</p>
             <p class="mt-0.5 text-muted">
-              한 사람씩 차례로 저장하고, 시니어마다 새 배정 알림이 갑니다. 같은 시간에 이미 배정이 있는 사람은 저장하지 않고
-              끝난 뒤 알려 드립니다.
+              한 사람씩 차례로 저장하고, 시니어마다 새 배정 알림이 갑니다<template v-if="bulkGroups.length > 1">(배정마다 한 번, {{ bulkGroups.length }}번)</template>.
+              같은 시간에 이미 배정이 있는 사람은 저장하지 않고 끝난 뒤 알려 드립니다.
             </p>
             <ul v-if="bulkTargets.targets.length" class="mt-1.5 max-h-32 list-disc space-y-0.5 overflow-y-auto pl-5 text-muted">
               <li v-for="p in bulkTargets.targets" :key="p.id">{{ personLine(p) }}</li>
@@ -577,14 +599,15 @@ onMounted(() => {
           <FormField label="근무 요일" required :error="bulkTried ? bulkErrors.weekdays : undefined">
             <WeekdayPicker v-model="bulkForm.weekdays" />
           </FormField>
-          <div class="grid grid-cols-2 gap-4">
-            <FormField label="시작 시간" required :error="bulkTried ? bulkErrors.time : undefined">
-              <DateField v-model="bulkForm.startTime" type="time" />
-            </FormField>
-            <FormField label="종료 시간" required>
-              <DateField v-model="bulkForm.endTime" type="time" />
-            </FormField>
-          </div>
+          <AssignmentTimeFields
+            v-model:start-time="bulkForm.startTime"
+            v-model:end-time="bulkForm.endTime"
+            v-model:per-day="bulkForm.perDay"
+            v-model:day-times="bulkForm.dayTimes"
+            :weekdays="bulkForm.weekdays"
+            :error="bulkTried ? bulkErrors.time : undefined"
+            :day-errors="bulkTried ? bulkErrors.days : undefined"
+          />
           <div class="grid grid-cols-2 gap-4">
             <FormField label="시작일" required :error="bulkTried ? bulkErrors.start : undefined">
               <DateField v-model="bulkForm.periodStart" />
@@ -597,12 +620,19 @@ onMounted(() => {
             처리 중 {{ bulkProgress.finished }} / {{ bulkProgress.total }}
           </p>
         </template>
-        <BulkResultPanel v-else done-label="배정" unit="명" :done="bulkResult.done" :failed="bulkResult.failed">
+        <BulkResultPanel v-else done-label="배정" :unit="bulkResult.unit" :done="bulkResult.done" :failed="bulkResult.failed">
+          <!-- 시간 묶음이 둘 이상이면 묶음마다 몇 명이 저장됐는지 — 일부만 실패했을 때 무엇이 저장됐는지 보인다(결정 D26) -->
+          <div v-if="bulkResult.saved?.length" class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-body">
+            <p class="font-medium">저장된 배정</p>
+            <ul class="mt-1.5 list-disc space-y-0.5 pl-5 tabular-nums">
+              <li v-for="s in bulkResult.saved" :key="s.line">{{ s.line }} — {{ s.count }}명</li>
+            </ul>
+          </div>
           <div
             v-if="bulkResult.syncFailed.length"
             class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-body"
           >
-            <p class="font-medium">아래 {{ bulkResult.syncFailed.length }}명은 배정은 저장됐지만 오늘·내일 근무 정리만 실패했습니다.</p>
+            <p class="font-medium">아래 {{ bulkResult.syncFailed.length }}{{ bulkResult.unit ?? '명' }}은 배정은 저장됐지만 오늘·내일 근무 정리만 실패했습니다.</p>
             <p class="mt-0.5 text-muted">명부 상세에서 그 배정의 「수정」을 열어 저장을 한 번 더 누르면 맞춰집니다.</p>
             <ul class="mt-1.5 list-disc space-y-0.5 pl-5">
               <li v-for="name in bulkResult.syncFailed" :key="name">{{ name }}</li>

@@ -63,6 +63,10 @@ describe('bulkAssignFormErrors', () => {
       time: '종료 시간은 시작 시간보다 늦어야 합니다.',
     })
     expect(bulkAssignFormErrors({ ...form, startTime: '09:00', endTime: '09:00' }).time).toBe('종료 시간은 시작 시간보다 늦어야 합니다.')
+    // 요일마다 다르게(결정 D26) — 고른 요일마다 본다
+    expect(
+      bulkAssignFormErrors({ ...form, perDay: true, dayTimes: { [form.weekdays[0]!]: { start: '15:00', end: '13:00' } } }).days,
+    ).toEqual({ [form.weekdays[0]!]: '종료 시간은 시작 시간보다 늦어야 합니다.' })
   })
   it('종료일이 시작일보다 빠르면 막는다', () => {
     expect(bulkAssignFormErrors({ ...form, periodEnd: '2026-11-01' })).toEqual({ end: '종료일은 시작일보다 빠를 수 없습니다.' })

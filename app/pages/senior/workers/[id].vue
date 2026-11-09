@@ -4,6 +4,9 @@ import { ref, computed, watch, onMounted } from 'vue'
 import type { Assignment, DirectoryEntry, LifeStatus, PersonNotice, PersonRoom, Program, Worksite } from '~/types/dbo'
 import { phoneKindFromMemo, withPhoneKind } from '~/utils/phoneKind'
 import { personNoticeCounts, personNoticeRead, personNoticesUnsupported } from '~/utils/personActivity'
+import { assignmentTimeErrors, timeGroupLine, timeGroups, type DayTimes, type TimeGroup } from '~/utils/assignmentTimes'
+import { bulkAssignErrorMessage, isShiftSyncFailed } from '~/utils/bulkAssign'
+import { failureLines, runSequential } from '~/utils/bulkRun'
 
 const route = useRoute()
 const api = useDboAdmin()
@@ -240,6 +243,9 @@ const assignForm = ref({
   weekdays: [] as number[],
   startTime: '09:00',
   endTime: '11:00',
+  /** 요일마다 다른 시간(QA 2026-11-07 SHIFT-04 · 결정 D26) — 배정 추가에서만. 같은 시간인 요일끼리 배정을 나눠 만든다 */
+  perDay: false,
+  dayTimes: {} as DayTimes,
   periodStart: null as string | null,
   periodEnd: null as string | null,
 })
@@ -274,6 +280,7 @@ watch(assignProgram, () => {
 function openAssign(row?: Assignment) {
   assignTried.value = false
   assignError.value = null
+  assignResult.value = null
   editingId.value = row?.id ?? null
   assignProgram.value = row ? (row.program_id ?? NO_PROGRAM) : null
   assignForm.value = row
@@ -282,6 +289,8 @@ function openAssign(row?: Assignment) {
         weekdays: [...row.weekdays],
         startTime: hhmm(row.start_time),
         endTime: hhmm(row.end_time),
+        perDay: false,
+        dayTimes: {},
         periodStart: row.period_start,
         periodEnd: row.period_end,
       }
@@ -290,6 +299,8 @@ function openAssign(row?: Assignment) {
         weekdays: [],
         startTime: '09:00',
         endTime: '11:00',
+        perDay: false,
+        dayTimes: {},
         periodStart: null,
         periodEnd: null,
       }
@@ -303,6 +314,50 @@ const assignPeriodErrors = computed(() =>
 const assignTried = ref(false)
 /** 서버가 저장을 거절한 이유(시작일 없음·겹친 배정). 창 안에 보이고, 창을 열거나 다시 저장하면 지운다 */
 const assignError = ref<{ message: string; conflicts: string[] } | null>(null)
+/** 요일마다 다른 시간의 칸별 오류 — 저장을 한 번 누른 뒤부터 보인다 */
+const assignDayErrors = computed(() => (assignForm.value.perDay ? assignmentTimeErrors(assignForm.value).days : undefined))
+/**
+ * 배정 여러 개로 나눠 저장한 결과(결정 D26). 일부만 실패하면 창을 닫지 않고 무엇이 저장됐는지·무엇이 왜 안 됐는지 보인다 —
+ * 창에서 다시 저장하면 이미 저장된 배정을 또 만들게 되어 결과 화면으로 바꾸고 「닫기」만 둔다
+ */
+const assignResult = ref<{ saved: string[]; failed: { name: string; reason: string }[]; syncFailed: string[] } | null>(null)
+// 나눠 저장하는 동안 화면을 떠나면 결과가 사라진다(여러 명 배정과 같다)
+useBusyLeaveGuard(assignSaving)
+
+/** 배정 여러 개를 차례로 만든다. 한 묶음이 실패해도 나머지는 계속한다(여러 명 배정과 같은 판단, 결정 D25) */
+async function createAssignmentGroups(groups: TimeGroup[]) {
+  const f = assignForm.value
+  const syncFailed: TimeGroup[] = []
+  const result = await runSequential(groups, async (g) => {
+    try {
+      await api.createAssignment({
+        directoryId: id.value,
+        worksiteId: f.worksiteId!,
+        programId: assignProgramId.value,
+        weekdays: g.weekdays,
+        startTime: g.startTime,
+        endTime: g.endTime,
+        periodStart: f.periodStart,
+        periodEnd: f.periodEnd,
+      })
+    } catch (e) {
+      // 배정은 저장됐다 — 실패로 세면 다시 만들게 된다
+      if (!isShiftSyncFailed(e)) throw e
+      syncFailed.push(g)
+    }
+  })
+  loadAssignments()
+  if (!result.failed.length && !syncFailed.length) {
+    toast.add({ title: `배정 ${groups.length}개가 저장되었습니다.`, color: 'success' })
+    assignOpen.value = false
+    return
+  }
+  assignResult.value = {
+    saved: result.done.filter((g) => !syncFailed.includes(g)).map(timeGroupLine),
+    failed: failureLines(result.failed, timeGroupLine, (e) => bulkAssignErrorMessage(e) ?? dboErrorMessage(e)),
+    syncFailed: syncFailed.map(timeGroupLine),
+  }
+}
 
 async function submitAssign() {
   const f = assignForm.value
@@ -319,13 +374,27 @@ async function submitAssign() {
     return
   }
   assignTried.value = true
+  if (assignDayErrors.value) {
+    toast.add({ title: '요일별 근무 시간을 확인해 주세요.', color: 'warning' })
+    return
+  }
   const periodError = assignPeriodErrors.value.start ?? assignPeriodErrors.value.end
   if (periodError) {
     toast.add({ title: periodError, color: 'warning' })
     return
   }
+  // 요일마다 시간이 다르면 같은 시간인 요일끼리 배정 여러 개로 나눠 만든다(결정 D26). 하나면 예전 저장 그대로
+  const groups = timeGroups(f)
   assignSaving.value = true
   assignError.value = null
+  if (!editingId.value && groups.length > 1) {
+    try {
+      await createAssignmentGroups(groups)
+    } finally {
+      assignSaving.value = false
+    }
+    return
+  }
   try {
     if (editingId.value) {
       // 근무지·대상은 배정 수정에서 바꿀 수 없다(API 계약). 바꿔야 하면 삭제 후 재등록한다.
@@ -342,9 +411,9 @@ async function submitAssign() {
         directoryId: id.value,
         worksiteId: f.worksiteId!,
         programId: assignProgramId.value,
-        weekdays: f.weekdays,
-        startTime: f.startTime,
-        endTime: f.endTime,
+        weekdays: groups[0]!.weekdays,
+        startTime: groups[0]!.startTime,
+        endTime: groups[0]!.endTime,
         periodStart: f.periodStart,
         periodEnd: f.periodEnd,
       })
@@ -739,8 +808,30 @@ onMounted(async () => {
       v-model:open="assignOpen"
       :title="editingId ? '배정 수정' : '배정 추가'"
       width="max-w-lg"
+      :before-close="() => !assignSaving"
     >
-      <div class="space-y-4">
+      <!-- 배정 여러 개로 나눠 저장한 결과(결정 D26) — 일부만 실패했을 때만 -->
+      <BulkResultPanel
+        v-if="assignResult"
+        done-label="저장"
+        :done="assignResult.saved.length + assignResult.syncFailed.length"
+        :failed="assignResult.failed"
+      >
+        <div v-if="assignResult.saved.length" class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-body">
+          <p class="font-medium">저장된 배정</p>
+          <ul class="mt-1.5 list-disc space-y-0.5 pl-5 tabular-nums">
+            <li v-for="line in assignResult.saved" :key="line">{{ line }}</li>
+          </ul>
+        </div>
+        <div v-if="assignResult.syncFailed.length" class="rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-body">
+          <p class="font-medium">아래 배정은 저장됐지만 오늘·내일 근무 정리만 실패했습니다.</p>
+          <p class="mt-0.5 text-muted">목록에서 그 배정의 「수정」을 열어 저장을 한 번 더 누르면 맞춰집니다.</p>
+          <ul class="mt-1.5 list-disc space-y-0.5 pl-5 tabular-nums">
+            <li v-for="line in assignResult.syncFailed" :key="line">{{ line }}</li>
+          </ul>
+        </div>
+      </BulkResultPanel>
+      <div v-else class="space-y-4">
         <FormField
           label="사업"
           required
@@ -777,14 +868,15 @@ onMounted(async () => {
         <FormField label="근무 요일" required>
           <WeekdayPicker v-model="assignForm.weekdays" />
         </FormField>
-        <div class="grid grid-cols-2 gap-4">
-          <FormField label="시작 시간" required>
-            <DateField v-model="assignForm.startTime" type="time" />
-          </FormField>
-          <FormField label="종료 시간" required>
-            <DateField v-model="assignForm.endTime" type="time" />
-          </FormField>
-        </div>
+        <AssignmentTimeFields
+          v-model:start-time="assignForm.startTime"
+          v-model:end-time="assignForm.endTime"
+          v-model:per-day="assignForm.perDay"
+          v-model:day-times="assignForm.dayTimes"
+          :weekdays="assignForm.weekdays"
+          :allow-per-day="!editingId"
+          :day-errors="assignTried ? assignDayErrors : undefined"
+        />
         <div class="grid grid-cols-2 gap-4">
           <FormField label="시작일" required :error="assignTried ? assignPeriodErrors.start : undefined">
             <DateField v-model="assignForm.periodStart" />
@@ -805,10 +897,13 @@ onMounted(async () => {
         </div>
       </div>
       <template #footer>
-        <AppButton variant="outline" color="neutral" size="sm" @click="assignOpen = false">
-          취소
-        </AppButton>
-        <AppButton size="sm" :loading="assignSaving" @click="submitAssign">저장</AppButton>
+        <AppButton v-if="assignResult" size="sm" @click="assignOpen = false">닫기</AppButton>
+        <template v-else>
+          <AppButton variant="outline" color="neutral" size="sm" :disabled="assignSaving" @click="assignOpen = false">
+            취소
+          </AppButton>
+          <AppButton size="sm" :loading="assignSaving" @click="submitAssign">저장</AppButton>
+        </template>
       </template>
     </AppModal>
   </div>

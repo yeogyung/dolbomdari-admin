@@ -1,6 +1,7 @@
 // 명부에서 여러 명을 골라 같은 근무를 배정·삭제하는 규칙 — 대상 고르기, 입력 검사, 실패 문구(QA 2026-11-07 SHIFT-02 · SHIFT-09, 결정 D25)
 import type { Assignment, DirectoryEntry } from '~/types/dbo'
 import { assignmentPeriodErrors, assignmentSaveError, fmtPhone } from './dbo'
+import { assignmentTimeErrors, type DayTimes } from './assignmentTimes'
 
 type Person = Pick<DirectoryEntry, 'id' | 'name' | 'phone' | 'role' | 'status'>
 
@@ -27,6 +28,9 @@ export type BulkAssignForm = {
   weekdays: number[]
   startTime: string
   endTime: string
+  /** 요일마다 다른 시간(QA 2026-11-07 SHIFT-04 · 결정 D26) — 같은 시간인 요일끼리 배정을 나눠 만든다 */
+  perDay?: boolean
+  dayTimes?: DayTimes
   periodStart: string | null
   periodEnd: string | null
 }
@@ -34,23 +38,20 @@ export type BulkAssignForm = {
 /**
  * 저장 전 검사 — 칸마다 문구(빈 객체면 통과). 기간 규칙은 명부 상세의 배정과 같다(`assignmentPeriodErrors`).
  * 종료 시간이 시작 시간보다 늦어야 한다 — 서버도 자정을 넘는 배정을 다루지 않고(겹침 판정이 하루 안의 초로 본다), 일괄이면
- * 잘못된 배정과 알림이 사람 수만큼 한 번에 생긴다(리뷰 반영)
+ * 잘못된 배정과 알림이 사람 수만큼 한 번에 생긴다(리뷰 반영). 요일마다 다르게면 고른 요일마다 본다(`days`)
  */
 export function bulkAssignFormErrors(f: BulkAssignForm): {
   worksite?: string
   weekdays?: string
   time?: string
+  days?: Partial<Record<number, string>>
   start?: string
   end?: string
 } {
   return {
     ...(f.worksiteId ? {} : { worksite: '근무지를 선택해 주세요.' }),
     ...(f.weekdays.length ? {} : { weekdays: '근무 요일을 하나 이상 선택해 주세요.' }),
-    ...(!f.startTime || !f.endTime
-      ? { time: '시작·종료 시간을 입력해 주세요.' }
-      : f.endTime <= f.startTime
-        ? { time: '종료 시간은 시작 시간보다 늦어야 합니다.' }
-        : {}),
+    ...assignmentTimeErrors(f),
     ...assignmentPeriodErrors(f.periodStart, f.periodEnd),
   }
 }
