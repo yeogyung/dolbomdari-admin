@@ -34,7 +34,13 @@ export type HolidayWorksite = {
   alert: HolidayKind | null
   /** 그날 근무가 있는 시니어 수 */
   people: number
-  holiday: { id: string; reason: HolidayReason; createdAt: string } | null
+  holiday: {
+    id: string
+    reason: HolidayReason
+    createdAt: string
+    /** 기간 휴무로 만든 날이면 그 기간(결정 D20). 하루 지정·옛 서버는 null·없음 */
+    range?: { id: string; from: string; to: string } | null
+  } | null
 }
 
 export type HolidayOverview = {
@@ -290,6 +296,7 @@ export function holidayErrorMessage(code: string | null | undefined): string {
   if (code === 'already_canceled') return '이미 취소된 휴무입니다.'
   if (code === 'forbidden') return '맡은 근무지만 휴무로 정할 수 있습니다.'
   if (code === 'not_found') return '근무지를 찾지 못했습니다. 새로고침해 주세요.'
+  if (code === 'range_too_long') return '기간은 31일까지 정할 수 있습니다.'
   return '처리하지 못했습니다. 새로고침해서 결과를 확인한 뒤 다시 시도해 주세요.'
 }
 
@@ -298,4 +305,45 @@ export function holidayErrorOf(e: any): string {
   const status: number | undefined = e?.status ?? e?.statusCode
   if (status === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.'
   return holidayErrorMessage(e?.data?.error)
+}
+
+// ── 기간 휴무(QA ADMIN-09 · 결정 D20, 2026-11-09) — 최대 31일, 시니어 알림은 기간당 1번
+
+/** 한 번에 정할 수 있는 날 수(시작일·끝날 포함). 서버 `RANGE_MAX_DAYS` 와 같다 */
+export const RANGE_MAX_DAYS = 31
+
+export type RangeCreateResult = {
+  created: { worksiteId: string; rangeId: string; from: string; to: string; dates: string[]; people: number }[]
+  skipped: { worksiteId: string; date: string; reason: 'exists' }[]
+  push: PushOutcome
+  contacts?: HolidayContacts | null
+}
+
+export type RangeCancelResult = {
+  canceled: true
+  dates: string[]
+  skipped: { date: string; reason: 'not_editable' | 'already_canceled' }[]
+  push: PushOutcome
+  contacts?: HolidayContacts | null
+}
+
+/** 기간의 마지막 날로 고를 수 있는 가장 늦은 날 */
+export const rangeMaxEnd = (from: string) => addDays(from, RANGE_MAX_DAYS - 1)
+
+/** 기간 지정 결과 한 줄 */
+export function rangeCreateNotice(result: RangeCreateResult): string {
+  const days = result.created.reduce((n, c) => n + c.dates.length, 0)
+  const people = result.created.reduce((n, c) => n + c.people, 0)
+  const parts = [`${result.created.length}곳 · 쉬는 날 ${days}일을 휴무로 정했습니다.`]
+  if (result.skipped.length) parts.push(`이미 휴무였던 ${result.skipped.length}일은 그대로 두었습니다.`)
+  parts.push(reachText(people, result.push))
+  return parts.join(' ')
+}
+
+/** 기간 취소 결과 한 줄 */
+export function rangeCancelNotice(worksite: string, result: RangeCancelResult): string {
+  const kept = result.skipped.filter((s) => s.reason === 'not_editable').length
+  const parts = [`${worksite} 기간 휴무 ${result.dates.length}일을 취소했습니다.`]
+  if (kept) parts.push(`오늘·지난 ${kept}일은 그대로입니다.`)
+  return parts.join(' ')
 }

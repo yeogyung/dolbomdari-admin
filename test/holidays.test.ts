@@ -340,3 +340,30 @@ describe('예보 근무지 고르기', () => {
     expect(forecastOf(o, null)).toBeNull()
   })
 })
+
+// 기간 휴무(결정 D20, 2026-11-09)
+import { rangeCancelNotice, rangeCreateNotice, rangeMaxEnd } from '../app/utils/holidays'
+
+describe('기간 휴무', () => {
+  it('끝날은 시작일 포함 31일까지', () => {
+    expect(rangeMaxEnd('2026-11-10')).toBe('2026-12-10')
+  })
+  it('지정 결과 — 쉬는 날 수와 이미 휴무였던 날', () => {
+    const text = rangeCreateNotice({
+      created: [{ worksiteId: 'w1', rangeId: 'r1', from: '2026-11-10', to: '2026-11-12', dates: ['2026-11-10', '2026-11-12'], people: 3 }],
+      skipped: [{ worksiteId: 'w1', date: '2026-11-11', reason: 'exists' }],
+      push: { pushed: 3, failed: 0, aborted: false },
+    })
+    expect(text.startsWith('1곳 · 쉬는 날 2일을 휴무로 정했습니다. 이미 휴무였던 1일은 그대로 두었습니다.')).toBe(true)
+  })
+  it('취소 결과 — 오늘·지난 날은 그대로', () => {
+    expect(
+      rangeCancelNotice('늘봄어린이집', {
+        canceled: true,
+        dates: ['2026-11-11', '2026-11-12'],
+        skipped: [{ date: '2026-11-10', reason: 'not_editable' }],
+        push: { pushed: 0, failed: 0, aborted: false },
+      }),
+    ).toBe('늘봄어린이집 기간 휴무 2일을 취소했습니다. 오늘·지난 1일은 그대로입니다.')
+  })
+})

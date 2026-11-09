@@ -15,6 +15,9 @@ import {
   hitHours,
   nextDate,
   rainLabel,
+  rangeCancelNotice,
+  rangeCreateNotice,
+  rangeMaxEnd,
   shortDate,
   sinceLabel,
   type HolidayContacts,
@@ -56,7 +59,18 @@ const showReach = computed(
 /** 지정은 누른 순간 화면에 그려진 날짜(`overview.date`)를 싣는다 — 날짜를 바꾸는 사이 다른 날로 나가지 않게 */
 type Ask =
   | { kind: 'create'; date: string; ids: string[]; people: number }
+  | { kind: 'createRange'; from: string; to: string; ids: string[] }
   | { kind: 'cancel'; site: HolidayWorksite }
+  | { kind: 'cancelRange'; site: HolidayWorksite }
+
+/**
+ * 기간 휴무의 끝날(결정 D20). 비우면 하루 지정이다. 날짜를 바꾸면 지운다. 근무지는 시작일에 근무가 있는 곳에서 고른다.
+ * 시니어 알림은 기간마다 한 번이다
+ */
+const rangeEnd = ref<string | null>(null)
+const rangeTo = computed(() =>
+  overview.value && rangeEnd.value && rangeEnd.value > overview.value.date ? rangeEnd.value : null,
+)
 const ask = ref<Ask | null>(null)
 const askOpen = computed({
   get: () => ask.value !== null,
@@ -97,6 +111,7 @@ watch(date, (d) => {
   void router.replace({ query: { ...route.query, date: d } })
   q.value = ''
   reach.value = null
+  rangeEnd.value = null
   // 이전 날짜의 목록·버튼을 남겨 두지 않는다 — 새 목록이 오기 전에 누르면 다른 날짜가 지정된다
   overview.value = null
   void load()
@@ -200,6 +215,23 @@ async function run() {
       toast.add({ title: '휴무 지정', description: createNotice(r), color: warn ? 'warning' : 'success', duration: 0 })
       reach.value = { contacts: contactsOf(r.contacts), aborted: r.push.aborted }
       selected.value = new Set()
+    } else if (current.kind === 'createRange') {
+      const r = await app.createHolidayRange(current.from, current.to, current.ids)
+      const warn = r.push.aborted || r.push.failed > 0
+      toast.add({ title: '기간 휴무 지정', description: rangeCreateNotice(r), color: warn ? 'warning' : 'success', duration: 0 })
+      reach.value = { contacts: contactsOf(r.contacts), aborted: r.push.aborted }
+      selected.value = new Set()
+      rangeEnd.value = null
+    } else if (current.kind === 'cancelRange') {
+      const r = await app.cancelHolidayRange(current.site.holiday!.range!.id)
+      reach.value = { contacts: contactsOf(r.contacts), aborted: r.push.aborted }
+      const warn = r.push.aborted || r.push.failed > 0
+      toast.add({
+        title: '기간 휴무 취소',
+        description: rangeCancelNotice(current.site.name, r),
+        color: warn ? 'warning' : 'success',
+        duration: 0,
+      })
     } else {
       const r = await app.cancelHoliday(current.site.holiday!.id)
       const push = r?.push ?? { pushed: 0, failed: 0, aborted: true }
@@ -397,12 +429,28 @@ async function run() {
           </li>
         </ul>
 
-        <div v-if="openAll.length && overview.editable" class="mt-4 flex justify-end">
+        <div v-if="openAll.length && overview.editable" class="mt-4 flex flex-wrap items-end justify-end gap-3">
+          <!-- 여러 날을 한 번에(결정 D20) — 끝날을 고르면 기간 휴무다. Figma 없음 -->
+          <div>
+            <p class="mb-1 text-xs text-muted">여러 날이면 끝날(최대 31일)</p>
+            <DateField
+              v-model="rangeEnd"
+              :min="nextDate(overview.date)"
+              :max="rangeMaxEnd(overview.date)"
+              class="w-44"
+              aria-label="기간 휴무 끝날"
+            />
+          </div>
           <AppButton
             :disabled="picked.length === 0 || busy"
-            @click="ask = { kind: 'create', date: overview.date, ids: picked.map((s) => s.id), people: picked.reduce((n, s) => n + s.people, 0) }"
+            @click="
+              ask = rangeTo
+                ? { kind: 'createRange', from: overview.date, to: rangeTo, ids: picked.map((s) => s.id) }
+                : { kind: 'create', date: overview.date, ids: picked.map((s) => s.id), people: picked.reduce((n, s) => n + s.people, 0) }
+            "
           >
-            {{ shortDate(overview.date) }} {{ picked.length }}곳 휴무 지정
+            {{ rangeTo ? `${shortDate(overview.date)}~${shortDate(rangeTo)}` : shortDate(overview.date) }}
+            {{ picked.length }}곳 휴무 지정
           </AppButton>
         </div>
         <p v-else-if="!overview.editable" class="mt-4 text-right text-sm text-muted">오늘과 지난 날은 바꿀 수 없습니다.</p>
@@ -418,6 +466,10 @@ async function run() {
               <p v-if="s.program" class="truncate text-xs text-muted">{{ s.program }}</p>
             </div>
             <StatusBadge tone="gray">{{ REASON[s.holiday!.reason] }}</StatusBadge>
+            <!-- 기간으로 만든 휴무(결정 D20) -->
+            <StatusBadge v-if="s.holiday!.range" tone="blue">
+              기간 {{ shortDate(s.holiday!.range.from) }}~{{ shortDate(s.holiday!.range.to) }}
+            </StatusBadge>
             <span class="w-20 text-right text-sm text-body tabular-nums">시니어 {{ s.people }}명</span>
             <AppButton
               v-if="overview.editable"
@@ -427,7 +479,17 @@ async function run() {
               :disabled="busy"
               @click="ask = { kind: 'cancel', site: s }"
             >
-              휴무 취소
+              {{ s.holiday!.range ? '이날만 취소' : '휴무 취소' }}
+            </AppButton>
+            <AppButton
+              v-if="overview.editable && s.holiday!.range"
+              size="sm"
+              variant="outline"
+              color="neutral"
+              :disabled="busy"
+              @click="ask = { kind: 'cancelRange', site: s }"
+            >
+              기간 취소
             </AppButton>
           </li>
         </ul>
@@ -439,21 +501,33 @@ async function run() {
       :title="
         ask?.kind === 'cancel'
           ? `${ask.site.name} 휴무를 취소할까요?`
-          : ask?.kind === 'create'
-            ? `${shortDate(ask.date)} ${ask.ids.length}곳을 휴무로 정할까요?`
-            : ''
+          : ask?.kind === 'cancelRange'
+            ? `${ask.site.name} 기간 휴무를 취소할까요?`
+            : ask?.kind === 'create'
+              ? `${shortDate(ask.date)} ${ask.ids.length}곳을 휴무로 정할까요?`
+              : ask?.kind === 'createRange'
+                ? `${shortDate(ask.from)}~${shortDate(ask.to)} ${ask.ids.length}곳을 휴무로 정할까요?`
+                : ''
       "
       width="max-w-md"
     >
       <div class="space-y-2 text-sm text-body">
         <p v-if="ask?.kind === 'cancel'">시니어 {{ ask.site.people }}명의 근무가 원래대로 돌아갑니다.</p>
+        <p v-else-if="ask?.kind === 'cancelRange'">
+          기간 {{ shortDate(ask.site.holiday!.range!.from) }}~{{ shortDate(ask.site.holiday!.range!.to) }} 가운데 내일 이후 날만 원래대로
+          돌아갑니다. 오늘·지난 날은 그대로입니다.
+        </p>
         <p v-else-if="ask?.kind === 'create'">시니어 {{ ask.people }}명의 근무가 휴무로 바뀌고 그날 출석 알림이 가지 않습니다.</p>
+        <p v-else-if="ask?.kind === 'createRange'">
+          기간 안의 날마다 근무가 휴무로 바뀝니다. 근무가 없는 날도 휴무로 두고, 이미 휴무인 날은 그대로 둡니다. 시니어에게는
+          기간마다 한 번 알림이 갑니다.
+        </p>
         <p class="text-muted">앱 알림을 켠 시니어에게 알림이 갑니다. 문자는 나가지 않습니다.</p>
       </div>
       <template #footer>
         <AppButton variant="outline" color="neutral" size="sm" :disabled="busy" @click="askOpen = false">닫기</AppButton>
         <AppButton size="sm" :loading="busy" @click="run">
-          {{ ask?.kind === 'cancel' ? '휴무 취소' : '휴무 지정' }}
+          {{ ask?.kind === 'cancel' ? '휴무 취소' : ask?.kind === 'cancelRange' ? '기간 취소' : '휴무 지정' }}
         </AppButton>
       </template>
     </AppModal>
