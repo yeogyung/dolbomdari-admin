@@ -1,6 +1,7 @@
 // 앱 API(dbo) 호출 — 어드민에 없는 기능을 앱 엔드포인트로 쓴다. 공지 발송(QA 2026-10-14 15번)·날씨 휴무
 import type { CancelResult, CreateResult, HolidayOverview, RangeCancelResult, RangeCreateResult } from '~/utils/holidays'
 import type { ManagerMonthlyReport } from '~/utils/managerReport'
+import type { NoticeReader, NoticeReadStats, NoticeResendResult, NoticeUnreadPerson } from '~/utils/managerNotices'
 
 /**
  * `useDboAdmin` 은 주소가 dbo-admin 으로 고정이라 따로 둔다. 인증은 같다 —
@@ -33,6 +34,31 @@ export function useDboApp() {
   const post = <T>(path: string, body: Record<string, any>) => call<T>('POST', path, body)
 
   return {
+    // ── 담당자 PC(QA 2026-11-07 MGR-01·02·05) — 앱과 같은 API·권한이다. 범위는 서버가 맡은 근무지로 정한다
+
+    /** 공지 열람 집계. 보낸 본인은 받은 사람 전체, 지금 담당자는 맡은 근무지 사람만 */
+    noticeReadStats: (id: string) => call<NoticeReadStats>('GET', `/notices/${id}/read-stats`),
+    /** 미열람자. `cooldownUntil` 이 있으면 그때까지 다시 보낼 수 없다(30분) */
+    noticeUnread: (id: string) => call<{ stats: NoticeReadStats; people: NoticeUnreadPerson[] }>('GET', `/notices/${id}/unread`),
+    noticeReaders: (id: string) => call<{ stats: NoticeReadStats; people: NoticeReader[] }>('GET', `/notices/${id}/readers`),
+    /** 미열람자 다시 알리기 — 아직 안 읽었고 30분 안에 다시 보내지 않은 사람에게만 간다(나머지는 skipped) */
+    resendNotice: (id: string, directoryIds: string[]) =>
+      post<NoticeResendResult>(`/notices/${id}/resend`, { directoryIds }),
+    /** 채팅 보내기 — 본인이 든 방만(서버가 멤버인지 본다) */
+    sendMessage: (roomId: string, body: string) =>
+      post<{ id: string; created_at: string }>(`/rooms/${roomId}/messages`, { body }),
+    /** FAQ 등록 — 검토 중으로 저장되고 master 가 승인해야 AI 답변에 쓰인다. 근무지는 맡은 곳만 */
+    createFaq: (body: { question: string; answer: string; category?: string | null; worksiteIds?: string[] }) =>
+      post<{ id: string }>('/faqs', body),
+    /** AI 문서 등록(추출한 글) — 근무지는 맡은 곳만 */
+    createDocument: (body: { filename: string; body: string; kind?: string; byteSize?: number | null; worksiteIds?: string[] }) =>
+      post<{ id: string }>('/documents', body),
+    /** AI 가 아직 읽지 못한(검색 조각이 없는) 문서 id(결정 D16) */
+    preparingDocuments: () => call<{ ids: string[] }>('GET', '/documents/preparing'),
+    /** 참여자 메모 — 담당자는 맡은 사람에게 쓴다 */
+    addMemberNote: (directoryId: string, body: string) =>
+      post<{ id: string; body: string; created_at: string; author_name: string | null }>(`/directory/${directoryId}/notes`, { body }),
+
     /**
      * 같은 requestId 로 다시 보내면 서버가 먼저 만든 공지를 돌려준다(duplicate: true).
      * 개인 공지(`directoryIds`)의 201 에는 `excluded`(고른 사람 중 받지 않은 명부 id)가 붙는다(서버 2026-11-04)

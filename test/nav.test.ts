@@ -1,4 +1,4 @@
-// 롤별 사이드바 메뉴와 라우트 가드 판정 — 담당자는 대시보드·출퇴근 기록·조정 요청·휴무 관리·리포트만 본다
+// 롤별 사이드바 메뉴와 라우트 가드 판정 — 담당자는 대시보드·근무표·출퇴근·조정 요청·휴무·리포트·공지·채팅·FAQ·AI 문서만 본다
 import { describe, expect, it } from 'vitest'
 import { getApps, managerAllows, phoneAllows, phoneHome, roleAllows, worksiteAllows } from '../shared/nav'
 
@@ -7,16 +7,22 @@ const paths = (role: Parameters<typeof getApps>[0]) =>
 
 describe('getApps', () => {
   // QA 2026-11-07 MGR-03 · MGR-04, 결정 D4 — 대시보드·리포트를 맡은 근무지로 좁혀 연다
-  it('담당자는 시니어 앱의 대시보드·출퇴근 기록·조정 요청·휴무 관리·리포트만 본다', () => {
+  // QA 2026-11-07 MGR-01·02·05 · SHIFT-08 — 근무표·공지·채팅·FAQ·AI 문서를 담당자에게도 연다(앱과 같은 API·권한)
+  it('담당자는 시니어 앱의 대시보드·근무표·출퇴근·조정 요청·휴무·리포트·공지·채팅·FAQ·AI 문서만 본다', () => {
     const apps = getApps('manager')
     expect(apps.map((a) => a.key)).toEqual(['senior'])
     expect(apps[0]!.home).toBe('/senior/attendance')
     expect(paths('manager')).toEqual([
       '/senior',
+      '/senior/roster',
       '/senior/attendance',
       '/senior/attendance-requests',
       '/senior/holidays',
       '/senior/reports',
+      '/senior/notices',
+      '/senior/chat',
+      '/senior/faqs',
+      '/senior/documents',
     ])
   })
 
@@ -33,9 +39,9 @@ describe('getApps', () => {
   })
 
   // QA 2026-11-02 PARTNER-04 — 첫 화면이 근무지 목록이었다. 담당 근무지의 오늘 출결로 연다.
-  it('수요처 계정은 근무지·출퇴근 기록을 보고 첫 화면은 출퇴근 기록이다', () => {
+  it('수요처 계정은 근무지·근무표(읽기)·출퇴근 기록을 보고 첫 화면은 출퇴근 기록이다', () => {
     expect(getApps('worksite')[0]!.home).toBe('/senior/attendance')
-    expect(paths('worksite')).toEqual(['/senior/worksites', '/senior/attendance'])
+    expect(paths('worksite')).toEqual(['/senior/worksites', '/senior/roster', '/senior/attendance'])
   })
 
   it('대시보드·리포트는 master·담당자 메뉴에만 있다', () => {
@@ -72,17 +78,36 @@ describe('managerAllows', () => {
       '/senior/workers/abc',
       '/senior/worksites',
       '/senior/accounts',
-      '/senior/notices',
-      '/senior/notices/new',
-      '/senior/chat',
-      '/senior/faqs',
-      '/senior/documents',
       '/senior/programs',
       '/senior/reports/x',
       '/senior/reports-x',
       '/senior-x',
       '/users',
     ]) {
+      expect(managerAllows(p)).toBe(false)
+    }
+  })
+})
+
+describe('managerAllows — 담당자 PC(MGR-01·02·05 · SHIFT-08)', () => {
+  it('공지·FAQ 는 아래 주소까지, 근무표·채팅·문서 목록·올리기는 그 주소만 연다', () => {
+    for (const p of [
+      '/senior/notices',
+      '/senior/notices/new',
+      '/senior/notices/abc',
+      '/senior/faqs',
+      '/senior/faqs/abc',
+      '/senior/roster',
+      '/senior/chat',
+      '/senior/documents',
+      '/senior/documents/new',
+    ]) {
+      expect(managerAllows(p)).toBe(true)
+    }
+  })
+
+  it('문자 실패 모아 보기·문서 상세·그 밖의 아래 주소는 막는다', () => {
+    for (const p of ['/senior/notices/sms', '/senior/documents/abc', '/senior/roster/x', '/senior/chat/x', '/senior/roster-x']) {
       expect(managerAllows(p)).toBe(false)
     }
   })
@@ -101,7 +126,7 @@ describe('roleAllows', () => {
     for (const p of ['/senior', '/senior/reports', '/senior/attendance', '/senior/holidays', '/senior/attendance-requests']) {
       expect(roleAllows('manager', p)).toBe(true)
     }
-    for (const p of ['/', '/users', '/senior/workers', '/senior/worksites', '/senior/accounts', '/senior/notices', '/senior/reports/x']) {
+    for (const p of ['/', '/users', '/senior/workers', '/senior/worksites', '/senior/accounts', '/senior/notices/sms', '/senior/reports/x']) {
       expect(roleAllows('manager', p)).toBe(false)
     }
   })

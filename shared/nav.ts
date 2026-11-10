@@ -77,6 +77,7 @@ const seniorApp: AppNav = {
       items: [
         { label: '명부 관리', icon: 'i-lucide-users', to: '/senior/workers' },
         { label: '근무지·수요처', icon: 'i-lucide-building-2', to: '/senior/worksites' },
+        { label: '근무표', icon: 'i-lucide-calendar-days', to: '/senior/roster' },
         { label: '출퇴근 기록', icon: 'i-lucide-clock', to: '/senior/attendance' },
         { label: '조정 요청', icon: 'i-lucide-clipboard-check', to: ATTENDANCE_REQUESTS_PATH },
         { label: '휴무 관리', icon: 'i-lucide-calendar-off', to: '/senior/holidays' },
@@ -129,27 +130,40 @@ export function getApps(role: NavRole = 'master'): AppNav[] {
     ]
   }
 
-  // 담당자(사회복지사) — 맡은 수요처의 대시보드·출퇴근 기록·조정 요청·휴무 관리·리포트
+  // 담당자(사회복지사) — 맡은 수요처의 대시보드·근무표·출퇴근 기록·조정 요청·휴무 관리·리포트·공지·채팅·FAQ·AI 문서
   if (role === 'manager') return [seniorOnly([...MANAGER_EXACT_PATHS, ...MANAGER_PATHS], '/senior/attendance')]
 
-  // 수요처 담당자 — 시니어의 출퇴근 기록·근무지만. 첫 화면은 오늘 출결이다(QA 2026-11-02 PARTNER-04)
+  // 수요처 담당자 — 근무지·근무표(읽기만)·출퇴근 기록. 첫 화면은 오늘 출결이다(QA 2026-11-02 PARTNER-04)
   return [seniorOnly(WORKSITE_PATHS, '/senior/attendance')]
 }
 
 /**
- * 담당자에게 연 화면. 메뉴와 라우트 가드(`middleware/auth.global.ts`)가 같은 목록을 쓴다.
+ * 담당자에게 연 화면(아래 주소까지). 메뉴와 라우트 가드(`middleware/auth.global.ts`)가 같은 목록을 쓴다.
  * 휴무 관리(2026-10-27)·조정 요청(2026-11-04, QA PARTNER-02)은 서버가 맡은 근무지로 범위를 좁힌다.
+ * 공지(QA 2026-11-07 MGR-01)는 작성·보낸 공지 상세, FAQ(MGR-05)는 목록·상세(읽기)·등록 — 앱과 같은 API·권한이다.
  */
-const MANAGER_PATHS = ['/senior/attendance', ATTENDANCE_REQUESTS_PATH, '/senior/holidays']
+const MANAGER_PATHS = ['/senior/attendance', ATTENDANCE_REQUESTS_PATH, '/senior/holidays', '/senior/notices', '/senior/faqs']
 
 /**
  * 담당자에게 **그 주소 하나만** 연 화면 — 맡은 근무지 대시보드·월별 리포트(QA 2026-11-07 MGR-03 · MGR-04, 결정 D4).
  * `/senior` 는 시니어 앱 모든 주소의 앞부분이라 `allows` 로 열면 명부·계정·공지까지 열린다. 리포트도 아래 주소는 열지 않는다
  */
-const MANAGER_EXACT_PATHS = ['/senior', '/senior/reports']
+const MANAGER_EXACT_PATHS = [
+  '/senior',
+  '/senior/reports',
+  // 근무표(QA SHIFT-08) · 채팅(MGR-02 · ACCT-03, 결정 D35 — 본인이 든 방만) · AI 문서 목록·올리기(MGR-05). 문서 상세·버전은 master 몫이다
+  '/senior/roster',
+  '/senior/chat',
+  '/senior/documents',
+  '/senior/documents/new',
+]
+
+/** 연 화면 아래에서도 담당자에게 막는 주소 — 문자 실패 모아 보기는 전체 발송 기록이라 master 몫이다 */
+const MANAGER_DENIED = ['/senior/notices/sms']
 
 /** 담당자가 이 경로에 들어갈 수 있는가. 접두만 같은 다른 경로(`/senior/holidays-x`)는 막는다 */
 export function managerAllows(path: string): boolean {
+  if (allows(MANAGER_DENIED, path)) return false
   return allows(MANAGER_PATHS, path) || MANAGER_EXACT_PATHS.some((p) => path === p || path === `${p}/`)
 }
 
@@ -160,7 +174,7 @@ export function managerAllows(path: string): boolean {
  * 「등록된 … 없습니다」 빈 화면으로 열렸다. 데이터는 서버가 막지만 화면이 이유 없이 비어 보인다.
  * 메뉴 순서가 곧 이 배열 순서다 — 시니어 앱 메뉴 정의 순서를 따른다.
  */
-const WORKSITE_PATHS = ['/senior/worksites', '/senior/attendance']
+const WORKSITE_PATHS = ['/senior/worksites', '/senior/roster', '/senior/attendance']
 
 /** 수요처 담당자가 이 경로에 들어갈 수 있는가 */
 export function worksiteAllows(path: string): boolean {

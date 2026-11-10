@@ -34,6 +34,7 @@ import type {
   MonthlyReport,
 } from '~/types/dbo'
 import type { DocumentCreateBody } from '~/utils/documentImport'
+import type { Roster } from '~/utils/roster'
 import type { RoomFilterQuery } from '~/utils/roomFilters'
 import type { AttendanceDisplay } from '~/utils/attendanceState'
 import { fetchAllPages } from '~/utils/paging'
@@ -226,7 +227,7 @@ export function useDboAdmin() {
     setContactWorksite: (id: string, worksiteId: string | null) =>
       req<{ ok: true }>(`/directory/${id}/worksite`, { method: 'PUT', body: { worksiteId } }),
 
-    /* 반복 배정 — 읽기는 worksite 범위 제한, 쓰기는 master 전용 */
+    /* 반복 배정 — 읽기는 범위 제한. 쓰기는 master, 담당자는 맡은 근무지만(새 배정은 이미 맡은 곳에 배정된 시니어만, 결정 SHIFT-08) */
     listAssignments: (
       q: { page?: number; size?: number; directoryId?: string; worksiteId?: string } = {},
     ) =>
@@ -253,6 +254,19 @@ export function useDboAdmin() {
       },
     ) => req<{ ok: true }>(`/assignments/${id}`, { method: 'PATCH', body }),
     deleteAssignment: (id: string) => req<{ ok: true }>(`/assignments/${id}`, { method: 'DELETE' }),
+
+    /* 근무표(QA SHIFT-03·05·07·08) — 근무지 하나 × 기간(최대 42일). 담당자는 맡은 곳을 고치고, 수요처는 자기 곳을 읽기만 한다 */
+    roster: (worksiteId: string, from: string, to: string) =>
+      req<Roster>('/roster', { query: { worksiteId, from, to } }),
+    /** 그날만 쉼·다른 시간(결정 D32). 시니어에게 알림이 간다(결정 D33) */
+    setAssignmentDay: (
+      id: string,
+      date: string,
+      body: { kind: 'skip' } | { kind: 'time'; startTime: string; endTime: string },
+    ) => req<{ ok: true }>(`/assignments/${id}/days/${date}`, { method: 'PUT', body }),
+    /** 그날을 배정대로 되돌린다 */
+    revertAssignmentDay: (id: string, date: string) =>
+      req<{ ok: true }>(`/assignments/${id}/days/${date}`, { method: 'DELETE' }),
 
     /* 출결 — 읽기는 worksite 범위 제한, 수정은 master 전용 */
     listAttendance: (
