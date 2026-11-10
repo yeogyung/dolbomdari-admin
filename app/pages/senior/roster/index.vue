@@ -291,8 +291,8 @@ function cellClass(row: RosterRow, cell: RosterCell, rowIndex: number, colIndex:
   const changed = !!editOf(row, cell) && editable(cell)
   const isActive = active.value?.row === rowIndex && active.value?.col === colIndex
   return [
-    'h-10 border-b border-r border-line px-1 text-center text-xs tabular-nums',
-    v.state === 'none' ? 'bg-surface-muted/40 text-muted' : '',
+    'h-10 border-b border-r border-hairline px-1 text-center text-xs tabular-nums',
+    v.state === 'none' ? 'bg-surface-soft text-muted' : '',
     v.state === 'work' ? 'text-ink' : '',
     v.state === 'time' ? 'bg-amber-50 font-semibold text-amber-800' : '',
     v.state === 'skip' ? 'bg-slate-100 font-semibold text-slate-500' : '',
@@ -490,15 +490,15 @@ async function removeAssign(row: RosterRow) {
 
     <div v-if="loading && !roster" class="py-10 text-center text-sm text-muted">불러오는 중…</div>
     <div v-else-if="roster && !roster.rows.length" class="py-10 text-center text-sm text-muted">이 기간에 배정된 분이 없습니다.</div>
-    <div v-else-if="roster" class="overflow-x-auto rounded-lg border border-line bg-surface" :class="editing ? 'select-none' : ''">
+    <div v-else-if="roster" class="overflow-x-auto rounded-lg border border-hairline bg-white" :class="editing ? 'select-none' : ''">
       <table class="min-w-full border-separate border-spacing-0">
         <thead>
           <tr>
-            <th class="sticky left-0 z-10 min-w-48 border-b border-r border-line bg-surface px-3 py-2 text-left text-xs font-semibold">참여자 · 배정</th>
+            <th class="sticky left-0 z-10 min-w-48 border-b border-r border-hairline bg-white px-3 py-2 text-left text-xs font-semibold">참여자 · 배정</th>
             <th
               v-for="c in roster.rows[0]?.cells ?? []"
               :key="c.date"
-              class="border-b border-r border-line px-1 py-2 text-center text-xs font-semibold tabular-nums"
+              class="border-b border-r border-hairline px-1 py-2 text-center text-xs font-semibold tabular-nums"
               :class="[compact ? 'min-w-11' : 'min-w-24', isToday(c.date) ? 'bg-brand-50 text-brand-700' : '', roster.holidays.includes(c.date) ? 'text-down' : '']"
             >
               {{ compact ? Number(c.date.slice(8)) : dayHeader(c.date) }}
@@ -507,7 +507,7 @@ async function removeAssign(row: RosterRow) {
         </thead>
         <tbody>
           <tr v-for="(row, ri) in roster.rows" :key="row.assignmentId">
-            <th class="sticky left-0 z-10 border-b border-r border-line bg-surface px-3 py-1.5 text-left font-normal">
+            <th class="sticky left-0 z-10 border-b border-r border-hairline bg-white px-3 py-1.5 text-left font-normal">
               <div class="flex items-center gap-2">
                 <div class="min-w-0 flex-1">
                   <button type="button" class="truncate text-sm font-semibold text-brand-600 hover:underline" :disabled="editing" @click="openNotes(row)">
@@ -546,7 +546,7 @@ async function removeAssign(row: RosterRow) {
     </div>
 
     <!-- 고른 칸 바꾸기 -->
-    <div v-if="editing && activeRow && activeCell" class="sticky bottom-0 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-4 py-3 shadow-lg">
+    <div v-if="editing && activeRow && activeCell" class="sticky bottom-0 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-hairline bg-white px-4 py-3 shadow-lg">
       <p class="mr-2 text-sm font-semibold">{{ activeRow.name }} · {{ dayHeader(activeCell.date) }}</p>
       <AppButton size="sm" variant="outline" @click="applyActive('work')">배정대로</AppButton>
       <AppButton size="sm" variant="outline" @click="applyActive('skip')">이날만 쉼</AppButton>

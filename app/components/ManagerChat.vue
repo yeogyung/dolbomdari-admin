@@ -185,7 +185,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="grid items-start gap-6 lg:grid-cols-[340px_1fr]">
     <AppCard class="overflow-hidden">
-      <div class="flex items-center justify-between border-b border-line px-4 py-3">
+      <div class="flex items-center justify-between border-b border-hairline px-4 py-3">
         <p class="text-sm font-semibold">내가 든 채팅방 {{ rooms.length }}</p>
         <AppButton variant="outline" size="sm" :loading="loadingRooms" @click="loadRooms">새로고침</AppButton>
       </div>
@@ -195,7 +195,7 @@ onBeforeUnmount(() => {
         v-for="r in rooms"
         :key="r.id"
         type="button"
-        class="flex w-full items-start gap-3 border-b border-line px-4 py-3 text-left last:border-b-0 hover:bg-surface-muted"
+        class="flex w-full items-start gap-3 border-b border-hairline px-4 py-3 text-left last:border-b-0 hover:bg-surface-soft"
         :class="r.id === selectedId ? 'bg-brand-50' : ''"
         @click="open(r.id)"
       >
@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
 
     <AppCard class="flex min-h-[480px] flex-col overflow-hidden">
       <template v-if="selected">
-        <div class="border-b border-line px-4 py-3">
+        <div class="border-b border-hairline px-4 py-3">
           <p class="text-sm font-semibold">{{ managerRoomTitle(selected, meId) }}</p>
           <p class="text-xs text-muted">{{ selected.members.map((m) => m.name).filter(Boolean).join(', ') }}</p>
         </div>
@@ -225,7 +225,7 @@ onBeforeUnmount(() => {
               </p>
               <div
                 class="whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm"
-                :class="m.sender_id === meId ? 'bg-brand-500 text-white' : 'bg-surface-muted'"
+                :class="m.sender_id === meId ? 'bg-brand-500 text-white' : 'bg-surface-soft'"
               >
                 {{ m.body }}
                 <p v-for="a in m.attachments ?? []" :key="a.id" class="text-xs opacity-80">[{{ a.kind === 'image' ? '사진' : '파일' }}{{ a.filename ? ` ${a.filename}` : '' }} — 앱에서 볼 수 있습니다]</p>
@@ -234,7 +234,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
-        <div class="flex items-end gap-2 border-t border-line px-4 py-3">
+        <div class="flex items-end gap-2 border-t border-hairline px-4 py-3">
           <AppTextarea
             v-model="draft"
             class="flex-1"

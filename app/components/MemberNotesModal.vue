@@ -79,7 +79,7 @@ async function add() {
       <p v-if="loading && !notes.length" class="text-sm text-muted">불러오는 중…</p>
       <p v-else-if="!notes.length" class="text-sm text-muted">남긴 메모가 없습니다.</p>
       <ul v-else class="max-h-72 space-y-2 overflow-y-auto">
-        <li v-for="n in notes" :key="n.id" class="rounded-lg border border-line px-3 py-2">
+        <li v-for="n in notes" :key="n.id" class="rounded-lg border border-hairline px-3 py-2">
           <p class="whitespace-pre-wrap text-sm">{{ n.body }}</p>
           <p class="mt-1 text-xs text-muted">{{ n.author_name ?? '—' }} · {{ fmtStamp(n.created_at) }}</p>
         </li>

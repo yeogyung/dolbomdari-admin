@@ -115,13 +115,13 @@ async function resend() {
         </AppButton>
       </div>
 
-      <div v-if="tab === 'unread'" class="overflow-hidden rounded-lg border border-line bg-surface">
-        <div class="flex items-center gap-3 border-b border-line px-4 py-2 text-xs font-semibold text-muted">
+      <div v-if="tab === 'unread'" class="overflow-hidden rounded-lg border border-hairline bg-white">
+        <div class="flex items-center gap-3 border-b border-hairline px-4 py-2 text-xs font-semibold text-muted">
           <Checkbox :model-value="allPicked" :disabled="!resendable.length" aria-label="다시 알릴 수 있는 분 모두 고르기" @update:model-value="toggleAll" />
           <span class="flex-1">참여자</span><span class="w-36">받는 방법</span><span class="w-40">다시 알림</span>
         </div>
         <p v-if="!unread.length" class="px-4 py-6 text-center text-sm text-muted">모두 읽었습니다.</p>
-        <div v-for="p in unread" :key="p.directoryId" class="flex items-center gap-3 border-b border-line px-4 py-2 text-sm last:border-b-0">
+        <div v-for="p in unread" :key="p.directoryId" class="flex items-center gap-3 border-b border-hairline px-4 py-2 text-sm last:border-b-0">
           <Checkbox :model-value="picked.has(p.directoryId)" :disabled="!canResend(p)" :aria-label="`${p.name} 고르기`" @update:model-value="togglePick(p.directoryId)" />
           <span class="flex-1">{{ p.name }} <span class="text-xs text-muted">{{ p.phone ? fmtPhone(p.phone) : '' }}</span></span>
           <span class="w-36 text-xs">{{ channelLabel(p.channel) }}</span>
@@ -131,9 +131,9 @@ async function resend() {
         </div>
       </div>
 
-      <div v-else class="overflow-hidden rounded-lg border border-line bg-surface">
+      <div v-else class="overflow-hidden rounded-lg border border-hairline bg-white">
         <p v-if="!readers.length" class="px-4 py-6 text-center text-sm text-muted">아직 읽은 분이 없습니다.</p>
-        <div v-for="p in readers" :key="p.directoryId" class="flex items-center gap-3 border-b border-line px-4 py-2 text-sm last:border-b-0">
+        <div v-for="p in readers" :key="p.directoryId" class="flex items-center gap-3 border-b border-hairline px-4 py-2 text-sm last:border-b-0">
           <span class="flex-1">{{ p.name }}</span>
           <span class="text-xs text-muted">{{ p.method === 'confirm' ? '확인 누름' : '열어 봄' }} · {{ p.readAt ? fmtStamp(p.readAt) : '시각 없음' }}</span>
         </div>
