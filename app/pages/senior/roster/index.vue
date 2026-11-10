@@ -79,7 +79,8 @@ async function load() {
 onMounted(async () => {
   try {
     worksites.value = await api.listAllWorksites()
-    if (!worksiteId.value && worksiteOptions.value.length) worksiteId.value = String(worksiteOptions.value[0].value)
+    const first = worksiteOptions.value[0]
+    if (!worksiteId.value && first) worksiteId.value = String(first.value)
   } catch (e) {
     error.value = dboErrorMessage(e, '근무지를 불러오지 못했습니다.')
   }
@@ -469,7 +470,7 @@ async function removeAssign(row: RosterRow) {
           <tr>
             <th class="sticky left-0 z-10 min-w-48 border-b border-r border-line bg-surface px-3 py-2 text-left text-xs font-semibold">참여자 · 배정</th>
             <th
-              v-for="c in roster.rows[0].cells"
+              v-for="c in roster.rows[0]?.cells ?? []"
               :key="c.date"
               class="border-b border-r border-line px-1 py-2 text-center text-xs font-semibold tabular-nums"
               :class="[compact ? 'min-w-11' : 'min-w-24', isToday(c.date) ? 'bg-brand-50 text-brand-700' : '', roster.holidays.includes(c.date) ? 'text-down' : '']"

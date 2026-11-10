@@ -60,7 +60,8 @@ export function weekRange(date: string): { from: string; to: string } {
 
 /** 그 날이 든 달(1일~말일) */
 export function monthRange(date: string): { from: string; to: string } {
-  const [y, m] = date.split('-').map(Number)
+  const y = Number(date.slice(0, 4))
+  const m = Number(date.slice(5, 7))
   const from = `${y}-${String(m).padStart(2, '0')}-01`
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
   return { from, to: `${y}-${String(m).padStart(2, '0')}-${String(last).padStart(2, '0')}` }
@@ -69,7 +70,8 @@ export function monthRange(date: string): { from: string; to: string } {
 /** 앞뒤 주·달로 옮긴 기준 날. 달은 1일로 맞춘다(31일에서 한 달 앞이 다음다음 달이 되지 않게) */
 export function moveAnchor(anchor: string, view: 'week' | 'month', step: number): string {
   if (view === 'week') return addDays(anchor, step * 7)
-  const [y, m] = anchor.split('-').map(Number)
+  const y = Number(anchor.slice(0, 4))
+  const m = Number(anchor.slice(5, 7))
   const d = new Date(Date.UTC(y, m - 1 + step, 1))
   return d.toISOString().slice(0, 10)
 }
