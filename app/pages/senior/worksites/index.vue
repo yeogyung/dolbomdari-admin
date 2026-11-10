@@ -8,6 +8,7 @@ import { nextSort, type SortDir } from '~/utils/sortToggle'
 import { filterWorksiteList, sortWorksiteList } from '~/utils/worksiteList'
 
 const api = useDboAdmin()
+const supabase = useSupabase()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
 const { me } = useAdminRole()
@@ -111,9 +112,18 @@ async function load() {
 const refsSettled = ref(false)
 
 async function loadRefs() {
-  // 사업·명부 목록은 master 전용 API 다 — 수요처 계정은 부르면 매번 실패하니 부르지 않는다
+  // 사업·명부 목록은 master 전용 API 다 — 담당자·수요처 계정은 부르면 매번 실패하니 부르지 않는다.
+  // 사업 이름만 RLS 로 읽는다(볼 수 있는 근무지가 속한 사업만, `dbo_can_read_program`) — 안 읽으면 사업 칸이 id 로 보인다
   if (me.value?.role !== 'master') {
-    refsSettled.value = true
+    try {
+      const { data, error } = await supabase.from('dbo_programs').select('id, name').order('name')
+      if (error) throw error
+      programs.value = (data ?? []) as Program[]
+    } catch (e: any) {
+      toast.add({ title: '사업 이름을 불러오지 못했습니다.', description: dboErrorMessage(e), color: 'warning' })
+    } finally {
+      refsSettled.value = true
+    }
     return
   }
   try {
@@ -431,7 +441,7 @@ onMounted(() => {
       <template #cell-manager_directory_id="{ row }">
         {{ contactName(row as Worksite) }}
       </template>
-      <!-- 명부는 운영관리자 전용이라 링크도 그때만. 서버가 세다 실패하면 칸이 없어 「—」 -->
+      <!-- 링크는 운영관리자만 — 담당자 명부(`ManagerWorkerList`)는 근무지 쿼리를 읽지 않는다. 서버가 세다 실패하면 칸이 없어 「—」 -->
       <template #cell-senior_count="{ row }">
         <span v-if="row.senior_count == null" class="text-muted">—</span>
         <NuxtLink

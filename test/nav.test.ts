@@ -1,4 +1,4 @@
-// 롤별 사이드바 메뉴와 라우트 가드 판정 — 담당자는 대시보드·근무표·출퇴근·조정 요청·휴무·리포트·공지·채팅·FAQ·AI 문서만 본다
+// 롤별 사이드바 메뉴와 라우트 가드 판정 — 담당자는 대시보드·명부·근무지·근무표·출퇴근·조정 요청·휴무·리포트·공지·채팅·FAQ·AI 문서만 본다
 import { describe, expect, it } from 'vitest'
 import { getApps, managerAllows, phoneAllows, phoneHome, roleAllows, worksiteAllows } from '../shared/nav'
 
@@ -8,12 +8,15 @@ const paths = (role: Parameters<typeof getApps>[0]) =>
 describe('getApps', () => {
   // QA 2026-11-07 MGR-03 · MGR-04, 결정 D4 — 대시보드·리포트를 맡은 근무지로 좁혀 연다
   // QA 2026-11-07 MGR-01·02·05 · SHIFT-08 — 근무표·공지·채팅·FAQ·AI 문서를 담당자에게도 연다(앱과 같은 API·권한)
-  it('담당자는 시니어 앱의 대시보드·근무표·출퇴근·조정 요청·휴무·리포트·공지·채팅·FAQ·AI 문서만 본다', () => {
+  // 2026-11-11 — 명부 관리·근무지·수요처를 맡은 근무지만 읽기로 연다
+  it('담당자는 시니어 앱의 대시보드·명부·근무지·근무표·출퇴근·조정 요청·휴무·리포트·공지·채팅·FAQ·AI 문서만 본다', () => {
     const apps = getApps('manager')
     expect(apps.map((a) => a.key)).toEqual(['senior'])
     expect(apps[0]!.home).toBe('/senior/attendance')
     expect(paths('manager')).toEqual([
       '/senior',
+      '/senior/workers',
+      '/senior/worksites',
       '/senior/roster',
       '/senior/attendance',
       '/senior/attendance-requests',
@@ -62,7 +65,7 @@ describe('managerAllows', () => {
     expect(managerAllows('/senior/holidays')).toBe(true)
     expect(managerAllows('/senior/holidays/')).toBe(true)
     expect(managerAllows('/senior/attendance-requests')).toBe(true)
-    expect(managerAllows('/senior/workers')).toBe(false)
+    expect(managerAllows('/senior/accounts')).toBe(false)
     // 접두만 같은 다른 경로는 막는다
     expect(managerAllows('/senior/holidays-admin')).toBe(false)
     expect(managerAllows('/')).toBe(false)
@@ -74,9 +77,8 @@ describe('managerAllows', () => {
       expect(managerAllows(p)).toBe(true)
     }
     for (const p of [
-      '/senior/workers',
       '/senior/workers/abc',
-      '/senior/worksites',
+      '/senior/worksites/abc',
       '/senior/accounts',
       '/senior/programs',
       '/senior/reports/x',
@@ -113,6 +115,21 @@ describe('managerAllows — 담당자 PC(MGR-01·02·05 · SHIFT-08)', () => {
   })
 })
 
+// 2026-11-11 — 명부·근무지는 맡은 근무지만 읽기로. 상세는 master 전용 API(명부 상세·수정·배정)를 불러 막는다
+describe('managerAllows — 명부·근무지(읽기)', () => {
+  it('명부 관리·근무지 목록은 그 주소만 연다', () => {
+    for (const p of ['/senior/workers', '/senior/workers/', '/senior/worksites', '/senior/worksites/']) {
+      expect(managerAllows(p)).toBe(true)
+    }
+  })
+
+  it('명부·근무지 상세와 접두만 같은 주소는 막는다', () => {
+    for (const p of ['/senior/workers/abc', '/senior/worksites/abc', '/senior/workers-x', '/senior/worksites-x']) {
+      expect(managerAllows(p)).toBe(false)
+    }
+  })
+})
+
 /*
  * 라우트 가드(`middleware/auth.global.ts`)는 이 판정 하나만 본다. 가드 안에 롤마다 조건을 따로 적으면
  * 한 곳을 열 때 다른 조건이 그대로 막거나(대시보드 master 전용 검사) 거꾸로 넓어진다
@@ -126,7 +143,7 @@ describe('roleAllows', () => {
     for (const p of ['/senior', '/senior/reports', '/senior/attendance', '/senior/holidays', '/senior/attendance-requests']) {
       expect(roleAllows('manager', p)).toBe(true)
     }
-    for (const p of ['/', '/users', '/senior/workers', '/senior/worksites', '/senior/accounts', '/senior/notices/sms', '/senior/reports/x']) {
+    for (const p of ['/', '/users', '/senior/workers/abc', '/senior/worksites/abc', '/senior/accounts', '/senior/notices/sms', '/senior/reports/x']) {
       expect(roleAllows('manager', p)).toBe(false)
     }
   })

@@ -23,6 +23,8 @@ const api = useDboAdmin()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
 setHeader('명부 관리')
+/** 담당자는 맡은 근무지에 배정된 분만 읽는다(2026-11-11) — 명부 API 가 master 전용이라 RLS 를 쓰는 `ManagerWorkerList` */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 
 const rows = ref<DirectoryEntry[]>([])
 const total = ref(0)
@@ -460,6 +462,7 @@ async function submitCreate() {
 }
 
 onMounted(() => {
+  if (isManager.value) return
   load()
   // 근무지 필터의 선택지. 등록 창도 같은 목록을 쓴다
   void loadRefs()
@@ -467,7 +470,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex min-h-[calc(100vh-8rem)] flex-col">
+  <ManagerWorkerList v-if="isManager" />
+  <div v-else class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
       <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" @click="exportExcel">
         {{ selectedIds.length ? `선택 ${selectedIds.length}명 다운로드` : '엑셀 다운로드' }}

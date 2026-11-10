@@ -130,7 +130,7 @@ export function getApps(role: NavRole = 'master'): AppNav[] {
     ]
   }
 
-  // 담당자(사회복지사) — 맡은 수요처의 대시보드·근무표·출퇴근 기록·조정 요청·휴무 관리·리포트·공지·채팅·FAQ·AI 문서
+  // 담당자(사회복지사) — 맡은 수요처의 대시보드·명부·근무지·근무표·출퇴근 기록·조정 요청·휴무 관리·리포트·공지·채팅·FAQ·AI 문서
   if (role === 'manager') return [seniorOnly([...MANAGER_EXACT_PATHS, ...MANAGER_PATHS], '/senior/attendance')]
 
   // 수요처 담당자 — 근무지·근무표(읽기만)·출퇴근 기록. 첫 화면은 오늘 출결이다(QA 2026-11-02 PARTNER-04)
@@ -151,6 +151,9 @@ const MANAGER_PATHS = ['/senior/attendance', ATTENDANCE_REQUESTS_PATH, '/senior/
 const MANAGER_EXACT_PATHS = [
   '/senior',
   '/senior/reports',
+  // 명부·근무지(2026-11-11) — 맡은 근무지만 읽기. 상세는 master 전용 API(명부 상세·수정·배정)를 불러 열지 않는다
+  '/senior/workers',
+  '/senior/worksites',
   // 근무표(QA SHIFT-08) · 채팅(MGR-02 · ACCT-03, 결정 D35 — 본인이 든 방만) · AI 문서 목록·올리기(MGR-05). 문서 상세·버전은 master 몫이다
   '/senior/roster',
   '/senior/chat',
