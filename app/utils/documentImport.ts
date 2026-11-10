@@ -1,9 +1,9 @@
 // AI 문서 등록의 지원 형식 판별·추출 텍스트 정리·등록 본문 검증 순수 유틸 (추출 자체는 useDocumentExtract)
 
-/** 등록할 수 있는 원본 형식. HWP 는 받지 않는다 */
-export type ImportKind = 'md' | 'docx' | 'pdf'
+/** 등록할 수 있는 원본 형식 — 앱(`lib/docFormat.ts`)과 같다. HWP·옛 이진 형식(doc·xls)은 받지 않는다 */
+export type ImportKind = 'md' | 'txt' | 'docx' | 'pdf' | 'xlsx'
 
-export const IMPORT_ACCEPT = '.md,.markdown,.docx,.pdf'
+export const IMPORT_ACCEPT = '.md,.markdown,.txt,.docx,.pdf,.xlsx'
 
 /**
  * 원본 파일 상한 20MB(QA 2026-11-07 FAQ-03). 앱(`lib/docFormat.ts` 의 `MAX_DOC_BYTES`)과 서버(`MAX_BYTE_SIZE`)와 같은 값이다.
@@ -25,9 +25,26 @@ export function isTooLargeError(e: any): boolean {
 export function kindFromFilename(name: string): ImportKind | null {
   const ext = name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]
   if (ext === 'md' || ext === 'markdown') return 'md'
+  if (ext === 'txt') return 'txt'
   if (ext === 'docx') return 'docx'
   if (ext === 'pdf') return 'pdf'
+  if (ext === 'xlsx') return 'xlsx'
   return null
+}
+
+/**
+ * txt 바이트를 글자로. `File.text()` 는 늘 UTF-8 이라 한국어 윈도 메모장의 ANSI(CP949) 파일이 오류 없이 깨진 글자로 검수 화면에 온다.
+ * BOM 이 있으면 그것(UTF-8·UTF-16 LE·BE)을, 없으면 UTF-8 을 엄격하게 먼저 해 보고 깨지면 EUC-KR(CP949)로 푼다
+ */
+export function decodeText(bytes: Uint8Array): string {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes.subarray(2))
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes.subarray(2))
+  try {
+    // BOM(EF BB BF)은 디코더가 지운다
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return new TextDecoder('euc-kr').decode(bytes)
+  }
 }
 
 /**
@@ -41,6 +58,8 @@ export function normalizeExtractedText(text: string): string {
     .replace(/\r\n?/g, '\n')
     .replace(/ /g, ' ')
     .replace(/[​-‍﻿]/g, '')
+    // NUL — UTF-16 txt·pdf.js 의 매핑 없는 글리프에서 나온다. DB(text)가 거절해 이유 없는 500 이 된다
+    .replace(/\u0000/g, '')
     .replace(/[ \t]+$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()

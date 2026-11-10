@@ -2,6 +2,7 @@
 import type { CancelResult, CreateResult, HolidayOverview, RangeCancelResult, RangeCreateResult } from '~/utils/holidays'
 import type { ManagerMonthlyReport } from '~/utils/managerReport'
 import type { NoticeReader, NoticeReadStats, NoticeResendResult, NoticeUnreadPerson } from '~/utils/managerNotices'
+import { NotSentError } from '~/utils/managerKnowledge'
 
 /**
  * `useDboAdmin` 은 주소가 dbo-admin 으로 고정이라 따로 둔다. 인증은 같다 —
@@ -14,14 +15,16 @@ export function useDboApp() {
   const base = `${config.public.supabaseUrl}/functions/v1/dbo`
 
   async function call<T>(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PATCH',
     path: string,
     body?: Record<string, any>,
   ): Promise<T> {
     const {
       data: { session },
     } = await supabase.auth.getSession()
-    if (!session) throw new Error('세션이 없습니다. 다시 로그인해 주세요.')
+    // 보내지 않은 것이 확실한 실패는 NotSentError — 쓰기 화면이 「저장됐는지 모름」과 가른다(`isMaybeSaved`)
+    if (!session) throw new NotSentError('세션이 없습니다. 다시 로그인해 주세요.')
+    if (navigator.onLine === false) throw new NotSentError('인터넷에 연결되어 있지 않습니다. 연결을 확인해 주세요.')
     return await $fetch<T>(`${base}${path}`, {
       method,
       body,
@@ -47,12 +50,18 @@ export function useDboApp() {
     /** 채팅 보내기 — 본인이 든 방만(서버가 멤버인지 본다) */
     sendMessage: (roomId: string, body: string) =>
       post<{ id: string; created_at: string }>(`/rooms/${roomId}/messages`, { body }),
-    /** FAQ 등록 — 검토 중으로 저장되고 master 가 승인해야 AI 답변에 쓰인다. 근무지는 맡은 곳만 */
-    createFaq: (body: { question: string; answer: string; category?: string | null; worksiteIds?: string[] }) =>
+    /**
+     * FAQ 등록 — 검토 중으로 저장되고 master 가 승인해야 AI 답변에 쓰인다. 비슷한 질문은 10개·200자까지.
+     * 근무지는 맡은 곳만, 빈 배열은 기관 전체
+     */
+    createFaq: (body: { question: string; answer: string; category?: string | null; paraphrases?: string[]; worksiteIds?: string[] }) =>
       post<{ id: string }>('/faqs', body),
-    /** AI 문서 등록(추출한 글) — 근무지는 맡은 곳만 */
+    /** AI 문서 등록(추출한 글) — 근무지는 맡은 곳만, 빈 배열은 기관 전체. 같은 파일명이면 409 */
     createDocument: (body: { filename: string; body: string; kind?: string; byteSize?: number | null; worksiteIds?: string[] }) =>
       post<{ id: string }>('/documents', body),
+    /** 문서 「제외」·「다시 사용」 — 제외해도 검색 조각은 남아 다시 사용하면 바로 근거로 돌아온다 */
+    setDocumentExcluded: (id: string, excluded: boolean) =>
+      call<{ id: string; excluded: boolean }>('PATCH', `/documents/${id}`, { excluded }),
     /** AI 가 아직 읽지 못한(검색 조각이 없는) 문서 id(결정 D16) */
     preparingDocuments: () => call<{ ids: string[] }>('GET', '/documents/preparing'),
     /** 참여자 메모 — 담당자는 맡은 사람에게 쓴다 */

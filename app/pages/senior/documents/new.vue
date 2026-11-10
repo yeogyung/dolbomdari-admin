@@ -1,14 +1,27 @@
-<!-- AI 문서 등록·새 판 올리기 — md·docx·pdf 에서 텍스트 추출 → 담당자 검수·수정 → POST /dbo-admin/documents(새 판은 /documents/{id}/versions) -->
+<!-- AI 문서 등록·새 판 올리기 — md·txt·docx·pdf·xlsx 에서 텍스트 추출 → 검수·수정 → POST /dbo-admin/documents(새 판은 /documents/{id}/versions). 담당자는 앱 API POST /dbo/documents -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { DocumentDetail } from '~/types/dbo'
 import type { DocumentCreateBody, DocumentCreateForm } from '~/utils/documentImport'
+import { isMaybeSaved, knowledgeErrorText, MAX_DOC_BODY_CHARS, MAX_DOC_FILENAME_CHARS } from '~/utils/managerKnowledge'
 
 const api = useDboAdmin()
 const app = useDboApp()
 const toast = useToast()
-/** 담당자는 앱 「문서 올리기」와 같은 API 로 올린다(QA 2026-11-07 MGR-05). 버전·발효일은 서버가 정하고 상세는 master 몫이다 */
+/**
+ * 담당자는 앱 「문서 올리기」와 같은 API·칸으로 올린다(QA 2026-11-07 MGR-05) — 파일명·적용 범위(기관 전체 / 맡은 근무지 하나).
+ * 버전·발효일·종료일은 앱 API 가 받지 않아(서버가 정한다) 칸을 숨긴다. 상세는 master 몫이다
+ */
 const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
+/** 담당자 적용 범위 — '' 이면 기관 전체 */
+const scope = ref('')
+const scopeReady = ref(false)
+const scopeFailed = ref(false)
+/**
+ * 저장됐는지 모른다(응답 없음·5xx). 다시 올리면 같은 이름이라 409 이고, 이름만 바꾸면 같은 글이 두 벌 색인된다 — 등록만 막는다.
+ * 화면은 남긴다 — 저장이 안 됐으면 검수하며 고친 본문을 잃지 않게
+ */
+const docUnknown = ref(false)
 const route = useRoute()
 const { extractText } = useDocumentExtract()
 const { setHeader } = useAdminHeader()
@@ -66,7 +79,7 @@ async function onPick(e: Event) {
 
   const kind = kindFromFilename(file.name)
   if (!kind) {
-    toast.add({ title: '지원하지 않는 형식입니다.', description: 'md, docx, pdf 파일만 올릴 수 있습니다.', color: 'warning' })
+    toast.add({ title: '지원하지 않는 형식입니다.', description: 'md·txt·docx·pdf·xlsx 파일만 올릴 수 있습니다.', color: 'warning' })
     return
   }
   // 20MB 를 넘으면 읽기 전에 막는다(QA 2026-11-07 FAQ-03) — 서버도 too_large 로 거절한다
@@ -88,8 +101,11 @@ async function onPick(e: Event) {
     }
     sourceName.value = file.name
     sourceSize.value = file.size
+    docUnknown.value = false
     form.value = { filename: file.name, kind, version: '', body, effectiveDate: todaySeoul(), expiryDate: '', byteSize: file.size }
   } catch (err: any) {
+    // 문서 탓이 아닌 실패(배포 뒤 청크 404·코드 오류)도 여기로 온다 — 원인을 남긴다
+    if (!(err instanceof ExtractError)) console.error('[documents/new] 추출 실패', kind, err)
     const description = err instanceof ExtractError ? err.message : '파일을 읽는 중 오류가 났습니다.'
     toast.add({ title: '추출 실패', description, color: 'error' })
   } finally {
@@ -114,24 +130,11 @@ async function submit() {
     confirmOpen.value = true
     return
   }
-  saving.value = true
   if (isManager.value) {
-    try {
-      const v = payload.value
-      await app.createDocument({ filename: v.filename, body: v.body, kind: v.kind, byteSize: v.byteSize ?? null })
-      toast.add({ title: '문서를 올렸습니다.', description: 'AI 가 읽는 동안 목록에 「준비 중」으로 보입니다.', color: 'success' })
-      await navigateTo('/senior/documents')
-    } catch (e) {
-      toast.add({
-        title: isTooLargeError(e) ? TOO_LARGE_MESSAGE : '문서를 올리지 못했습니다.',
-        description: isTooLargeError(e) ? undefined : dboErrorMessage(e),
-        color: 'error',
-      })
-    } finally {
-      saving.value = false
-    }
+    await submitAsManager(payload.value)
     return
   }
+  saving.value = true
   try {
     const res = await api.createDocument(payload.value)
     // 색인이 실패해도 저장은 됐다 — 크론이 다음 회차에 다시 색인한다(서버 설계 §4)
@@ -150,6 +153,46 @@ async function submit() {
       })
     } else {
       toast.add({ title: '등록 실패', description: dboErrorMessage(e), color: 'error' })
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+/**
+ * 담당자 올리기 — 앱 API(`POST /dbo/documents`). 앱 API 는 파일명을 200자까지 받고 넘으면 이유 없이 bad_request 라 먼저 막는다.
+ * 응답이 끊기거나 5xx 면 이미 저장됐을 수 있다 — 다시 누르면 같은 이름이라 409 이고, 이름만 바꿔 올리면 같은 글이 두 벌
+ * 색인된다. 목록으로 보내 확인하게 한다(앱과 같다)
+ */
+async function submitAsManager(v: DocumentCreateBody) {
+  if (!scopeReady.value || docUnknown.value) return
+  if (v.filename.length > MAX_DOC_FILENAME_CHARS) {
+    toast.add({ title: `파일명이 너무 깁니다. ${MAX_DOC_FILENAME_CHARS}자 아래로 줄여 주세요.`, color: 'warning' })
+    return
+  }
+  if (v.body.length > MAX_DOC_BODY_CHARS) {
+    toast.add({ title: '본문이 너무 깁니다.', description: `${MAX_DOC_BODY_CHARS.toLocaleString()}자까지 올릴 수 있습니다. 문서를 나눠 올려 주세요.`, color: 'warning' })
+    return
+  }
+  // 문서는 승인 없이 올린 날부터 AI 답변 근거가 된다 — 근무지를 못 읽어 기관 전체로 갈 때는 한 번 더 묻는다
+  if (scopeFailed.value && !confirm('근무지를 확인하지 못해 기관 전체로 올라갑니다. 올리면 바로 모든 근무지 시니어의 AI 답변 근거가 됩니다. 계속할까요?')) return
+  saving.value = true
+  try {
+    await app.createDocument({
+      filename: v.filename,
+      body: v.body,
+      kind: v.kind,
+      byteSize: v.byteSize ?? null,
+      worksiteIds: scope.value ? [scope.value] : [],
+    })
+    toast.add({ title: '문서를 올렸습니다.', description: 'AI 가 읽는 동안 목록에 「준비 중」으로 보입니다.', color: 'success' })
+    await navigateTo('/senior/documents')
+  } catch (e: any) {
+    if (isMaybeSaved(e)) {
+      docUnknown.value = true
+    } else {
+      // 같은 이름(409)은 응답이 끊긴 뒤 다시 누른 것일 수도 있다 — 이름부터 바꾸라고 하지 않는다(knowledgeErrorText)
+      toast.add({ title: '문서를 올리지 못했습니다.', description: knowledgeErrorText(e, 'document'), color: 'warning' })
     }
   } finally {
     saving.value = false
@@ -198,7 +241,7 @@ function reset() {
       <AppButton variant="outline" color="neutral" icon="i-lucide-arrow-left" @click="navigateTo('/senior/documents')">
         목록
       </AppButton>
-      <AppButton v-if="form && ready" icon="i-lucide-upload" :loading="saving" @click="submit">
+      <AppButton v-if="form && ready" icon="i-lucide-upload" :loading="saving" :disabled="isManager && (!scopeReady || docUnknown)" @click="submit">
         {{ prev ? '새 판 올리기' : '등록' }}
       </AppButton>
     </Teleport>
@@ -212,6 +255,17 @@ function reset() {
       :description="prevError"
     />
     <EmptyState v-else-if="prev && !versionUploadSupported(prev)" icon="i-lucide-info" :title="VERSION_UNSUPPORTED" />
+
+    <!-- 담당자 — 저장됐는지 모름. 등록은 막고 본문은 남긴다 -->
+    <div v-if="docUnknown" role="alert" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      저장됐는지 확인하지 못했습니다. 먼저 문서 목록에서 이 문서가 올라갔는지 확인해 주세요.
+      <template v-if="scope">올라가 있으면 적용 범위가 고른 근무지인지도 봐 주세요 — 기관 전체로 올라가 있으면 「제외」하고 운영관리자에게 알려 주세요.</template>
+      <div class="mt-2 flex flex-wrap gap-3">
+        <NuxtLink to="/senior/documents" target="_blank" class="font-medium underline">문서 목록 새 창으로 보기</NuxtLink>
+        <!-- 목록을 보고 없다고 확인한 뒤에만 다시 올린다 — 고친 본문은 그대로다 -->
+        <button type="button" class="font-medium underline" @click="docUnknown = false">목록에 없어요, 다시 올리기</button>
+      </div>
+    </div>
 
     <!-- 모양은 상세의 「제외함」 안내 상자를 따른다 -->
     <div v-if="failure" role="alert" class="rounded-lg bg-down-soft px-4 py-3 text-sm text-down">
@@ -249,7 +303,7 @@ function reset() {
         <template v-else>
           <UIcon name="i-lucide-file-up" class="size-10 text-brand-500" />
           <span class="text-[15px] font-semibold text-ink">파일 선택</span>
-          <span class="text-sm text-muted">md · docx · pdf, 20MB까지 (HWP는 지원하지 않습니다)</span>
+          <span class="text-sm text-muted">md · txt · docx · pdf · xlsx, 20MB까지 (HWP·doc·xls는 지원하지 않습니다)</span>
         </template>
       </button>
       <p class="mt-4 text-sm text-muted">
@@ -276,15 +330,19 @@ function reset() {
           <FormField label="파일명" required hint="AI 답변의 근거 표기에 쓰입니다. 같은 이름의 문서는 등록할 수 없습니다.">
             <TextField v-model="form.filename" />
           </FormField>
-          <FormField label="버전">
-            <TextField v-model="form.version" placeholder="예: v4" />
-          </FormField>
-          <FormField label="발효일" required hint="이 날부터 AI 답변 근거로 쓰입니다.">
-            <DateField v-model="form.effectiveDate" />
-          </FormField>
-          <FormField label="종료일" hint="비우면 무기한입니다.">
-            <DateField v-model="form.expiryDate" />
-          </FormField>
+          <!-- 담당자는 앱과 같이 적용 범위만 고른다. 버전·발효일·종료일은 앱 API 가 받지 않는다 -->
+          <KnowledgeScopeField v-if="isManager" v-model="scope" v-model:ready="scopeReady" v-model:failed="scopeFailed" />
+          <template v-else>
+            <FormField label="버전">
+              <TextField v-model="form.version" placeholder="예: v4" />
+            </FormField>
+            <FormField label="발효일" required hint="이 날부터 AI 답변 근거로 쓰입니다.">
+              <DateField v-model="form.effectiveDate" />
+            </FormField>
+            <FormField label="종료일" hint="비우면 무기한입니다.">
+              <DateField v-model="form.expiryDate" />
+            </FormField>
+          </template>
         </div>
       </AppCard>
 
