@@ -17,10 +17,12 @@ import {
   dayHeader,
   editable,
   editToward,
+  isSyncFailure,
   lockReason,
   monthRange,
   moveAnchor,
   pruneEdits,
+  type SaveItem,
   saveItemLabel,
   saveItems,
   validTimes,
@@ -201,6 +203,7 @@ function cancelEditing() {
   editing.value = false
   active.value = null
   result.value = null
+  syncRetry.value = []
 }
 
 // ── 저장 — 칸마다 기존 API 를 차례로 부른다. 실패한 칸은 편집으로 남기고 까닭을 보인다(결정 D25 와 같다)
@@ -208,7 +211,19 @@ function cancelEditing() {
 const saving = ref(false)
 const progress = ref<{ done: number; total: number } | null>(null)
 const result = ref<{ saved: number; failed: { name: string; reason: string }[] } | null>(null)
+/** 저장은 됐는데 오늘·내일 근무 행 맞추기만 실패한 칸 — 「다시 반영」으로 같은 요청을 다시 보낸다 */
+const syncRetry = ref<SaveItem[]>([])
 useBusyLeaveGuard(saving)
+
+function sendItem(item: SaveItem) {
+  return item.edit.kind === 'revert'
+    ? api.revertAssignmentDay(item.assignmentId, item.date)
+    : api.setAssignmentDay(
+      item.assignmentId,
+      item.date,
+      item.edit.kind === 'skip' ? { kind: 'skip' } : { kind: 'time', startTime: item.edit.start, endTime: item.edit.end },
+    )
+}
 
 async function save() {
   const items = saveItems(roster.value?.rows ?? [], edits.value)
@@ -218,20 +233,8 @@ async function save() {
   result.value = null
   progress.value = { done: 0, total: items.length }
   try {
-    const out = await runSequential(
-      items,
-      (item) =>
-        item.edit.kind === 'revert'
-          ? api.revertAssignmentDay(item.assignmentId, item.date)
-          : api.setAssignmentDay(
-            item.assignmentId,
-            item.date,
-            item.edit.kind === 'skip'
-              ? { kind: 'skip' }
-              : { kind: 'time', startTime: item.edit.start, endTime: item.edit.end },
-          ),
-      (done, total) => (progress.value = { done, total }),
-    )
+    const out = await runSequential(items, sendItem, (done, total) => (progress.value = { done, total }))
+    syncRetry.value = out.failed.filter((f) => isSyncFailure(f.error)).map((f) => f.item)
     const next = new Map(edits.value)
     for (const item of out.done) next.delete(cellKey(item.assignmentId, item.date))
     edits.value = next
@@ -240,6 +243,26 @@ async function save() {
       toast.add({ title: `${out.done.length}칸을 저장했습니다.`, color: 'success' })
       editing.value = false
       active.value = null
+    }
+  } finally {
+    saving.value = false
+    progress.value = null
+    await load()
+  }
+}
+
+async function retrySync() {
+  const items = syncRetry.value
+  if (!items.length) return
+  saving.value = true
+  try {
+    const out = await runSequential(items, sendItem, (done, total) => (progress.value = { done, total }))
+    syncRetry.value = out.failed.filter((f) => isSyncFailure(f.error)).map((f) => f.item)
+    if (!out.failed.length) {
+      toast.add({ title: `${out.done.length}칸을 오늘·내일 근무에 반영했습니다.`, color: 'success' })
+      if (result.value) result.value = { ...result.value, failed: result.value.failed.filter((f) => !items.some((i) => saveItemLabel(i) === f.name)) }
+    } else {
+      toast.add({ title: '아직 반영하지 못한 칸이 있습니다.', description: dayErrorMessage(out.failed[0]?.error), color: 'error' })
     }
   } finally {
     saving.value = false
@@ -459,6 +482,9 @@ async function removeAssign(row: RosterRow) {
       <ul class="mt-1.5 list-disc space-y-0.5 pl-5">
         <li v-for="(f, i) in result.failed" :key="i">{{ f.name }} — {{ f.reason }}</li>
       </ul>
+      <AppButton v-if="syncRetry.length" class="mt-2" size="sm" :loading="saving" @click="retrySync">
+        다시 반영 ({{ syncRetry.length }}칸)
+      </AppButton>
     </div>
     <p v-if="progress" class="text-sm text-muted" aria-live="polite">저장하는 중 {{ progress.done }}/{{ progress.total }}</p>
 

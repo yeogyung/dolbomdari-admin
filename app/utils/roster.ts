@@ -227,9 +227,17 @@ export function dayErrorMessage(e: any): string {
     too_far: '1년 넘게 앞의 날은 바꿀 수 없습니다.',
     not_found: '되돌릴 변경이 없습니다(이미 되돌렸을 수 있습니다).',
     forbidden: '이 근무지의 근무표를 바꿀 권한이 없습니다.',
-    shift_sync_failed: '변경은 저장됐지만 오늘·내일 근무에 바로 반영하지 못했습니다. 같은 칸을 다시 저장해 주세요.',
+    shift_sync_failed: '변경은 저장됐지만 오늘·내일 근무에 바로 반영하지 못했습니다. 아래 「다시 반영」을 눌러 주세요.',
   }
   return (code && messages[code]) || '저장하지 못했습니다.'
+}
+
+/**
+ * 저장은 됐는데 오늘·내일 근무 행 맞추기만 실패했는가. 표는 저장된 값으로 보여 편집이 사라지므로, 이 칸들은 따로 모아
+ * 같은 요청을 다시 보낸다 — 서버는 같은 값이면 저장·알림 없이 근무 행만 다시 맞춘다
+ */
+export function isSyncFailure(e: any): boolean {
+  return e?.data?.error === 'shift_sync_failed'
 }
 
 /** 실패 줄의 앞머리 — '김순자 11/12(목)' */

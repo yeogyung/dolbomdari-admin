@@ -178,3 +178,12 @@ describe('저장', () => {
     expect(dayErrorMessage(new Error('x'))).toBe('저장하지 못했습니다.')
   })
 })
+
+describe('근무 행 맞추기 실패', () => {
+  it('저장은 됐고 맞추기만 실패한 칸을 가린다', async () => {
+    const { isSyncFailure } = await import('../app/utils/roster')
+    expect(isSyncFailure({ data: { error: 'shift_sync_failed' } })).toBe(true)
+    expect(isSyncFailure({ data: { error: 'recorded' } })).toBe(false)
+    expect(isSyncFailure(new Error('x'))).toBe(false)
+  })
+})
