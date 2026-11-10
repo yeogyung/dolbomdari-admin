@@ -10,6 +10,8 @@ const api = useDboAdmin()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
 setHeader('AI 문서 관리')
+/** 담당자는 목록·올리기만(QA 2026-11-07 MGR-05) — RLS 로 읽는 `ManagerDocuments` */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 
 // 검색·필터·정렬·페이지는 주소에 담는다 — 상세에서 뒤로 오면 그대로다(QA 2026-10-11)
 const lq = useListQuery(
@@ -188,13 +190,15 @@ async function exportExcel() {
 }
 
 onMounted(() => {
+  if (isManager.value) return
   load()
   loadWorksites()
 })
 </script>
 
 <template>
-  <div class="flex min-h-[calc(100vh-8rem)] flex-col">
+  <ManagerDocuments v-if="isManager" />
+  <div v-else class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
       <AppButton
         variant="outline"

@@ -5,6 +5,8 @@ import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
 useAdminHeader().setHeader('공지·미열람 관리')
+/** 담당자는 본인이 보낸 공지만 본다(QA 2026-11-07 MGR-01) — 앱 API·RLS 를 쓰는 `ManagerNoticeList` */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 const rows = ref<NoticeSummary[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -89,13 +91,15 @@ async function exportExcel() {
   }
 }
 onMounted(() => {
+  if (isManager.value) return
   load()
   loadAuthors()
 })
 </script>
 
 <template>
-  <div class="space-y-5">
+  <ManagerNoticeList v-if="isManager" />
+  <div v-else class="space-y-5">
     <Teleport to="#admin-topbar-actions">
       <!-- 문자 실제 결과 중 실패만 모아 본다(QA ANOTICE-05). 옛 서버면 그 화면이 안내한다 -->
       <AppButton variant="outline" color="neutral" icon="i-lucide-message-square-warning" @click="navigateTo('/senior/notices/sms')">

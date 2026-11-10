@@ -12,6 +12,7 @@ const { setHeader } = useAdminHeader()
 /** 「목록」 — 목록에서 왔으면 뒤로 가서 필터를 지킨다 */
 const backToList = useBackToList('/senior/faqs')
 setHeader('FAQ 상세', [{ label: 'FAQ 관리', to: '/senior/faqs' }])
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 
 const id = computed(() => String(route.params.id))
 
@@ -158,7 +159,8 @@ onMounted(loadFaq)
       <AppButton variant="outline" color="neutral" icon="i-lucide-arrow-left" @click="backToList">
         목록
       </AppButton>
-      <template v-if="faq">
+      <!-- 수정·사용·승인·반려는 master 몫이다. 담당자는 읽기만(QA 2026-11-07 MGR-05) -->
+      <template v-if="faq && !isManager">
         <AppButton variant="outline" color="neutral" icon="i-lucide-pencil" :disabled="!!deciding || toggling" @click="openEdit">
           수정
         </AppButton>

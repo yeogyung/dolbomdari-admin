@@ -5,7 +5,10 @@ import type { DocumentDetail } from '~/types/dbo'
 import type { DocumentCreateBody, DocumentCreateForm } from '~/utils/documentImport'
 
 const api = useDboAdmin()
+const app = useDboApp()
 const toast = useToast()
+/** 담당자는 앱 「문서 올리기」와 같은 API 로 올린다(QA 2026-11-07 MGR-05). 버전·발효일은 서버가 정하고 상세는 master 몫이다 */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 const route = useRoute()
 const { extractText } = useDocumentExtract()
 const { setHeader } = useAdminHeader()
@@ -112,6 +115,23 @@ async function submit() {
     return
   }
   saving.value = true
+  if (isManager.value) {
+    try {
+      const v = payload.value
+      await app.createDocument({ filename: v.filename, body: v.body, kind: v.kind, byteSize: v.byteSize ?? null })
+      toast.add({ title: '문서를 올렸습니다.', description: 'AI 가 읽는 동안 목록에 「준비 중」으로 보입니다.', color: 'success' })
+      await navigateTo('/senior/documents')
+    } catch (e) {
+      toast.add({
+        title: isTooLargeError(e) ? TOO_LARGE_MESSAGE : '문서를 올리지 못했습니다.',
+        description: isTooLargeError(e) ? undefined : dboErrorMessage(e),
+        color: 'error',
+      })
+    } finally {
+      saving.value = false
+    }
+    return
+  }
   try {
     const res = await api.createDocument(payload.value)
     // 색인이 실패해도 저장은 됐다 — 크론이 다음 회차에 다시 색인한다(서버 설계 §4)

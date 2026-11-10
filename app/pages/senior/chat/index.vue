@@ -14,6 +14,8 @@ const toast = useToast()
 const openGuard = createClickGuard()
 const { setHeader } = useAdminHeader()
 setHeader('채팅방')
+/** 담당자는 본인이 든 방만 보고 답장한다(QA 2026-11-07 MGR-02 · ACCT-03, 결정 D35) — `ManagerChat` */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 
 const rooms = ref<ChatRoom[]>([])
 const total = ref(0)
@@ -244,6 +246,7 @@ async function openRoomById(roomId: string) {
 
 // `?room=<id>` 로 왔으면 그 방을 먼저 연다. 목록은 그다음에 읽는다 — 먼저 읽으면 첫 방이 잠깐 열렸다 바뀐다
 onMounted(async () => {
+  if (isManager.value) return
   const roomId = typeof route.query.room === 'string' ? route.query.room : ''
   if (roomId) await openRoomById(roomId)
   loadRooms()
@@ -251,8 +254,9 @@ onMounted(async () => {
 </script>
 
 <template>
+  <ManagerChat v-if="isManager" />
   <!-- items-start: 두 카드가 서로의 높이를 따라 늘어나지 않게 한다 — 긴 대화가 방 목록 카드까지 키우던 문제 -->
-  <div class="grid items-start gap-6 lg:grid-cols-[340px_1fr]">
+  <div v-else class="grid items-start gap-6 lg:grid-cols-[340px_1fr]">
     <!-- 방 만들기 — 공지 목록의 「공지 작성」처럼 머리글 오른쪽 버튼 -->
     <Teleport to="#admin-topbar-actions">
       <AppButton icon="i-lucide-message-square-plus" @click="createOpen = true">방 만들기</AppButton>

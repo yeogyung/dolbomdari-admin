@@ -28,6 +28,11 @@ import { noticePeople, type PickPerson } from '~/utils/personPick'
 const api = useDboAdmin()
 const app = useDboApp()
 const supabase = useSupabase()
+/**
+ * 담당자도 쓴다(QA 2026-11-07 MGR-01). 근무지 목록은 서버가 맡은 곳으로 좁히고, 사업 목록은 master 전용이라 읽지 않는다.
+ * 개인 받는 사람은 RLS 로 읽히는 시니어(맡은 근무지에 배정된 분)다 — 발송도 서버가 같은 범위로 본다
+ */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 const toast = useToast()
 useAdminHeader().setHeader('공지 작성', [{ label: '공지·미열람 관리', to: '/senior/notices' }])
 
@@ -180,10 +185,12 @@ async function loadPeople() {
   peopleLoading.value = true
   peopleError.value = ''
   try {
-    const rows = await fetchAllPages(
-      (page, size) => api.listDirectory({ role: 'senior', status: 'active', page, size, sort: 'name' }),
-      (d) => d.id,
-    )
+    const rows = isManager.value
+      ? await managerSeniors()
+      : await fetchAllPages(
+        (page, size) => api.listDirectory({ role: 'senior', status: 'active', page, size, sort: 'name' }),
+        (d) => d.id,
+      )
     people.value = noticePeople(rows)
     peopleLoaded = true
   } catch (e) {
@@ -195,6 +202,17 @@ async function loadPeople() {
 watch(mode, (m) => {
   if (m === 'person') loadPeople()
 })
+/** 담당자가 읽을 수 있는 활동 중 시니어(RLS `dbo_can_read_directory` — 맡은 근무지에 배정된 분) */
+async function managerSeniors() {
+  const { data, error: e } = await supabase
+    .from('dbo_directory')
+    .select('id, name, phone')
+    .eq('role', 'senior')
+    .eq('status', 'active')
+    .order('name')
+  if (e) throw e
+  return (data ?? []) as { id: string; name: string; phone: string | null }[]
+}
 
 /** 개인으로 고른 받는 사람 수. undefined 면 오는 중, null 이면 못 셌다(까닭은 peopleFailure) */
 const peopleTotal = ref<number | null | undefined>(undefined)
@@ -264,7 +282,10 @@ const pushNote = computed(() => {
 
 onMounted(async () => {
   try {
-    const [ws, ps] = await Promise.all([api.listAllWorksites(), api.listPrograms()])
+    const [ws, ps] = await Promise.all([
+      api.listAllWorksites(),
+      isManager.value ? Promise.resolve({ items: [] as Program[] }) : api.listPrograms(),
+    ])
     worksites.value = ws.filter((w) => w.status !== 'ended')
     programs.value = ps.items
   } catch (e) {

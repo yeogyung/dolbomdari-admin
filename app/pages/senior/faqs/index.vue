@@ -9,6 +9,9 @@ const faqs = useFaqs()
 const toast = useToast()
 const { setHeader } = useAdminHeader()
 setHeader('FAQ 관리')
+/** 담당자는 맡은 근무지 FAQ 를 등록한다(QA 2026-11-07 MGR-05) — 검토 중으로 저장되고 master 가 승인한다 */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
+const createOpen = ref(false)
 
 const all = ref<Faq[]>([])
 const loading = ref(false)
@@ -96,6 +99,7 @@ onMounted(load)
 <template>
   <div class="flex min-h-[calc(100vh-8rem)] flex-col">
     <Teleport to="#admin-topbar-actions">
+      <AppButton v-if="isManager" icon="i-lucide-plus" @click="createOpen = true">FAQ 등록</AppButton>
       <AppButton variant="outline" color="neutral" icon="i-lucide-download" :loading="exporting" :disabled="loading" @click="exportExcel">
         엑셀 다운로드
       </AppButton>
@@ -149,5 +153,6 @@ onMounted(load)
         </NuxtLink>
       </template>
     </DataTable>
+    <ManagerFaqCreate v-if="isManager" v-model:open="createOpen" @created="load" />
   </div>
 </template>

@@ -7,6 +7,8 @@ import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 const api = useDboAdmin()
 const route = useRoute()
 useAdminHeader().setHeader('공지 수신자·미열람 관리')
+/** 담당자는 앱 API 로 열람 현황·다시 알리기를 한다(QA 2026-11-07 MGR-01) — `ManagerNoticeDetail` */
+const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 const notice = ref<NoticeDetail | null>(null)
 const rows = ref<NoticeRecipient[]>([])
 const channel = ref('all')
@@ -25,6 +27,7 @@ const columns: Column[] = [
   { key: 'read_at', label: '열람 상태' },
 ]
 async function load() {
+  if (isManager.value) return
   const current = ++sequence
   loading.value = true
   error.value = ''
@@ -134,7 +137,8 @@ async function exportExcel() {
 </script>
 
 <template>
-  <div class="space-y-5">
+  <ManagerNoticeDetail v-if="isManager" :id="String(route.params.id)" />
+  <div v-else class="space-y-5">
     <Teleport to="#admin-topbar-actions">
       <AppButton
         variant="outline"
