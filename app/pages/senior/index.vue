@@ -232,8 +232,9 @@ async function refresh() {
                   {{ hhmm(row.planned_start) }} – {{ hhmm(row.planned_end) }}
                 </td>
                 <td class="border-t border-hairline py-[15px] pr-3">
-                  <StatusBadge :tone="attendanceTone(attendanceOf(row)?.status)">
-                    {{ attendanceLabel(attendanceOf(row)?.status) }}
+                  <!-- 출퇴근 기록 화면과 같은 판정 — 시작 전 근무는 「미기록」이 아니라 「출근 전」(QA 2026-11-11 395행) -->
+                  <StatusBadge :tone="attendanceDisplayTone(attendanceDisplay(row, judgedAt))">
+                    {{ attendanceDisplayLabel(attendanceDisplay(row, judgedAt)) }}
                   </StatusBadge>
                 </td>
                 <td class="border-t border-hairline py-[15px] pr-3 text-[15px] text-body">
