@@ -8,7 +8,9 @@ import {
   type NoticeUnreadPerson,
   canResend,
   channelLabel,
+  coolingDown,
   readSummary,
+  resendConfirm,
   resendSummary,
 } from '~/utils/managerNotices'
 
@@ -46,7 +48,8 @@ async function load() {
     stats.value = u.stats
     unread.value = u.people
     readers.value = r.people
-    picked.value = new Set([...picked.value].filter((id) => u.people.some((p) => p.directoryId === id && canResend(p))))
+    const noticeKind = (data as Notice).kind
+    picked.value = new Set([...picked.value].filter((id) => u.people.some((p) => p.directoryId === id && canResend(p, noticeKind))))
   } catch (e) {
     if (current !== sequence) return
     error.value = (e as any)?.status === 403
@@ -63,7 +66,9 @@ watch(() => props.id, () => {
 })
 onMounted(load)
 
-const resendable = computed(() => unread.value.filter((p) => canResend(p)))
+// 공지를 읽기 전에는 일반으로 본다 — 문자가 나간다고 말하지 않는 쪽이다
+const kind = computed(() => notice.value?.kind ?? 'normal')
+const resendable = computed(() => unread.value.filter((p) => canResend(p, kind.value)))
 const allPicked = computed(() => resendable.value.length > 0 && resendable.value.every((p) => picked.value.has(p.directoryId)))
 function togglePick(id: string) {
   const next = new Set(picked.value)
@@ -78,7 +83,7 @@ function toggleAll() {
 async function resend() {
   const ids = [...picked.value]
   if (!ids.length) return
-  if (!window.confirm(`${ids.length}명에게 다시 알릴까요? 앱 알림, 앱이 없는 분은 문자로 갑니다.`)) return
+  if (!window.confirm(resendConfirm(ids.length, kind.value))) return
   resending.value = true
   try {
     const r = await app.resendNotice(props.id, ids)
@@ -103,7 +108,7 @@ async function resend() {
       </div>
       <p class="text-xs text-muted">{{ notice.published_at ? fmtStamp(notice.published_at) : '미발행' }}</p>
       <p class="whitespace-pre-wrap text-sm">{{ notice.body }}</p>
-      <p class="pt-2 text-sm font-semibold">{{ readSummary(stats) }}</p>
+      <p class="pt-2 text-sm font-semibold">{{ readSummary(stats, unread, kind) }}</p>
     </AppCard>
 
     <div v-if="notice" class="space-y-3">
@@ -118,15 +123,15 @@ async function resend() {
       <div v-if="tab === 'unread'" class="overflow-hidden rounded-lg border border-hairline bg-white">
         <div class="flex items-center gap-3 border-b border-hairline px-4 py-2 text-xs font-semibold text-muted">
           <Checkbox :model-value="allPicked" :disabled="!resendable.length" aria-label="다시 알릴 수 있는 분 모두 고르기" @update:model-value="toggleAll" />
-          <span class="flex-1">참여자</span><span class="w-36">받는 방법</span><span class="w-40">다시 알림</span>
+          <span class="flex-1">참여자</span><span class="w-44">받는 방법</span><span class="w-40">다시 알림</span>
         </div>
         <p v-if="!unread.length" class="px-4 py-6 text-center text-sm text-muted">모두 읽었습니다.</p>
         <div v-for="p in unread" :key="p.directoryId" class="flex items-center gap-3 border-b border-hairline px-4 py-2 text-sm last:border-b-0">
-          <Checkbox :model-value="picked.has(p.directoryId)" :disabled="!canResend(p)" :aria-label="`${p.name} 고르기`" @update:model-value="togglePick(p.directoryId)" />
+          <Checkbox :model-value="picked.has(p.directoryId)" :disabled="!canResend(p, kind)" :aria-label="`${p.name} 고르기`" @update:model-value="togglePick(p.directoryId)" />
           <span class="flex-1">{{ p.name }} <span class="text-xs text-muted">{{ p.phone ? fmtPhone(p.phone) : '' }}</span></span>
-          <span class="w-36 text-xs">{{ channelLabel(p.channel) }}</span>
+          <span class="w-44 text-xs">{{ channelLabel(p, kind) }}</span>
           <span class="w-40 text-xs text-muted">
-            {{ p.cooldownUntil && !canResend(p) ? `${fmtClock(p.cooldownUntil)} 뒤 가능` : p.lastResentAt ? `${fmtStamp(p.lastResentAt)} 보냄` : '—' }}
+            {{ p.cooldownUntil && coolingDown(p) ? `${fmtClock(p.cooldownUntil)} 뒤 가능` : p.lastResentAt ? `${fmtStamp(p.lastResentAt)} 보냄` : '—' }}
           </span>
         </div>
       </div>
