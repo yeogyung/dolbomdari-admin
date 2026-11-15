@@ -61,17 +61,6 @@ export function buildDocumentPatch(original: DocumentFormValues, form: DocumentF
   return patch
 }
 
-/**
- * 「근거에서 빼기」에 쓸 종료일 — UTC 기준 어제.
- *
- * 서버의 만료 판정이 `expiry_date < today` 이고 today 가 UTC 날짜다
- * (`new Date().toISOString().slice(0, 10)`). 서울 기준 어제를 쓰면 서울 00~09시에는 그 날짜가
- * 서버의 오늘과 같아서 현행으로 남는다.
- */
-export function utcYesterday(now: Date = new Date()): string {
-  return new Date(now.getTime() - 86400000).toISOString().slice(0, 10)
-}
-
 /*
  * 문서 판(QA 2026-11-02 DOC-02 · 서버 2026-11-04 계약 3b묶음 1번). 판은 계보(첫 판의 id)로 잇고, 「새 판 올리기」가 이전 판의
  * 종료일을 새 판 발효 전날로 적는다. 날짜는 서버와 같은 서울 날짜 문자열이다.

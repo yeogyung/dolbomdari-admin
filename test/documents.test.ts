@@ -1,4 +1,4 @@
-// AI 문서 관리 순수 유틸 테스트 — 상태 톤, 적용 범위, 용량, 수정 본문(변경분만), UTC 어제
+// AI 문서 관리 순수 유틸 테스트 — 상태 톤, 적용 범위, 용량, 수정 본문(변경분만), 문서 판
 import { describe, it, expect } from 'vitest'
 import {
   docStateTone,
@@ -6,7 +6,6 @@ import {
   docEditorName,
   fmtBytes,
   buildDocumentPatch,
-  utcYesterday,
   dayBefore,
   previousVersionEnd,
   previousEndNote,
@@ -92,16 +91,6 @@ describe('문서 수정 본문', () => {
   })
   it('본문을 바꾸면 다듬은 값을 보낸다', () => {
     expect(buildDocumentPatch(original, { ...original, body: ' 새 본문 ' })).toEqual({ body: '새 본문' })
-  })
-})
-
-describe('근거에서 빼기용 종료일', () => {
-  it('서버 판정과 같은 UTC 기준 어제다', () => {
-    expect(utcYesterday(new Date('2026-09-28T12:00:00Z'))).toBe('2026-09-27')
-  })
-  it('서울 새벽(UTC 전날)에도 서버의 오늘보다 하루 앞선다', () => {
-    // 서울 09-28 01:00 = UTC 09-27 16:00 → 서버 today 는 09-27. 서울 어제(09-27)로는 만료가 안 된다
-    expect(utcYesterday(new Date('2026-09-27T16:00:00Z'))).toBe('2026-09-26')
   })
 })
 

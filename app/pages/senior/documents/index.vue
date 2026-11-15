@@ -31,25 +31,46 @@ const stateFilter = lq.state
 const versionsMode = lq.versions
 const latestOnly = computed(() => versionsMode.value !== 'all')
 const loading = ref(false)
-const STATE_OPTIONS: { label: string; value: '' | DocumentState }[] = [
-  { label: '상태 전체', value: '' },
+/**
+ * 기본(`''`)은 「제외함」을 뺀 전체다(QA 2026-11-12 402행 · 결정 D42) — 시험으로 올렸다 뺀 문서가 목록에 계속 남았다.
+ * 서버에는 「제외함 빼고」 조건이 없지만 목록을 모두 받아 화면에서 쪽을 나누므로(아래 `fetchAll`) 화면에서 거른다
+ */
+const STATE_OPTIONS: { label: string; value: '' | 'all' | DocumentState }[] = [
+  { label: '제외함 빼고 전체', value: '' },
+  { label: '상태 전체', value: 'all' },
   { label: '현행', value: '현행' },
   { label: '발효예정', value: '발효예정' },
   { label: '만료', value: '만료' },
   { label: '미정', value: '미정' },
   { label: '제외함', value: '제외함' },
 ]
-/** 정해진 값만 보낸다 — 손으로 고친 주소면 서버가 400 으로 목록 전체를 막는다 */
+/**
+ * 정해진 **상태값만** 보낸다 — 손으로 고친 주소면 서버가 400 으로 목록 전체를 막는다. `''`(제외함 빼고)와 `'all'`(상태 전체)은
+ * 서버 조건이 아니다 — `'all'` 을 보내면 400 이다(리뷰 반영)
+ */
 const stateQuery = computed(() =>
-  STATE_OPTIONS.some((o) => o.value && o.value === stateFilter.value) ? (stateFilter.value as DocumentState) : undefined,
+  STATE_OPTIONS.some((o) => o.value && o.value !== 'all' && o.value === stateFilter.value)
+    ? (stateFilter.value as DocumentState)
+    : undefined,
 )
+
+/** 기본 보기에서는 제외한 문서를 뺀다. 화면과 엑셀이 같은 기준이다 */
+const withoutHidden = (items: DocumentListItem[]) =>
+  stateFilter.value === '' ? items.filter((d) => d.state !== '제외함') : items
 
 /** 조건에 맞는 문서 전부(서버 정렬 순서). 쪽은 화면에서 나눈다 */
 const all = ref<DocumentListItem[]>([])
+/** 화면에 올릴 문서 — 기본 보기면 제외한 문서를 뺀다. 「판 N개」도 이것으로 센다 */
+const listed = computed(() => withoutHidden(all.value))
 /** 이전 판을 펼친 문서(계보 열쇠) */
 const expanded = ref(new Set<string>())
 const view = computed(() =>
-  documentPage(all.value, { latestOnly: latestOnly.value, expanded: expanded.value, page: page.value, size: pageSize.value }),
+  documentPage(listed.value, {
+    latestOnly: latestOnly.value,
+    expanded: expanded.value,
+    page: page.value,
+    size: pageSize.value,
+  }),
 )
 const rows = computed(() => view.value.rows)
 const total = computed(() => view.value.total)
@@ -160,7 +181,7 @@ async function exportExcel() {
   await startExport()
   try {
     // 화면과 같은 기준이다 — 최신 판만 보고 있으면 대표 판만 내보낸다
-    const docs = documentsForExport(await fetchAll(), latestOnly.value)
+    const docs = documentsForExport(withoutHidden(await fetchAll()), latestOnly.value)
     if (!docs.length) {
       toast.add({ title: '내보낼 문서가 없습니다.', color: 'warning' })
       return
@@ -223,7 +244,11 @@ onMounted(() => {
       :page-size="pageSize"
       :total="total"
       :page-size-options="[20, 50, 100]"
-      empty-text="등록된 AI 문서가 없습니다."
+      :empty-text="
+        all.length && !listed.length
+          ? '사용 중인 문서가 없습니다. 제외한 문서는 「상태 전체」나 「제외함」에서 봅니다.'
+          : '등록된 AI 문서가 없습니다.'
+      "
       @sort="toggleSort"
       @update:page="(p) => { page = p }"
       @update:page-size="(s) => { pageSize = s; page = 1 }"
@@ -242,7 +267,7 @@ onMounted(() => {
       <template #toolbar-end>
         <span class="text-sm text-muted tabular-nums">
           {{ latestOnly ? '문서' : '전체' }} {{ total.toLocaleString() }}건
-          <template v-if="latestOnly && all.length > total"> · 판 {{ all.length.toLocaleString() }}개</template>
+          <template v-if="latestOnly && listed.length > total"> · 판 {{ listed.length.toLocaleString() }}개</template>
         </span>
       </template>
 

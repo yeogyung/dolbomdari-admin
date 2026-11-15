@@ -1,4 +1,4 @@
-<!-- AI 문서 상세 — 버전·발효일·종료일·본문 수정 + 색인 상태 + 근거에서 빼기 + 새 판 올리기·판 이력 (GET·PATCH /dbo-admin/documents/{id}) -->
+<!-- AI 문서 상세 — 버전·발효일·종료일·본문 수정 + 색인 상태 + 제외·다시 사용(앱 API) + 새 판 올리기·판 이력 (GET·PATCH /dbo-admin/documents/{id}) -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { DocumentDetail, DocumentVersions, Worksite } from '~/types/dbo'
@@ -31,8 +31,13 @@ const scopeNames = computed(() =>
     (w) => worksites.value.find((ws) => ws.id === w.worksite_id)?.name ?? w.worksite_id,
   ),
 )
-// 이미 근거에서 빠진 상태(만료·미정·제외함)에서는 누를 이유가 없다
-const canExclude = computed(() => doc.value?.state === '현행' || doc.value?.state === '발효예정')
+/*
+ * 제외·다시 사용(QA 2026-11-12 402행 · 결정 D42). 담당자 앱 「사용 중 · 제외」와 같은 칸(`excluded_at`)이고 같은 앱 API 를
+ * 쓴다(master 도 허용, 서버 `decideKnowledgeWrite`). 제외한 문서는 목록에서 기본으로 숨는다. 아주 지우기는 없다 —
+ * AI 답변의 근거 기록이 문서를 가리킨다. 예전 「근거에서 빼기」(종료일을 어제로)는 만료로 목록에 남아 이것으로 바꿨다
+ */
+const app = useDboApp()
+const isExcluded = computed(() => doc.value?.state === '제외함')
 
 async function loadDoc() {
   loading.value = true
@@ -76,14 +81,14 @@ async function loadWorksites() {
 
 async function save() {
   if (!dirty.value) return
-  // 서버가 빈 본문을 400 으로 거절한다. 근거에서 빼려면 본문을 비우지 말고 「근거에서 빼기」다
+  // 서버가 빈 본문을 400 으로 거절한다. 근거에서 빼려면 본문을 비우지 말고 「제외」다
   if (!form.value.body.trim()) {
-    toast.add({ title: '본문을 비울 수 없습니다.', description: '근거에서 빼려면 「근거에서 빼기」를 눌러 주세요.', color: 'warning' })
+    toast.add({ title: '본문을 비울 수 없습니다.', description: '근거에서 빼려면 「제외」를 눌러 주세요.', color: 'warning' })
     return
   }
   // 서버는 발효일을 지우는 PATCH 를 받지 않는다. buildDocumentPatch 가 빈 값을 조용히 빼므로 여기서 알린다
   if (original.value.effectiveDate && !form.value.effectiveDate) {
-    toast.add({ title: '발효일은 지울 수 없습니다.', description: '근거에서 빼려면 「근거에서 빼기」를 눌러 주세요.', color: 'warning' })
+    toast.add({ title: '발효일은 지울 수 없습니다.', description: '근거에서 빼려면 「제외」를 눌러 주세요.', color: 'warning' })
     return
   }
   if (form.value.expiryDate && form.value.effectiveDate && form.value.expiryDate < form.value.effectiveDate) {
@@ -111,25 +116,32 @@ async function save() {
   }
 }
 
-async function excludeFromGrounding() {
+async function setExcluded(excluded: boolean) {
   if (!doc.value) return
   if (dirty.value) {
     toast.add({ title: '저장하지 않은 수정이 있습니다.', description: '먼저 저장하거나 되돌려 주세요.', color: 'warning' })
     return
   }
-  if (!confirm('이 문서를 AI 답변 근거에서 빼시겠습니까? 종료일을 어제로 바꾸며, 문서와 색인은 지우지 않습니다.'))
+  if (
+    excluded &&
+    !confirm('이 문서를 제외하시겠습니까? AI 가 이 문서로 답하지 않고 목록에서 숨겨집니다. 문서와 색인은 지우지 않으며 「다시 사용」으로 되돌릴 수 있습니다.')
+  )
     return
   excluding.value = true
   try {
-    const res = await api.updateDocument(id.value, { expiryDate: utcYesterday() })
-    if (res.state === '만료') toast.add({ title: 'AI 답변 근거에서 뺐습니다.', color: 'success' })
-    else toast.add({ title: `종료일을 바꿨지만 상태가 「${res.state}」입니다.`, description: '발효일과 종료일을 확인해 주세요.', color: 'warning' })
-    await loadDoc()
+    await app.setDocumentExcluded(id.value, excluded)
+    toast.add({ title: excluded ? '제외했습니다.' : '다시 AI 답변 근거로 씁니다.', color: 'success' })
   } catch (e: any) {
-    toast.add({ title: '처리 실패', description: dboErrorMessage(e), color: 'error' })
+    // 응답이 끊겼으면 서버에서는 바뀌었을 수 있다 — 다시 읽은 상태 배지를 보게 한다(담당자 문서 목록과 같다)
+    toast.add({
+      title: isMaybeSaved(e) ? '바뀌었는지 확인하지 못했습니다.' : '바꾸지 못했습니다.',
+      description: isMaybeSaved(e) ? '상태를 다시 불러왔습니다. 상태 배지를 확인해 주세요.' : knowledgeErrorText(e, 'document'),
+      color: isMaybeSaved(e) ? 'warning' : 'error',
+    })
   } finally {
     excluding.value = false
   }
+  await loadDoc()
 }
 
 function resetForm() {
@@ -201,15 +213,26 @@ onMounted(() => {
         새 판 올리기
       </AppButton>
       <AppButton
-        v-if="doc && canExclude"
+        v-if="doc && !isExcluded"
         variant="soft"
         color="down"
         icon="i-lucide-file-x"
         :loading="excluding"
         :disabled="saving"
-        @click="excludeFromGrounding"
+        @click="setExcluded(true)"
       >
-        근거에서 빼기
+        제외
+      </AppButton>
+      <AppButton
+        v-if="doc && isExcluded"
+        variant="soft"
+        color="neutral"
+        icon="i-lucide-rotate-ccw"
+        :loading="excluding"
+        :disabled="saving"
+        @click="setExcluded(false)"
+      >
+        다시 사용
       </AppButton>
     </Teleport>
 
@@ -237,8 +260,8 @@ onMounted(() => {
         </template>
 
         <p v-if="doc.state === '제외함'" class="mb-5 rounded-lg bg-down-soft px-4 py-3 text-sm text-down">
-          담당자가 앱에서 사용을 중지한 문서입니다({{ fmtStamp(doc.excluded_at) }}). 날짜를 고쳐도 AI 근거로
-          돌아오지 않으며, 다시 쓰려면 앱에서 「다시 사용」을 눌러야 합니다.
+          제외한 문서입니다({{ fmtStamp(doc.excluded_at) }}). AI 가 이 문서로 답하지 않고 목록에서는 숨겨집니다. 날짜를
+          고쳐도 돌아오지 않으며, 다시 쓰려면 위 「다시 사용」을 누릅니다.
         </p>
         <p v-else-if="doc.state === '미정'" class="mb-5 rounded-lg bg-[#fdf6e3] px-4 py-3 text-sm text-accent">
           발효일이 없어 AI 답변 근거로 쓰이지 않습니다. 발효일을 입력해 주세요.

@@ -1,6 +1,6 @@
 <!-- 담당자 AI 문서 목록(QA 2026-11-07 MGR-05) — 앱 「답변 자료」(db-operation-rn app/faq/index.tsx)와 같은 상태·제외/다시 사용. 읽기는 supabase dbo_documents 직접(RLS: 담당자·master), 쓰기는 앱 API. 삭제·상세·새 판은 master 몫이다. Figma 없음 -->
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { Column } from '~/types/table'
 import { byExcludedLast, isMaybeSaved, knowledgeErrorText, knowledgeScopeLabel, managerDocState, NotSentError } from '~/utils/managerKnowledge'
 
@@ -44,9 +44,20 @@ const columns: Column[] = [
   { key: 'created_by_name', label: '올린 사람' },
   { key: 'updated_at', label: '수정일' },
 ]
+/**
+ * 제외한 문서는 기본으로 숨긴다(QA 2026-11-12 402행 · 결정 D42) — 시험으로 올렸다 뺀 문서가 목록에 계속 남았다.
+ * 「제외한 문서 보기」로 열어 「다시 사용」할 수 있다. 앱 「답변 자료」와 같다.
+ */
+const showExcluded = ref(false)
+const excludedCount = computed(() => rows.value.filter((r) => r.excluded_at).length)
+// 제외한 문서가 없어지면 보기를 끈다 — 켜 둔 채면 다음에 제외한 문서가 숨지 않는다(리뷰 반영)
+watch(excludedCount, (n) => {
+  if (n === 0) showExcluded.value = false
+})
 const shown = computed(() => {
   const word = q.value.trim().toLowerCase()
-  return word ? rows.value.filter((r) => r.filename.toLowerCase().includes(word)) : rows.value
+  const kept = showExcluded.value ? rows.value : rows.value.filter((r) => !r.excluded_at)
+  return word ? kept.filter((r) => r.filename.toLowerCase().includes(word)) : kept
 })
 
 async function loadSiteNames() {
@@ -142,19 +153,22 @@ async function setExcluded(row: Row, excluded: boolean) {
     </Teleport>
     <p class="text-sm text-muted">
       기관 공용 자료입니다. 담당자 모두가 같은 자료를 보고, AI도 이 한 벌에서만 답합니다. 올린 문서는 AI 가 읽는 동안 「준비 중」으로 보입니다.
-      「제외」를 누르면 답변 근거에서 빠지고, 「다시 사용」으로 되돌릴 수 있습니다. 삭제는 운영관리자가 합니다.
+      「제외」를 누르면 답변 근거에서 빠지고 목록에서 숨겨집니다. 「제외한 문서 보기」에서 「다시 사용」으로 되돌릴 수 있습니다.
     </p>
     <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
     <p v-else-if="prepFailed" role="status" class="text-sm text-amber-700">
       AI 가 문서를 다 읽었는지 확인하지 못했습니다. 방금 올린 문서는 「사용 중」으로 보여도 아직 준비 중일 수 있습니다.
     </p>
     <DataTable :columns="columns" :rows="shown" :loading="loading" :total="shown.length" :page="1"
-      :page-size="Math.max(shown.length, 1)" :page-size-options="[Math.max(shown.length, 1)]" empty-text="아직 올라온 자료가 없습니다">
+      :page-size="Math.max(shown.length, 1)" :page-size-options="[Math.max(shown.length, 1)]" :empty-text="excludedCount && !showExcluded && !q.trim() ? '사용 중인 자료가 없습니다' : '아직 올라온 자료가 없습니다'">
       <template #toolbar>
         <form class="flex gap-2" @submit.prevent>
           <TextField v-model="q" placeholder="파일명 검색" aria-label="파일명 검색" />
         </form>
         <AppButton variant="outline" @click="refresh">새로고침</AppButton>
+        <AppButton v-if="excludedCount" variant="ghost" color="neutral" @click="showExcluded = !showExcluded">
+          {{ showExcluded ? '제외한 문서 숨기기' : `제외한 문서 ${excludedCount}개 보기` }}
+        </AppButton>
       </template>
       <template #cell-kind="{ row }">{{ row.kind ?? '—' }}</template>
       <template #cell-state="{ row }">
