@@ -266,7 +266,7 @@ async function submitBulkAssign() {
             startTime: x.g.startTime,
             endTime: x.g.endTime,
             periodStart: f.periodStart,
-            periodEnd: f.periodEnd,
+            periodEnd: f.periodEnd || null, // 칸을 비우면 "" — 무기한은 null 이다(QA 2026-11-12 411행)
           })
         } catch (e) {
           // 배정은 저장됐다 — 실패로 세면 다시 눌러 같은 배정을 또 만든다(명부 상세의 단건 저장과 같은 판단)

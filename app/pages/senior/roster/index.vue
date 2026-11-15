@@ -399,7 +399,7 @@ async function submitAssign() {
         startTime: f.startTime,
         endTime: f.endTime,
         periodStart: f.periodStart,
-        periodEnd: f.periodEnd,
+        periodEnd: f.periodEnd || null, // 칸을 비우면 "" — 무기한은 null 이다(QA 2026-11-12 411행)
       })
     } else {
       const site = worksites.value.find((w) => w.id === worksiteId.value)
@@ -411,7 +411,7 @@ async function submitAssign() {
         startTime: f.startTime,
         endTime: f.endTime,
         periodStart: f.periodStart,
-        periodEnd: f.periodEnd,
+        periodEnd: f.periodEnd || null, // 칸을 비우면 "" — 무기한은 null 이다(QA 2026-11-12 411행)
       })
     }
     toast.add({ title: '배정을 저장했습니다.', color: 'success' })

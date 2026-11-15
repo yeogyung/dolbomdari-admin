@@ -338,7 +338,7 @@ async function createAssignmentGroups(groups: TimeGroup[]) {
         startTime: g.startTime,
         endTime: g.endTime,
         periodStart: f.periodStart,
-        periodEnd: f.periodEnd,
+        periodEnd: f.periodEnd || null, // 칸을 비우면 "" — 무기한은 null 이다(QA 2026-11-12 411행)
       })
     } catch (e) {
       // 배정은 저장됐다 — 실패로 세면 다시 만들게 된다
@@ -404,7 +404,7 @@ async function submitAssign() {
         startTime: f.startTime,
         endTime: f.endTime,
         periodStart: f.periodStart,
-        periodEnd: f.periodEnd,
+        periodEnd: f.periodEnd || null, // 칸을 비우면 "" — 무기한은 null 이다(QA 2026-11-12 411행)
       })
     } else {
       await api.createAssignment({
@@ -415,7 +415,7 @@ async function submitAssign() {
         startTime: groups[0]!.startTime,
         endTime: groups[0]!.endTime,
         periodStart: f.periodStart,
-        periodEnd: f.periodEnd,
+        periodEnd: f.periodEnd || null, // 칸을 비우면 "" — 무기한은 null 이다(QA 2026-11-12 411행)
       })
     }
     toast.add({ title: '배정이 저장되었습니다.', color: 'success' })
@@ -430,9 +430,9 @@ async function submitAssign() {
       loadAssignments()
       return
     }
-    // 겹친 배정은 여러 줄이라 알림 대신 창 안에 보인다. 창은 닫지 않는다 — 고쳐서 다시 저장한다
-    assignError.value = assignmentSaveError(e)
-    if (!assignError.value) toast.add({ title: '배정 저장 실패', description: dboErrorMessage(e), color: 'error' })
+    // 창 안에 보인다 — 겹친 배정은 여러 줄이고, 창 밖 알림은 놓쳐 「눌러도 아무 일 없음」으로 보였다(QA 2026-11-12 411행).
+    // 창은 닫지 않는다 — 고쳐서 다시 저장한다
+    assignError.value = assignmentSaveError(e) ?? { message: `배정을 저장하지 못했습니다. ${dboErrorMessage(e)}`, conflicts: [] }
   } finally {
     assignSaving.value = false
   }
