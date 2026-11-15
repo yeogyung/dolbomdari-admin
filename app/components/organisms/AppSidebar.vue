@@ -45,7 +45,8 @@ const logoutGuard = createClickGuard()
 
 async function logout() {
   clear()
-  await supabase.auth.signOut()
+  // 이 브라우저만 로그아웃한다. 기본값(global)은 같은 계정의 앱 세션까지 서버에서 끊는다(QA 2026-11-12 399행)
+  await supabase.auth.signOut({ scope: 'local' })
   await navigateTo('/login')
 }
 

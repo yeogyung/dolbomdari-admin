@@ -51,7 +51,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (!role) {
     if (to.path === '/login') return
     clear()
-    await supabase.auth.signOut()
+    // 이 브라우저만 — 어드민 권한이 없는 시니어가 로그인을 시도해도 그 폰의 앱 세션은 그대로다(QA 2026-11-12 399행)
+    await supabase.auth.signOut({ scope: 'local' })
     // 인증번호까지 맞았는데 말없이 로그인 화면으로 돌아오면 고장으로 보인다. 이유를 알린다.
     // 값을 매번 바꾼다 — 이미 ?denied 가 붙은 로그인 화면에서 또 거부돼도 화면이 알아채게.
     return navigateTo({ path: '/login', query: { denied: String(Date.now()) } })
