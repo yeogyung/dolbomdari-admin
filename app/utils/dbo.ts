@@ -123,11 +123,39 @@ export function workedDuration(
   if (!startedAt || !endedAt) return '—'
   const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime()
   if (Number.isNaN(ms) || ms < 0) return '—'
-  const mins = Math.round(ms / 60000)
+  return durationText(Math.round(ms / 60000))
+}
+
+/** 분 → 「3시간 58분」 */
+function durationText(mins: number): string {
   const h = Math.floor(mins / 60)
   const m = mins % 60
   if (h === 0) return `${m}분`
   return `${h}시간 ${String(m).padStart(2, '0')}분`
+}
+
+/**
+ * 출결 행의 근무시간. **자동 퇴근(QA 412 · D48)은 배정 시간을 인정한다** — 늦게 와도 배정 그대로.
+ * 서버 리포트 `workedMinutesOf`(`_domain/adminReport.ts`)와 같은 규칙이다. 끝이 시작보다 이르면 밤을 넘긴다.
+ * 닫힌 뒤 결석·인정 결석으로 바뀐 행은 배정 시간을 주지 않는다.
+ */
+export function shiftWorkedDuration(
+  shift: { planned_start: string; planned_end: string },
+  rec:
+    | { status?: string; started_at: string | null; ended_at: string | null; auto_ended?: boolean }
+    | null
+    | undefined,
+): string {
+  const credited = rec?.status !== 'absent' && rec?.status !== 'excused'
+  if (rec?.auto_ended && credited && rec.started_at && rec.ended_at) {
+    const minutesOfDay = (t: string) => {
+      const [h = 0, m = 0] = t.split(':').map(Number)
+      return h * 60 + m
+    }
+    const planned = minutesOfDay(shift.planned_end) - minutesOfDay(shift.planned_start)
+    return durationText(planned > 0 ? planned : planned + 24 * 60)
+  }
+  return workedDuration(rec?.started_at, rec?.ended_at)
 }
 
 /**

@@ -1,6 +1,6 @@
 // 출결 목록 행에서 기록을 꺼내는 규칙 테스트 — 응답의 attendance 는 배열이 아니라 객체다
 import { describe, expect, it } from 'vitest'
-import { attendanceEditErrors, attendanceOf, canEditAttendance, formChanged } from '../app/utils/dbo'
+import { attendanceEditErrors, attendanceOf, canEditAttendance, formChanged, shiftWorkedDuration } from '../app/utils/dbo'
 
 /* 2026-09-17 운영 DB 실측 응답. dbo-admin 이 도는 것과 같은 쿼리로 받았다. */
 const CHECKED_IN = {
@@ -90,5 +90,36 @@ describe('canEditAttendance', () => {
   it('수요처 담당자는 어떤 날짜도 고칠 수 없다', () => {
     expect(canEditAttendance('worksite', '2026-10-14', '2026-10-14')).toBe(false)
     expect(canEditAttendance('worksite', '2026-10-01', '2026-10-14')).toBe(false)
+  })
+})
+
+// QA 412 · 결정 D48 — 마침 QR 없이 자동 퇴근한 날은 배정 시간을 인정한다(서버 리포트와 같은 규칙)
+describe('shiftWorkedDuration', () => {
+  const shift = { planned_start: '09:00:00', planned_end: '18:00:00' }
+  const late = { started_at: '2026-11-24T00:20:00Z', ended_at: '2026-11-24T09:00:00Z' }
+
+  it('자동 퇴근은 늦게 와도 배정 시간 그대로', () => {
+    expect(shiftWorkedDuration(shift, { ...late, auto_ended: true })).toBe('9시간 00분')
+  })
+
+  it('사람이 찍은 마침은 찍은 시각 사이', () => {
+    expect(shiftWorkedDuration(shift, { ...late, auto_ended: false })).toBe('8시간 40분')
+    expect(shiftWorkedDuration(shift, late)).toBe('8시간 40분')
+  })
+
+  it('밤을 넘기는 배정은 다음 날 끝으로 센다', () => {
+    expect(shiftWorkedDuration({ planned_start: '22:00:00', planned_end: '06:00:00' }, { ...late, auto_ended: true }))
+      .toBe('8시간 00분')
+  })
+
+  it('결석·인정 결석은 자동 마침이어도 배정 시간을 주지 않는다', () => {
+    expect(shiftWorkedDuration(shift, { ...late, auto_ended: true, status: 'absent' })).toBe('8시간 40분')
+    expect(shiftWorkedDuration(shift, { ...late, auto_ended: true, status: 'excused' })).toBe('8시간 40분')
+    expect(shiftWorkedDuration(shift, { ...late, auto_ended: true, status: 'late' })).toBe('9시간 00분')
+  })
+
+  it('마침이 없으면 빈 값', () => {
+    expect(shiftWorkedDuration(shift, { started_at: late.started_at, ended_at: null, auto_ended: true })).toBe('—')
+    expect(shiftWorkedDuration(shift, null)).toBe('—')
   })
 })

@@ -144,6 +144,8 @@ export interface Worksite {
   qr_token: string | null
   /** 활동 중 시니어 가운데 지금 유효한 배정이 있는 사람 수. 목록 응답에만 있다(QA 2026-10-14 17번) */
   senior_count?: number
+  /** 마침 QR 없이 그날 배정 끝 시각에 자동 퇴근(QA 412 · D48). 옛 서버면 칸이 없다 */
+  auto_checkout?: boolean
 }
 
 /** 명부 — 시니어와 담당자만 (어드민 계정은 AdminAccount) */
@@ -225,6 +227,8 @@ export interface AttendanceRecord {
   memo: string | null
   updated_by: string | null
   updated_at: string
+  /** 마침을 크론이 채웠다(QA 412 · D48). 옛 서버면 칸이 없다 */
+  auto_ended?: boolean
 }
 
 /** 출결 목록 행 = shift + 조인된 명부·근무지·기록 */

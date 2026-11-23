@@ -572,8 +572,8 @@ function toExcelRow(row: AttendanceShift) {
     planned_end: hhmm(row.planned_end),
     status: attendanceDisplayLabel(attendanceDisplay(row)),
     started_at: fmtStamp(rec?.started_at),
-    ended_at: fmtStamp(rec?.ended_at),
-    worked: workedDuration(rec?.started_at, rec?.ended_at),
+    ended_at: rec?.auto_ended ? `${fmtStamp(rec.ended_at)} (자동)` : fmtStamp(rec?.ended_at),
+    worked: shiftWorkedDuration(row, rec),
     method: rec?.method ?? '',
     edited:
       kind === 'edited' && last
@@ -783,10 +783,13 @@ onMounted(() => {
         </StatusBadge>
       </template>
       <template #cell-started_at="{ row }">{{ fmtClock(attendanceOf(row)?.started_at) }}</template>
-      <template #cell-ended_at="{ row }">{{ fmtClock(attendanceOf(row)?.ended_at) }}</template>
+      <template #cell-ended_at="{ row }">
+        {{ fmtClock(attendanceOf(row as AttendanceShift)?.ended_at) }}
+        <span v-if="attendanceOf(row as AttendanceShift)?.auto_ended" class="text-muted">자동</span>
+      </template>
       <template #cell-worked="{ row }">
         <span class="tabular-nums">
-          {{ workedDuration(attendanceOf(row)?.started_at, attendanceOf(row)?.ended_at) }}
+          {{ shiftWorkedDuration(row as AttendanceShift, attendanceOf(row as AttendanceShift)) }}
         </span>
       </template>
       <template #cell-method="{ row }">
@@ -833,8 +836,8 @@ onMounted(() => {
           </p>
           <p class="text-body tabular-nums">
             출근 {{ fmtClock(attendanceOf(row as AttendanceShift)?.started_at) }} · 퇴근
-            {{ fmtClock(attendanceOf(row as AttendanceShift)?.ended_at) }} · 근무
-            {{ workedDuration(attendanceOf(row as AttendanceShift)?.started_at, attendanceOf(row as AttendanceShift)?.ended_at) }}
+            {{ fmtClock(attendanceOf(row as AttendanceShift)?.ended_at) }}{{ attendanceOf(row as AttendanceShift)?.auto_ended ? ' 자동' : '' }} · 근무
+            {{ shiftWorkedDuration(row as AttendanceShift, attendanceOf(row as AttendanceShift)) }}
             <span v-if="attendanceOf(row as AttendanceShift)?.method" class="text-muted">
               · {{ attendanceOf(row as AttendanceShift)?.method }}
             </span>

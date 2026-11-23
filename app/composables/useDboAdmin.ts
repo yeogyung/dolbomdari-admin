@@ -174,6 +174,7 @@ export function useDboAdmin() {
       regionCode?: string | null
       managerDirectoryId?: string | null
       careManagerDirectoryId?: string | null
+      autoCheckout?: boolean
     }) => req<{ id: string; qrToken: string }>('/worksites', { method: 'POST', body }),
     updateWorksite: (
       id: string,
@@ -185,6 +186,7 @@ export function useDboAdmin() {
         managerDirectoryId?: string | null
         careManagerDirectoryId?: string | null
         status?: LifeStatus
+        autoCheckout?: boolean
       },
     ) => req<{ ok: true }>(`/worksites/${id}`, { method: 'PATCH', body }),
     rotateWorksiteQr: (id: string) =>

@@ -216,6 +216,7 @@ const form = ref({
   managerDirectoryId: null as string | null,
   careManagerDirectoryId: null as string | null,
   status: 'active' as LifeStatus,
+  autoCheckout: false,
 })
 
 function openForm(row?: Worksite) {
@@ -229,6 +230,7 @@ function openForm(row?: Worksite) {
         managerDirectoryId: row.manager_directory_id,
         careManagerDirectoryId: row.care_manager_directory_id,
         status: row.status,
+        autoCheckout: row.auto_checkout === true,
       }
     : {
         name: '',
@@ -238,6 +240,7 @@ function openForm(row?: Worksite) {
         managerDirectoryId: null,
         careManagerDirectoryId: null,
         status: 'active',
+        autoCheckout: false,
       }
   formOpen.value = true
 }
@@ -274,6 +277,7 @@ async function submitForm() {
       regionCode: form.value.regionCode.trim() || null,
       managerDirectoryId: form.value.managerDirectoryId,
       careManagerDirectoryId: form.value.careManagerDirectoryId,
+      autoCheckout: form.value.autoCheckout,
     }
     if (editing.value) {
       // 배정 있는 근무지의 이름·사업을 바꾸면 그 어르신들이 통째로 따라간다. 저장 전에 묻는다
@@ -532,6 +536,13 @@ onMounted(() => {
             :options="contacts.map((m) => ({ label: m.phone ? `${m.name} (${fmtPhone(m.phone)})` : m.name, value: m.id }))"
             placeholder="수요처 담당자 선택(선택)"
           />
+        </FormField>
+        <!-- QA 412 · 결정 D48. 끝나는 곳에 QR 이 없는 근무지(찾아가는도시락 등) -->
+        <FormField
+          label="퇴근"
+          hint="켜면 어르신이 마침 QR을 안 찍어도 그날 배정 끝 시각에 자동으로 퇴근 처리합니다. 근무시간은 배정 시간으로 셉니다."
+        >
+          <Checkbox v-model="form.autoCheckout" label="마침 QR 없이 자동 퇴근" />
         </FormField>
         <FormField v-if="editing" label="상태">
           <SelectField
