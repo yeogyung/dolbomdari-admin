@@ -1,6 +1,15 @@
 // 리포트 화면 표기 유틸 — 월 목록·비율·근무시간·집계 기준일
 import { describe, expect, it } from 'vitest'
-import { aiReplySummary, fmtMinutes, pct, recentMonths, smsResultNote, throughLabel, unconnectedNote } from '../app/utils/reports'
+import {
+  aiReplySummary,
+  aiUnattributedNote,
+  fmtMinutes,
+  pct,
+  recentMonths,
+  smsResultNote,
+  throughLabel,
+  unconnectedNote,
+} from '../app/utils/reports'
 
 describe('recentMonths', () => {
   it('이번 달부터 거꾸로 12개월, 해를 넘긴다', () => {
@@ -45,6 +54,17 @@ describe('unconnectedNote', () => {
 })
 
 // QA 2026-11-02 REPORT-01 — AI 자동응답률 = 자동 처리 / 받은 질문
+describe('aiUnattributedNote', () => {
+  it('사업 리포트에서 질문한 사람을 모르는 질문이 있으면 수를 적는다(QA 266행)', () => {
+    expect(aiUnattributedNote({ unattributed: 12 })).toBe('질문한 사람을 알 수 없는 12건(11월 4일 전)은 사업에 넣지 않았습니다.')
+  })
+  it('0건·칸 없음·ai 없음이면 적지 않는다', () => {
+    expect(aiUnattributedNote({ unattributed: 0 })).toBeNull()
+    expect(aiUnattributedNote({})).toBeNull()
+    expect(aiUnattributedNote(undefined)).toBeNull()
+  })
+})
+
 describe('aiReplySummary', () => {
   it('비율과 분자·분모, 담당자 전환 수', () => {
     expect(aiReplySummary({ questions: 78, autoAnswered: 36, handedOver: 42 })).toEqual({

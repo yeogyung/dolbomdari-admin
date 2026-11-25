@@ -4,8 +4,10 @@ import { excelStamp, type ExcelColumn, type ExcelSheet } from './excel'
 import { fmtMinutes, pct } from './reports'
 
 /** 내려받는 파일 이름 — 「돌봄다리_리포트_2026-11.xlsx」 */
-export function reportFileName(month: string): string {
-  return `돌봄다리_리포트_${month}.xlsx`
+export function reportFileName(month: string, programName?: string | null): string {
+  // 사업으로 좁힌 리포트는 파일 이름에 사업을 붙인다 — 기관 전체 파일과 섞이지 않게(QA 2026-11-25 266행)
+  const safe = programName?.trim().replace(/[\\/:*?"<>|]/g, '_')
+  return safe ? `돌봄다리_리포트_${month}_${safe}.xlsx` : `돌봄다리_리포트_${month}.xlsx`
 }
 
 const SUMMARY_COLUMNS: ExcelColumn[] = [

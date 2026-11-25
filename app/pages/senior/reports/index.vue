@@ -1,9 +1,19 @@
-<!-- 월간 리포트 — master 는 기관 전체 출결·인력·공지 월 집계(GET /dbo-admin/reports/monthly), 담당자는 맡은 근무지 리포트(ManagerReport) -->
+<!-- 월간 리포트 — master 는 기관 전체(또는 고른 사업) 출결·인력·공지 월 집계(GET /dbo-admin/reports/monthly), 담당자는 맡은 근무지 리포트(ManagerReport) -->
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import type { Column } from '~/types/table'
-import type { MonthlyReport } from '~/types/dbo'
-import { aiReplySummary, fmtMinutes, pct, recentMonths, smsResultNote, throughLabel, unconnectedNote } from '~/utils/reports'
+import type { MonthlyReport, Program } from '~/types/dbo'
+import { programFilterOptions } from '~/utils/worksiteFilter'
+import {
+  aiReplySummary,
+  aiUnattributedNote,
+  fmtMinutes,
+  pct,
+  recentMonths,
+  smsResultNote,
+  throughLabel,
+  unconnectedNote,
+} from '~/utils/reports'
 import { downloadWorkbook } from '~/utils/excel'
 import { reportFileName, reportSheets } from '~/utils/reportExcel'
 
@@ -17,6 +27,12 @@ const isManager = computed(() => useAdminRole().me.value?.role === 'manager')
 const today = todaySeoul()
 const months = recentMonths(today)
 const month = ref(months[0]!.value)
+/**
+ * 사업 고르기(QA 2026-11-25 266행 · 결정 D50). 고르면 위쪽 요약까지 그 사업 기준이다 — 예전에는 아래 표만
+ * 「사업별」로 바꿀 수 있었고 요약은 늘 기관 전체였다. 빈 값이 기관 전체다.
+ */
+const programId = ref('')
+const programs = ref<Program[]>([])
 const report = ref<MonthlyReport | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -29,7 +45,11 @@ async function load(force = false) {
   loading.value = true
   error.value = ''
   try {
-    const res = await screenCache.get(`report:${month.value}`, () => api.getMonthlyReport(month.value), { force })
+    const res = await screenCache.get(
+      `report:${month.value}:${programId.value}`,
+      () => api.getMonthlyReport(month.value, programId.value || undefined),
+      { force },
+    )
     if (current === sequence) {
       report.value = res.value
       fetchedAt.value = res.at
@@ -43,9 +63,19 @@ async function load(force = false) {
     if (current === sequence) loading.value = false
   }
 }
-watch(month, () => load())
+watch([month, programId], () => load())
+/** 사업 목록이 안 와도 리포트는 기관 전체로 본다 — 고르기만 비고 알린다 */
+async function loadPrograms() {
+  try {
+    programs.value = (await screenCache.get('report-programs', () => api.listPrograms())).value.items
+  } catch (e) {
+    toast.add({ title: '사업 목록을 불러오지 못했습니다.', description: dboErrorMessage(e), color: 'warning' })
+  }
+}
 onMounted(() => {
-  if (!isManager.value) load()
+  if (isManager.value) return
+  load()
+  loadPrograms()
 })
 
 const att = computed(() => report.value?.attendance)
@@ -117,6 +147,7 @@ const avgRead = (sec: number | null) => (sec === null ? '—' : fmtMinutes(Math.
 
 /** ⑨ AI 자동응답(QA REPORT-01). 옛 서버는 칸이 없어 null — 카드를 숨긴다 */
 const aiSummary = computed(() => aiReplySummary(report.value?.ai))
+const aiNote = computed(() => aiUnattributedNote(report.value?.ai))
 
 /*
  * 엑셀 내려받기(QA 2026-11-07 ADMIN-08, 결정 D19) — 보고 있는 달의 요약 지표 한 장 + 표마다 한 장.
@@ -128,7 +159,7 @@ async function exportExcel() {
   if (!r) return
   await startExport()
   try {
-    downloadWorkbook(reportFileName(r.month), reportSheets(r))
+    downloadWorkbook(reportFileName(r.month, r.program?.name), reportSheets(r))
   } catch (e) {
     toast.add({ title: '엑셀 내려받기 실패', description: e instanceof Error ? e.message : undefined, color: 'error' })
   } finally {
@@ -142,6 +173,7 @@ async function exportExcel() {
   <div v-else class="flex flex-col gap-6">
     <Teleport to="#admin-topbar-actions">
       <PillSelect v-model="month" :options="months" />
+      <PillSelect v-model="programId" :options="programFilterOptions(programs)" />
       <AppButton variant="outline" color="neutral" icon="i-lucide-refresh-cw" :loading="loading" @click="load(true)">
         새로고침
       </AppButton>
@@ -326,6 +358,7 @@ async function exportExcel() {
         <p class="mb-4 text-xs text-muted">
           시니어가 AI 를 켠 방에 남긴 질문 중 승인된 FAQ·문서로 AI 가 바로 답한 비율입니다. 나머지는 담당자에게 넘겼습니다.
         </p>
+        <p v-if="aiNote" class="-mt-2 mb-4 text-xs text-muted">{{ aiNote }}</p>
         <dl class="grid grid-cols-2 gap-4 lg:grid-cols-5">
           <div>
             <dt class="text-sm text-muted">AI 자동응답률</dt>

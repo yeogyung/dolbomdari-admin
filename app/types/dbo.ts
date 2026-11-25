@@ -486,6 +486,8 @@ export interface NoticeCategoryStats {
 }
 export interface MonthlyReport {
   month: string
+  /** 고른 사업(QA 2026-11-25 266행). 기관 전체면 null — 옛 서버는 칸이 없다 */
+  program?: { id: string; name: string } | null
   firstDay: string
   through: string
   attendance: {
@@ -540,4 +542,6 @@ export interface AiReplyStats {
   autoAnswered: number
   /** 「담당자에게 연결해 드릴게요.」로 넘긴 수 */
   handedOver: number
+  /** 사업 리포트에서 질문한 사람을 몰라 세지 못한 질문 수(2026-11-04 전). 기관 전체면 0, 옛 서버는 칸 없음 */
+  unattributed?: number
 }

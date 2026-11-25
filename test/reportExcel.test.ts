@@ -43,6 +43,12 @@ describe('reportFileName', () => {
   it('돌봄다리_리포트_YYYY-MM.xlsx', () => {
     expect(reportFileName('2026-11')).toBe('돌봄다리_리포트_2026-11.xlsx')
   })
+
+  it('사업으로 좁힌 리포트는 사업 이름을 붙이고 파일 이름에 못 쓰는 글자는 바꾼다(QA 266행)', () => {
+    expect(reportFileName('2026-11', '찾아가는 도시락')).toBe('돌봄다리_리포트_2026-11_찾아가는 도시락.xlsx')
+    expect(reportFileName('2026-11', 'A/B:C')).toBe('돌봄다리_리포트_2026-11_A_B_C.xlsx')
+    expect(reportFileName('2026-11', null)).toBe('돌봄다리_리포트_2026-11.xlsx')
+  })
 })
 
 describe('reportSheets', () => {

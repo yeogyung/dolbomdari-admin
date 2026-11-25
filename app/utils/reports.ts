@@ -48,6 +48,15 @@ export function aiReplySummary(
   }
 }
 
+/**
+ * 사업 리포트의 AI 칸 아래 한 줄(QA 2026-11-25 266행). 질문한 사람 기록이 없던 11/4 전 질문은 어느 사업인지 몰라
+ * 세지 않았다 — 0건으로 읽히지 않게 그 수를 적는다.
+ */
+export function aiUnattributedNote(ai: { unattributed?: number } | undefined): string | null {
+  const n = ai?.unattributed ?? 0
+  return n > 0 ? `질문한 사람을 알 수 없는 ${n.toLocaleString()}건(11월 4일 전)은 사업에 넣지 않았습니다.` : null
+}
+
 /** 분 → 「N시간 M분」 */
 export function fmtMinutes(min: number): string {
   const h = Math.floor(min / 60)

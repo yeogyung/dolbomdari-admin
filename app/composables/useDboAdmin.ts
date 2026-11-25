@@ -346,6 +346,8 @@ export function useDboAdmin() {
     deleteRoom: (id: string) => req<{ ok: true }>(`/rooms/${id}`, { method: 'DELETE' }),
     listRoomMessages: (id: string) => req<{ items: ChatMessage[] }>(`/rooms/${id}/messages`),
     /* 월간 리포트 — master 전용, 기관 전체 */
-    getMonthlyReport: (month: string) => req<MonthlyReport>('/reports/monthly', { query: { month } }),
+    /** `programId` 를 주면 그 사업으로 좁힌 리포트(QA 2026-11-25 266행). 없으면 기관 전체 */
+    getMonthlyReport: (month: string, programId?: string) =>
+      req<MonthlyReport>('/reports/monthly', { query: programId ? { month, programId } : { month } }),
   }
 }
