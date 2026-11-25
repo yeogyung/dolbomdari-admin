@@ -19,7 +19,11 @@ const loading = ref(true)
 const worksite = ref<Worksite | null>(null)
 const programs = ref<Program[]>([])
 const assignments = ref<Assignment[]>([])
-/** 이 근무지에 이어진 명부 — 배정된 시니어 · 근무지 담당자 · 수요처 계정(서버 `worksiteId`) */
+/**
+ * 이름을 붙일 명부 — **전체**를 받는다. 서버 `worksiteId` 필터는 오늘 유효한 배정의 사람만 주어
+ * (근무지 목록 인원수와 같은 기준) 지난·앞으로의 배정이 「(명부에 없음)」이 됐다(QA 420행 —
+ * 11/26·27 교육용 하루 배정 51건). 명부는 100명 안팎이다.
+ */
 const people = ref<DirectoryEntry[]>([])
 
 const roster = computed(() => worksiteRoster(assignments.value, people.value))
@@ -48,10 +52,7 @@ async function load() {
         (page, size) => api.listAssignments({ page, size, worksiteId: id.value }),
         (a) => a.id,
       ),
-      fetchAllPages(
-        (page, size) => api.listDirectory({ page, size, worksiteId: id.value }),
-        (d) => d.id,
-      ),
+      fetchAllPages((page, size) => api.listDirectory({ page, size }), (d) => d.id),
     ])
     worksite.value = all.find((w) => w.id === id.value) ?? null
     programs.value = pg.items
