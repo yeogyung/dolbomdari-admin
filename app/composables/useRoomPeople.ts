@@ -11,11 +11,11 @@ const IN_CHUNK = 100
 
 export type ProfileLink = { id: string; directory_id: string }
 
-/** 방 멤버 한 줄. 계정이 지워졌으면 profile 이 null 일 수 있다 */
+/** 방 멤버 한 줄. 계정이 지워졌으면 profile 이 null 일 수 있다. `directory_id` 는 명부 근무지를 잇는 데 쓴다(QA 425) */
 export type RoomMemberRow = {
   profile_id: string
   joined_at: string
-  profile: { name: string; role: string } | null
+  profile: { name: string; role: string; directory_id: string | null } | null
 }
 
 /** PostgREST 는 한 번에 1000행까지 준다(useRoomStats 와 같다) */
@@ -51,7 +51,7 @@ export function useRoomPeople() {
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await supabase
           .from('dbo_room_members')
-          .select('profile_id, joined_at, profile:dbo_profiles(name, role)')
+          .select('profile_id, joined_at, profile:dbo_profiles(name, role, directory_id)')
           .eq('room_id', roomId)
           .order('joined_at')
           .order('profile_id')

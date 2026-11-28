@@ -1,6 +1,6 @@
 <!-- 채팅방 참여자 명단·추가·내보내기(QA 2026-11-02 CHAT-03) — 대화 보기 머리글 아래. 고르기는 방 만들기와 같은 PersonPicker -->
 <script setup lang="ts">
-import { ref, computed, shallowRef, watch } from 'vue'
+import { ref, computed, onMounted, shallowRef, watch } from 'vue'
 import type { ChatRoom, DirectoryEntry } from '~/types/dbo'
 import type { ProfileLink, RoomMemberRow } from '~/composables/useRoomPeople'
 import { badMemberProblems, roomCandidates } from '~/utils/personPick'
@@ -50,6 +50,15 @@ watch(() => props.room.id, load, { immediate: true })
 const block = computed(() => roomEditBlock(props.room))
 
 const nameOf = (m: RoomMemberRow) => m.profile?.name ?? '알 수 없음'
+/**
+ * 이름 옆 근무지(QA 2026-11-26 425) — 동명이인을 화면에서 가른다. 명부의 근무지(지금 유효한 배정 · 담당자는 맡은 근무지)를
+ * 참여자 추가에 쓰는 명부(`source`)에서 잇는다. 못 읽었거나 계약이 끝난 분은 비운다
+ */
+const worksitesOf = (m: RoomMemberRow) => {
+  const id = m.profile?.directory_id
+  const row = id ? source.value?.rows.find((r) => r.id === id) : undefined
+  return (row?.worksites ?? []).map((w) => w.name).join(' · ')
+}
 
 /* 내보내기 — 확인 창(공지 발송 확인 창 모양: 제목 질문 + 본문 + 취소/실행) */
 const removing = ref<RoomMemberRow | null>(null)
@@ -105,6 +114,8 @@ async function loadSource() {
     sourceLoading.value = false
   }
 }
+// 근무지 표시용으로 한 번 읽는다. 실패해도 명단은 그대로 — 근무지만 비고, 참여자 추가를 열면 다시 읽는다
+onMounted(loadSource)
 function openAdd() {
   addIds.value = []
   addError.value = ''
@@ -165,6 +176,7 @@ async function submitAdd() {
     <ul v-else class="mt-2 max-h-40 divide-y divide-hairline-soft overflow-y-auto">
       <li v-for="m in members" :key="m.profile_id" class="flex items-center gap-2 py-1.5 text-sm">
         <span class="truncate font-medium text-ink">{{ nameOf(m) }}</span>
+        <span v-if="worksitesOf(m)" class="truncate text-xs text-muted">{{ worksitesOf(m) }}</span>
         <Tag v-if="m.profile?.role">{{ ROLE_LABELS[m.profile.role] ?? m.profile.role }}</Tag>
         <span class="text-xs text-muted tabular-nums">{{ fmtStamp(m.joined_at) }} 참여</span>
         <AppButton
