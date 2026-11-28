@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { NoticeDetail, NoticeRecipient } from '~/types/dbo'
 import type { Column } from '~/types/table'
-import { deliveryLabel, noticeReadLabel, pushDeliveryLine, pushSummaryHidden, smsCellFailed, smsCellLabel } from '~/utils/notices'
+import { deliveryLabel, noticeReadLabel, noticeTypeLabel, pushDeliveryLine, pushSummaryHidden, smsCellFailed, smsCellLabel } from '~/utils/notices'
 import { downloadExcel, excelStamp, type ExcelColumn } from '~/utils/excel'
 
 const api = useDboAdmin()
+const supabase = useSupabase()
 const route = useRoute()
 useAdminHeader().setHeader('공지 수신자·미열람 관리')
 /** 담당자는 앱 API 로 열람 현황·다시 알리기를 한다(QA 2026-11-07 MGR-01) — `ManagerNoticeDetail` */
@@ -18,6 +19,16 @@ const total = ref(0)
 const q = ref('')
 const loading = ref(false)
 const error = ref('')
+/**
+ * 특별 공지인가(QA 2026-11-26 422). 서버 상세 응답에 `is_special` 칸이 없어 master 권한으로 `dbo_notices` 에서 그 칸만
+ * 읽는다(RLS `dbo_can_read_notice`). 못 읽으면 null — 머리에 종류를 단정하지 않고 「공지」로 둔다
+ */
+const special = ref<boolean | null>(null)
+const typeLine = computed(() => {
+  if (!notice.value) return ''
+  if (notice.value.kind !== 'urgent' && special.value === null) return '공지'
+  return `${noticeTypeLabel({ kind: notice.value.kind, is_special: special.value ?? false })} 공지`
+})
 let sequence = 0
 const columns: Column[] = [
   { key: 'name', label: '참여자', strong: true },
@@ -34,13 +45,19 @@ async function load() {
   rows.value = []
   const id = String(route.params.id)
   // 같은 공지를 다시 받을 때(필터·새로고침)는 본문 카드를 비우지 않는다 — 카드가 사라졌다 나타난다
-  if (notice.value?.id !== id) notice.value = null
+  if (notice.value?.id !== id) {
+    notice.value = null
+    special.value = null
+  }
   try {
-    const [detail, recipients] = await Promise.all([
+    const [detail, recipients, specialRow] = await Promise.all([
       api.getNotice(id),
       api.listNoticeRecipients(id, { channel: channel.value, read: read.value, page: page.value, size: 20, q: q.value }),
+      supabase.from('dbo_notices').select('is_special').eq('id', id).maybeSingle(),
     ])
     if (current !== sequence) return
+    if (specialRow.error) console.error('[notice detail] 특별 공지 여부 조회 실패', specialRow.error)
+    special.value = specialRow.error || !specialRow.data ? null : specialRow.data.is_special === true
     notice.value = detail
     rows.value = recipients.items
     total.value = recipients.total
@@ -156,7 +173,7 @@ async function exportExcel() {
     <AppSpinner v-if="!notice && loading" label="공지 불러오는 중…" />
     <AppCard v-if="notice">
       <div class="space-y-3">
-      <p class="text-sm text-muted">{{ notice.kind === 'urgent' ? '긴급 공지' : '일반 공지' }}</p>
+      <p class="text-sm text-muted">{{ typeLine }}</p>
       <h1 class="text-xl font-semibold">{{ notice.title }}</h1>
       <p class="whitespace-pre-wrap break-words text-body">{{ notice.body }}</p>
       <p v-if="notice.trackedRecipients === 0" class="text-sm text-amber-700">저장된 수신자별 발송 이력이 없습니다 기존 공지의 발송 채널은 확인할 수 없습니다</p>
