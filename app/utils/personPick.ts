@@ -35,11 +35,13 @@ export function noticePeople(
  * 붙으므로 값은 **프로필 id** 다 — 어드민 명부에는 프로필 id 가 없어 `dbo_profiles.directory_id` 로 명부 행과 잇는다.
  *
  * - 앱 계정이 없는 분 — 「앱 미연결」 회색(고를 수 없다. 넣으면 서버가 `missing` 으로 거절한다). 값 자리는 명부 id 다
+ * - 계정은 있지만 로그인한 적 없는 분(`app_connected` false — 엑셀 등록은 계정을 미리 만든다) — 「앱 미연결」, 고를 수 있다.
+ *   방에는 들어가지만 앱을 깔기 전까지 메시지를 못 본다(QA 2026-11-26 423)
  * - `members`(이미 방에 있는 프로필 id) — 「참여 중」 회색
  * - `problems`(서버 `bad_member` 의 까닭, 프로필 id → 문구) — 비고에 빨갛게. 고른 채로 둬 무엇이 걸렸는지 보이게 한다
  */
 export function roomCandidates(
-  rows: { id: string; name: string; phone: string | null; role: string }[],
+  rows: { id: string; name: string; phone: string | null; role: string; app_connected?: boolean | null }[],
   profiles: { id: string; directory_id: string }[],
   opts: { members?: Set<string>; problems?: Map<string, string> } = {},
 ): PickPerson[] {
@@ -52,7 +54,8 @@ export function roomCandidates(
     if (!profileId) return { ...base, id: r.id, note: '앱 미연결', disabled: true }
     if (opts.members?.has(profileId)) return { ...base, id: profileId, note: '참여 중', disabled: true }
     const problem = opts.problems?.get(profileId)
-    return problem ? { ...base, id: profileId, note: problem, alert: true } : { ...base, id: profileId, note: null }
+    if (problem) return { ...base, id: profileId, note: problem, alert: true }
+    return { ...base, id: profileId, note: r.app_connected === false ? '앱 미연결' : null }
   })
 }
 

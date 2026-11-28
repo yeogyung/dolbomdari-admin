@@ -69,6 +69,11 @@ describe('roomCandidates', () => {
     expect(out[0]).toEqual({ id: 'p1', name: '김구구', phone: '010', role: 'senior', note: '계약 종료', alert: true })
   })
 
+  it('계정은 있지만 로그인한 적 없는 분은 「앱 미연결」, 고를 수 있다(QA 423 — 엑셀 등록은 계정을 미리 만든다)', () => {
+    const out = roomCandidates([{ ...rows[0]!, app_connected: false }], profiles)
+    expect(out[0]).toEqual({ id: 'p1', name: '김구구', phone: '010', role: 'senior', note: '앱 미연결' })
+  })
+
   it('한 명부에 계정이 둘이면 먼저 온 것 하나만 잇는다', () => {
     const out = roomCandidates([rows[0]!], [...profiles, { id: 'p9', directory_id: 'd1' }])
     expect(out.map((p) => p.id)).toEqual(['p1'])
